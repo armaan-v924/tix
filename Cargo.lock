@@ -167,6 +167,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tix"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "home",
+]
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -191,13 +200,4 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
-]
-
-[[package]]
-name = "worktree-manager"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "home",
 ]
