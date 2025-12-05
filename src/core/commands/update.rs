@@ -44,7 +44,10 @@ pub fn run() -> Result<()> {
         .context("Could not parse current package version")?;
 
     if latest_version <= current_version {
-        info!("tix {} is up to date (latest: {})", current_version, latest_version);
+        info!(
+            "tix {} is up to date (latest: {})",
+            current_version, latest_version
+        );
         return Ok(());
     }
 

@@ -38,8 +38,7 @@ pub fn run() -> Result<()> {
         defaults::DEFAULT_CODE_DIR_FALLBACK,
     );
     let default_branch_prefix = fallback(&config.branch_prefix, defaults::DEFAULT_BRANCH_PREFIX);
-    let default_github_base =
-        fallback(&config.github_base_url, defaults::DEFAULT_GITHUB_BASE_URL);
+    let default_github_base = fallback(&config.github_base_url, defaults::DEFAULT_GITHUB_BASE_URL);
     let default_owner = fallback(
         &config.default_repository_owner,
         defaults::DEFAULT_REPOSITORY_OWNER,
