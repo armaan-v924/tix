@@ -19,11 +19,6 @@ jobs:
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Sync Cargo.lock version with tag
-        run: |
-          VERSION_STR="${GITHUB_REF_NAME#v}"
-          perl -0777 -pi -e "s/(name = \"tix\"\\nversion = )\"[^\"]*\"/\$1\"${VERSION_STR}\"/" Cargo.lock
-
       - name: Build docs
         run: cargo doc --no-deps
 
@@ -91,12 +86,6 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
-
-      - name: Sync Cargo.lock version with tag
-        shell: bash
-        run: |
-          VERSION_STR="${GITHUB_REF_NAME#v}"
-          perl -0777 -pi -e "s/(name = \"tix\"\\nversion = )\"[^\"]*\"/\$1\"${VERSION_STR}\"/" Cargo.lock
 
       - name: Build release binary
         shell: bash
