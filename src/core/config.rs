@@ -5,6 +5,7 @@ use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::{env, path::Path};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 /// Definition of a registered repository (remote URL and local path).
@@ -37,9 +38,7 @@ impl Config {
     /// Load configuration from the OS config directory (e.g., `~/.config/tix/config.toml`).
     /// Returns `Config::default()` if the file does not exist.
     pub fn load() -> Result<Self> {
-        let dirs =
-            ProjectDirs::from("", "", "tix").context("Could not determine config directory")?;
-        let config_path = dirs.config_dir().join("config.toml");
+        let config_path = Self::config_path()?;
 
         if !config_path.exists() {
             return Ok(Config::default());
@@ -53,13 +52,35 @@ impl Config {
 
     /// Persist the configuration to the OS config directory, creating it if needed.
     pub fn save(&self) -> Result<()> {
-        let dirs =
-            ProjectDirs::from("", "", "tix").context("Could not determine config directory")?;
+        let config_path = Self::config_path()?;
 
-        std::fs::create_dir_all(dirs.config_dir())?;
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
 
         let toml_string = toml::to_string_pretty(self)?;
-        std::fs::write(dirs.config_dir().join("config.toml"), toml_string)?;
+        std::fs::write(config_path, toml_string)?;
         Ok(())
     }
+
+    /// Path to the configuration file (e.g., `~/.config/tix/config.toml`).
+    pub fn config_path() -> Result<PathBuf> {
+        if let Some(path) = xdg_config_home_path() {
+            return Ok(path.join("config.toml"));
+        }
+
+        let dirs =
+            ProjectDirs::from("", "", "tix").context("Could not determine config directory")?;
+        Ok(dirs.config_dir().join("config.toml"))
+    }
+}
+
+/// Resolve `$XDG_CONFIG_HOME/tix` when the variable is set and non-empty.
+fn xdg_config_home_path() -> Option<PathBuf> {
+    let dir = env::var_os("XDG_CONFIG_HOME")?;
+    let dir: &Path = dir.as_ref();
+    if dir.as_os_str().is_empty() {
+        return None;
+    }
+    Some(dir.join("tix"))
 }
