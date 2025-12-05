@@ -19,7 +19,19 @@ fn main() -> Result<()> {
     let result = match args.command {
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();
-            clap_complete::generate(shell, &mut cmd, "tix", &mut std::io::stdout());
+            // For zsh, we need to modify the output to work with eval
+            if shell == clap_complete::Shell::Zsh {
+                let mut buffer = Vec::new();
+                clap_complete::generate(shell, &mut cmd, "tix", &mut buffer);
+                let completion_script = String::from_utf8(buffer)?;
+
+                // Replace #compdef directive with a comment to make it eval-friendly
+                let modified_script = completion_script.replace("#compdef tix", "# compdef tix");
+
+                print!("{}", modified_script);
+            } else {
+                clap_complete::generate(shell, &mut cmd, "tix", &mut std::io::stdout());
+            }
             Ok(())
         }
         Commands::Add {
