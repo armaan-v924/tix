@@ -28,10 +28,14 @@ fn main() -> Result<()> {
             ticekt,
             branch,
         } => todo!(),
-        Commands::AddRepo { repo, alias } => todo!(),
+        Commands::AddRepo { repo, alias } => {
+            commands::add_repo::run(&repo, alias)?;
+        }
         Commands::Config { key, value } => todo!(),
         Commands::Destroy { ticket, force } => todo!(),
-        Commands::Init => todo!(),
+        Commands::Init => {
+            commands::init::run()?;
+        }
         Commands::Remove { repo, ticket } => todo!(),
         Commands::Setup {
             ticket,

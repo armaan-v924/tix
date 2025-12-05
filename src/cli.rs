@@ -1,11 +1,20 @@
 //! Command-line interface definitions for tix.
 
+use clap::builder::styling::AnsiColor;
+use clap::builder::Styles;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 
+const HELP_STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Cyan.on_default().bold())
+    .usage(AnsiColor::Green.on_default().bold())
+    .literal(AnsiColor::Yellow.on_default().bold())
+    .placeholder(AnsiColor::BrightBlack.on_default())
+    .error(AnsiColor::Red.on_default().bold());
+
 #[derive(Parser, Debug)]
 /// Root CLI parser for tix.
-#[command(name = "tix", author, version, about)]
+#[command(name = "tix", author, version, about, styles = HELP_STYLES)]
 pub struct Cli {
     #[command(flatten)]
     pub verbose: Verbosity,
