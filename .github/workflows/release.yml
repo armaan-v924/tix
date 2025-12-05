@@ -5,9 +5,6 @@ on:
     tags:
       - "v*"
 
-env:
-  VERSION: ${{ github.ref_name }}
-
 jobs:
   docs:
     runs-on: ubuntu-latest
@@ -23,7 +20,7 @@ jobs:
 
       - name: Sync Cargo.lock version with tag
         run: |
-          VERSION_STR="${VERSION#v}"
+          VERSION_STR="${GITHUB_REF_NAME#v}"
           perl -0777 -pi -e "s/(name = \"tix\"\\nversion = )\"[^\"]*\"/\$1\"${VERSION_STR}\"/" Cargo.lock
 
       - name: Build docs
@@ -45,8 +42,19 @@ jobs:
           cp -r target/doc/tix/* .
           touch .nojekyll
           git add -A
-          git commit -m "Update docs for ${VERSION}" || echo "No changes to commit"
+          git commit -m "Update docs for ${GITHUB_REF_NAME}" || echo "No changes to commit"
           git push origin docs
+
+      - name: Package docs
+        run: |
+          mkdir -p dist
+          tar -czf dist/docs-${GITHUB_REF_NAME}.tar.gz -C target/doc/tix .
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: dist/docs-${{ github.ref_name }}.tar.gz
 
   build:
     strategy:
@@ -54,17 +62,17 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            archive: tix-${{ env.VERSION }}-linux-x86_64.tar.gz
+            suffix: linux-x86_64.tar.gz
             binary: tix
             format: tar
           - os: macos-14
             target: aarch64-apple-darwin
-            archive: tix-${{ env.VERSION }}-macos-aarch64.tar.gz
+            suffix: macos-aarch64.tar.gz
             binary: tix
             format: tar
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            archive: tix-${{ env.VERSION }}-windows-x86_64.zip
+            suffix: windows-x86_64.zip
             binary: tix.exe
             format: zip
     runs-on: ${{ matrix.os }}
@@ -82,7 +90,7 @@ jobs:
       - name: Sync Cargo.lock version with tag
         shell: bash
         run: |
-          VERSION_STR="${VERSION#v}"
+          VERSION_STR="${GITHUB_REF_NAME#v}"
           perl -0777 -pi -e "s/(name = \"tix\"\\nversion = )\"[^\"]*\"/\$1\"${VERSION_STR}\"/" Cargo.lock
 
       - name: Build release binary
@@ -97,7 +105,9 @@ jobs:
           mkdir -p dist pkg
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} pkg/
           cp README.md LICENSE pkg/
-          tar -czf dist/${{ matrix.archive }} -C pkg .
+          ARCHIVE="tix-${GITHUB_REF_NAME}-${{ matrix.suffix }}"
+          tar -czf dist/${ARCHIVE} -C pkg .
+          echo "ARCHIVE_NAME=${ARCHIVE}" >> $GITHUB_ENV
 
       - name: Package binary (zip)
         if: matrix.format == 'zip'
@@ -106,13 +116,15 @@ jobs:
           mkdir -p dist pkg
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} pkg/
           cp README.md LICENSE pkg/
-          powershell -Command "Compress-Archive -Path pkg\\* -DestinationPath dist\\${{ matrix.archive }}"
+          ARCHIVE="tix-${GITHUB_REF_NAME}-${{ matrix.suffix }}"
+          powershell -Command "Compress-Archive -Path pkg\\* -DestinationPath dist\\${ARCHIVE}"
+          echo "ARCHIVE_NAME=${ARCHIVE}" >> $GITHUB_ENV
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.archive }}
-          path: dist/${{ matrix.archive }}
+          name: ${{ env.ARCHIVE_NAME }}
+          path: dist/${{ env.ARCHIVE_NAME }}
 
   release:
     runs-on: ubuntu-latest
@@ -126,6 +138,6 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/**/*.* 
+          files: artifacts/**/*.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
