@@ -1,6 +1,6 @@
 //! Interactive `tix init` command to bootstrap configuration.
 
-use crate::config::Config;
+use crate::core::config::Config;
 use anyhow::Result;
 use dialoguer::Input;
 use log::info;

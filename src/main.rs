@@ -1,12 +1,8 @@
-mod cli;
-mod commands;
-mod config;
-mod git;
-mod ticket;
+mod core;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser};
-use cli::{Cli, Commands};
+use core::cli::{Cli, Commands};
 
 fn main() -> Result<()> {
     // 1. Parse Args
@@ -29,12 +25,16 @@ fn main() -> Result<()> {
             branch,
         } => todo!(),
         Commands::AddRepo { repo, alias } => {
-            commands::add_repo::run(&repo, alias)?;
+            core::commands::add_repo::run(&repo, alias)?;
         }
-        Commands::Config { key, value } => todo!(),
-        Commands::Destroy { ticket, force } => todo!(),
+        Commands::Config { key, value } => {
+            core::commands::config_cmd::run(&key, value.as_deref())?;
+        }
+        Commands::Destroy { ticket, force } => {
+            core::commands::destroy::run(&ticket, force)?;
+        }
         Commands::Init => {
-            commands::init::run()?;
+            core::commands::init::run()?;
         }
         Commands::Remove { repo, ticket } => todo!(),
         Commands::Setup {
@@ -43,9 +43,11 @@ fn main() -> Result<()> {
             repos,
             description,
         } => {
-            commands::setup::run(&ticket, &repos, all, description)?;
+            core::commands::setup::run(&ticket, &repos, all, description)?;
         }
-        Commands::SetupRepos => todo!(),
+        Commands::SetupRepos => {
+            core::commands::setup_repos::run()?;
+        }
     }
 
     Ok(())

@@ -1,6 +1,6 @@
 //! Register a repository in the configuration without cloning it.
 
-use crate::config::{Config, RepoDefinition};
+use crate::core::config::{Config, RepoDefinition};
 use anyhow::{bail, Context, Result};
 use log::{debug, info, warn};
 
@@ -43,12 +43,16 @@ pub fn run(repo_input: &str, alias: Option<String>) -> Result<()> {
         repo_input, alias, repo_def.url, repo_def.path
     );
     if config.repositories.contains_key(&alias) {
-        warn!("Alias '{}' already exists. Overwriting existing entry.", alias);
+        warn!(
+            "Alias '{}' already exists. Overwriting existing entry.",
+            alias
+        );
     }
     config.repositories.insert(alias.clone(), repo_def);
     config.save().context("Failed to save updated config")?;
 
     info!("Registered repository '{}' in config", alias);
+    info!("Hint: run `tix setup-repos` to clone missing repositories.");
     Ok(())
 }
 
@@ -82,7 +86,10 @@ fn parse_repo_input(config: &Config, input: &str) -> Result<ParsedRepo> {
             .next()
             .filter(|s| !s.is_empty())
             .ok_or_else(|| anyhow::anyhow!("Missing repo name in '{}'", trimmed))?;
-        debug!("Detected owner/name input '{}'; owner='{}', name='{}'", trimmed, owner, name);
+        debug!(
+            "Detected owner/name input '{}'; owner='{}', name='{}'",
+            trimmed, owner, name
+        );
         let url = build_url(&clean_base(&config.github_base_url), owner, name)?;
         return Ok(ParsedRepo {
             name: name.to_string(),
@@ -121,14 +128,11 @@ fn build_url(base: &str, owner: &str, name: &str) -> Result<String> {
 }
 
 fn clean_base(base: &str) -> String {
-    base.trim_end_matches(['/',' ']).to_string()
+    base.trim_end_matches(['/', ' ']).to_string()
 }
 
 fn repo_name_from_path(input: &str) -> Option<String> {
-    let maybe = input
-        .trim_end_matches('/')
-        .rsplit(&['/', ':'][..])
-        .next()?;
+    let maybe = input.trim_end_matches('/').rsplit(&['/', ':'][..]).next()?;
     let name = maybe.trim_end_matches(".git");
     if name.is_empty() {
         None
@@ -140,7 +144,7 @@ fn repo_name_from_path(input: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{build_url, parse_repo_input, plan_repo_registration, repo_name_from_path};
-    use crate::config::Config;
+    use crate::core::config::Config;
     use std::collections::HashMap;
     use std::path::PathBuf;
 

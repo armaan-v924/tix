@@ -1,8 +1,5 @@
-//! tix: manage ticket-scoped git worktrees across multiple repositories.
-//!
-//! The library exposes the core modules used by the CLI so they can be tested and documented.
-pub mod cli;
-pub mod commands;
-pub mod config;
-pub mod git;
-pub mod ticket;
+//! tix core library surface
+
+pub mod core;
+// Re-export core modules for convenient `tix::git`, etc.
+pub use core::{cli, commands, config, git, ticket};

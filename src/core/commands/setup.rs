@@ -1,8 +1,8 @@
 //! Setup command: initialize a ticket workspace and create repo worktrees.
 
-use crate::git;
-use crate::ticket::Ticket;
-use crate::config::Config;
+use crate::core::config::Config;
+use crate::core::git;
+use crate::core::ticket::Ticket;
 
 use anyhow::Result;
 use log::{debug, error, info, warn};
@@ -80,6 +80,18 @@ pub fn run(
             info!("Setting up worktree for '{}'...", alias);
 
             let target_worktree_path = ticket_dir.join(&alias);
+
+            info!(
+                "Updating repository at {:?} before creating worktree",
+                repo_def.path
+            );
+            git::fetch_and_fast_forward(&repo_def.path, "origin").map_err(|e| {
+                error!(
+                    "Failed to update repository '{}' at {:?}: {}",
+                    alias, repo_def.path, e
+                );
+                e
+            })?;
 
             match git::create_worktree(&repo_def.path, &target_worktree_path, &branch_name, None) {
                 Ok(_) => info!("Created worktree: {:?}", target_worktree_path),

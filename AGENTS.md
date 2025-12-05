@@ -25,7 +25,9 @@
   - `init`: interactive config bootstrap (dialoguer). **Not implemented.**
   - `add-repo`: implemented. Parses url/owner+name/name-only, builds URL from config defaults, stores alias → `{url, path}` (path under `code_directory`).
   - `setup`: implemented as above; needs branch format alignment and better config defaults/validation.
-  - `destroy`: safety check for dirty worktrees (unless `--force`), delete ticket dir, prune specific worktree entries. **Not implemented.**
+  - `setup-repos`: implemented. Clones any missing repos from `repositories` into `code_directory`.
+  - `config`: implemented. View/set core config keys (`branch_prefix`, `github_base_url`, `default_repository_owner`, `code_directory`, `tickets_directory`).
+  - `destroy`: implemented. Checks you’re not inside the ticket dir, verifies worktrees clean unless `--force`, removes dirs, prunes worktree metadata using computed branch name.
   - `add`: add a single repo worktree to an existing ticket; infer ticket via `.tix` when omitted. **Not implemented.**
   - `remove`: remove one repo worktree with clean-check + prune. **Not implemented.**
   - `config`: view/edit individual config values. **Not implemented.**
