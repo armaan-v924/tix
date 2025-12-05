@@ -83,7 +83,11 @@ fn xdg_config_home_path() -> Option<PathBuf> {
         return None;
     }
     // Validate that the path is absolute and does not contain any parent directory components
-    if !dir.is_absolute() || dir.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+    if !dir.is_absolute()
+        || dir
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
         return None;
     }
     Some(dir.join("tix"))
