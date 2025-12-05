@@ -11,9 +11,26 @@ pub fn run() -> anyhow::Result<()> {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
 
-    check_string("branch_prefix", &config.branch_prefix, &mut errors, &mut warnings);
-    check_path("tickets_directory", &config.tickets_directory, true, &mut errors, &mut warnings);
-    check_path("code_directory", &config.code_directory, true, &mut errors, &mut warnings);
+    check_string(
+        "branch_prefix",
+        &config.branch_prefix,
+        &mut errors,
+        &mut warnings,
+    );
+    check_path(
+        "tickets_directory",
+        &config.tickets_directory,
+        true,
+        &mut errors,
+        &mut warnings,
+    );
+    check_path(
+        "code_directory",
+        &config.code_directory,
+        true,
+        &mut errors,
+        &mut warnings,
+    );
     check_string(
         "github_base_url",
         &config.github_base_url,
@@ -52,7 +69,13 @@ fn check_string(field: &str, value: &str, errors: &mut Vec<String>, _warnings: &
     }
 }
 
-fn check_path(field: &str, path: &Path, must_exist: bool, errors: &mut Vec<String>, _warnings: &mut Vec<String>) {
+fn check_path(
+    field: &str,
+    path: &Path,
+    must_exist: bool,
+    errors: &mut Vec<String>,
+    _warnings: &mut Vec<String>,
+) {
     if path.as_os_str().is_empty() {
         errors.push(format!("{} is not set", field));
         return;
@@ -94,7 +117,13 @@ mod tests {
     fn check_path_requires_existence_when_requested() {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
-        check_path("code_directory", PathBuf::from("/nonexistent").as_path(), true, &mut errors, &mut warnings);
+        check_path(
+            "code_directory",
+            PathBuf::from("/nonexistent").as_path(),
+            true,
+            &mut errors,
+            &mut warnings,
+        );
         assert_eq!(errors.len(), 1);
     }
 

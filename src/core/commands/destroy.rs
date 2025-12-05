@@ -120,11 +120,7 @@ fn prune_worktrees(
             .cloned()
             .or_else(|| meta.map(|m| m.branch.clone()))
             .unwrap_or_else(|| {
-                build_branch_name(
-                    config,
-                    ticket_id,
-                    meta.and_then(|m| m.description.as_ref()),
-                )
+                build_branch_name(config, ticket_id, meta.and_then(|m| m.description.as_ref()))
             });
         let worktree_name = crate::core::ticket::worktree_name_for_branch(&branch);
 

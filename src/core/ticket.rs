@@ -2,9 +2,9 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
 
 const STAMP_DIR: &str = ".tix";
 const METADATA_FILE: &str = "info.toml";
@@ -133,10 +133,7 @@ impl Ticket {
     /// Remove a repo alias from metadata.
     pub fn remove_repo(root: &Path, repo: &str) -> Result<()> {
         let mut ticket = Ticket::load(root)?;
-        ticket
-            .metadata
-            .repos
-            .retain(|existing| existing != repo);
+        ticket.metadata.repos.retain(|existing| existing != repo);
         ticket.metadata.repo_branches.remove(repo);
         write_metadata(root, &ticket.metadata)
     }
