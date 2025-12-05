@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  VERSION: ${{ github.ref_name }}
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust@v1
+        with:
+          rust-version: stable
+
+      - name: Sync Cargo.lock version with tag
+        run: |
+          VERSION_STR="${VERSION#v}"
+          perl -0777 -pi -e "s/(name = \"tix\"\\nversion = )\"[^\"]*\"/\$1\"${VERSION_STR}\"/" Cargo.lock
+
+      - name: Build docs
+        run: cargo doc --no-deps
+
+      - name: Publish docs to docs branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git fetch origin docs || true
+          if git show-ref --verify --quiet refs/heads/docs; then
+            git checkout docs
+          else
+            git checkout --orphan docs
+          fi
+          rm -rf ./*
+          rm -rf .gitignore
+          mkdir -p .
+          cp -r target/doc/* .
+          touch .nojekyll
+          git add -A
+          git commit -m "Update docs for ${VERSION}" || echo "No changes to commit"
+          git push origin docs
+
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tix-${{ env.VERSION }}-linux-x86_64.tar.gz
+            binary: tix
+            format: tar
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive: tix-${{ env.VERSION }}-macos-aarch64.tar.gz
+            binary: tix
+            format: tar
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: tix-${{ env.VERSION }}-windows-x86_64.zip
+            binary: tix.exe
+            format: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust@v1
+        with:
+          rust-version: stable
+          targets: ${{ matrix.target }}
+
+      - name: Sync Cargo.lock version with tag
+        shell: bash
+        run: |
+          VERSION_STR="${VERSION#v}"
+          perl -0777 -pi -e "s/(name = \"tix\"\\nversion = )\"[^\"]*\"/\$1\"${VERSION_STR}\"/" Cargo.lock
+
+      - name: Build release binary
+        shell: bash
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Package binary (tar)
+        if: matrix.format == 'tar'
+        shell: bash
+        run: |
+          mkdir -p dist pkg
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} pkg/
+          cp README.md LICENSE pkg/
+          tar -czf dist/${{ matrix.archive }} -C pkg .
+
+      - name: Package binary (zip)
+        if: matrix.format == 'zip'
+        shell: bash
+        run: |
+          mkdir -p dist pkg
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} pkg/
+          cp README.md LICENSE pkg/
+          powershell -Command "Compress-Archive -Path pkg\\* -DestinationPath dist\\${{ matrix.archive }}"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: dist/${{ matrix.archive }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [docs, build]
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*.* 
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

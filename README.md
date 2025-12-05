@@ -44,6 +44,11 @@ Commands prefer stored branches/worktrees and warn when falling back to computed
 - Clone missing repos: `tix setup-repos`
 - Doctor: `tix doctor`
 
+## Installation
+- Prebuilt binaries: download the archive from the GitHub release matching your OS (`tix-<version>-linux-x86_64`, `tix-<version>-macos-aarch64`, `tix-<version>-windows-x86_64`), unpack, and place `tix`/`tix.exe` on your `PATH`.
+- From source: `cargo install --path .` (requires Rust toolchain).
+- Completions: `tix completions <shell>` and follow your shell’s instructions.
+
 ## Development
 - Tests: `cargo test` (unit + integration). Integration tests use temp git repos; no network needed.
 - Logging: `-q` to quiet, `-v/-vv` for debug.
