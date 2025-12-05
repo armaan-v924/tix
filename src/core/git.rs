@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use git2::build::CheckoutBuilder;
-use git2::{BranchType, Commit, Repository, StatusOptions, WorktreeAddOptions};
+use git2::{BranchType, Commit, Cred, RemoteCallbacks, Repository, StatusOptions, WorktreeAddOptions};
 use log::{debug, warn};
 use std::path::Path;
 
@@ -118,9 +118,52 @@ pub fn remove_worktree(repo_path: &Path, worktree_name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Create callbacks for git operations that use system credentials.
+fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
+    let mut callbacks = RemoteCallbacks::new();
+    callbacks.credentials(|_url, username_from_url, allowed_types| {
+        debug!(
+            "Git credential callback: url={}, username={:?}, allowed_types={:?}",
+            _url, username_from_url, allowed_types
+        );
+        
+        // Try SSH key from agent/default location
+        if allowed_types.is_ssh_key() {
+            if let Ok(cred) = Cred::ssh_key_from_agent(username_from_url.unwrap_or("git")) {
+                debug!("Using SSH key from agent");
+                return Ok(cred);
+            }
+        }
+        
+        // Try username/password from credential helper or memory
+        if allowed_types.is_user_pass_plaintext() || allowed_types.is_username() {
+            if let Ok(cred) = Cred::credential_helper(&git2::Config::open_default()?, _url, username_from_url) {
+                debug!("Using credentials from git credential helper");
+                return Ok(cred);
+            }
+        }
+        
+        // Try default git credentials
+        if let Ok(cred) = Cred::default() {
+            debug!("Using default git credentials");
+            return Ok(cred);
+        }
+        
+        Err(git2::Error::from_str("No valid credentials found"))
+    });
+    callbacks
+}
+
 /// Clone a repository to `target`.
 pub fn clone_repo(url: &str, target: &Path) -> Result<()> {
-    Repository::clone(url, target).context("Failed to clone repository")?;
+    let mut builder = git2::build::RepoBuilder::new();
+    let mut fetch_options = git2::FetchOptions::new();
+    fetch_options.remote_callbacks(create_git_callbacks());
+    builder.fetch_options(fetch_options);
+    
+    builder
+        .clone(url, target)
+        .context("Failed to clone repository")?;
     Ok(())
 }
 
@@ -137,8 +180,12 @@ pub fn fetch_and_fast_forward(repo_path: &Path, remote_name: &str) -> Result<()>
         remote_name, repo_path
     );
     let refspec = format!("refs/heads/*:refs/remotes/{}/*", remote_name);
+    
+    let mut fetch_options = git2::FetchOptions::new();
+    fetch_options.remote_callbacks(create_git_callbacks());
+    
     remote
-        .fetch(&[&refspec], None, None)
+        .fetch(&[&refspec], Some(&mut fetch_options), None)
         .context("Fetch failed")?;
 
     let head = match repo.head() {
