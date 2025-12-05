@@ -15,8 +15,6 @@ jobs:
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          rust-version: stable
 
       - name: Sync Cargo.lock version with tag
         run: |
@@ -25,6 +23,12 @@ jobs:
 
       - name: Build docs
         run: cargo doc --no-deps
+
+      - name: Stage docs
+        run: |
+          DOC_OUT=$(mktemp -d)
+          cp -r target/doc/tix/* "$DOC_OUT"
+          echo "DOC_OUT=$DOC_OUT" >> $GITHUB_ENV
 
       - name: Publish docs to docs branch
         run: |
@@ -36,10 +40,9 @@ jobs:
           else
             git checkout --orphan docs
           fi
-          rm -rf ./*
-          rm -rf .gitignore
+          find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
           mkdir -p .
-          cp -r target/doc/tix/* .
+          cp -r "$DOC_OUT"/* .
           touch .nojekyll
           git add -A
           git commit -m "Update docs for ${GITHUB_REF_NAME}" || echo "No changes to commit"
@@ -48,7 +51,7 @@ jobs:
       - name: Package docs
         run: |
           mkdir -p dist
-          tar -czf dist/docs-${GITHUB_REF_NAME}.tar.gz -C target/doc/tix .
+          tar -czf dist/docs-${GITHUB_REF_NAME}.tar.gz -C "$DOC_OUT" .
 
       - name: Upload docs artifact
         uses: actions/upload-artifact@v4
@@ -84,8 +87,7 @@ jobs:
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          rust-version: stable
-          targets: ${{ matrix.target }}
+          target: ${{ matrix.target }}
 
       - name: Sync Cargo.lock version with tag
         shell: bash
