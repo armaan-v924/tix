@@ -27,9 +27,22 @@ fn main() -> Result<()> {
                     .context("Failed to generate valid UTF-8 completion script")?;
 
                 // Replace #compdef directive with a comment to make it eval-friendly
-                let modified_script = completion_script.replace("#compdef tix", "# compdef tix");
+                // Process line by line to handle the first line robustly
+                let modified_script = completion_script
+                    .lines()
+                    .enumerate()
+                    .map(|(i, line)| {
+                        if i == 0 && line.starts_with("#compdef") {
+                            // Add a space after # to make it a regular comment
+                            line.replacen("#compdef", "# compdef", 1)
+                        } else {
+                            line.to_string()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
 
-                print!("{}", modified_script);
+                println!("{}", modified_script);
             } else {
                 clap_complete::generate(shell, &mut cmd, "tix", &mut std::io::stdout());
             }
