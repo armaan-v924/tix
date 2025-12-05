@@ -81,10 +81,11 @@ pub fn run() -> Result<()> {
 fn fetch_latest_release(owner: &str, repo: &str) -> Result<Release> {
     let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/latest");
     let resp = ureq::get(&url)
-        .set("User-Agent", defaults::UPDATE_USER_AGENT)
+        .header("User-Agent", defaults::UPDATE_USER_AGENT)
         .call()
         .map_err(|e| anyhow!("Failed to request latest release: {e}"))?;
-    resp.into_json::<Release>()
+    resp.into_body()
+        .read_json::<Release>()
         .map_err(|e| anyhow!("Failed to parse release JSON: {e}"))
 }
 
@@ -117,10 +118,13 @@ fn detect_target() -> Result<Target> {
 
 fn download_asset(url: &str, dest: &Path) -> Result<()> {
     let mut reader = ureq::get(url)
-        .set("User-Agent", defaults::UPDATE_USER_AGENT)
+        .header("User-Agent", defaults::UPDATE_USER_AGENT)
         .call()
         .map_err(|e| anyhow!("Failed to download asset: {e}"))?
-        .into_reader();
+        .into_body()
+        .into_with_config()
+        .limit(256 * 1024 * 1024) // allow larger archives without surprises
+        .reader();
     let mut file = fs::File::create(dest).context("Failed to create download file")?;
     io::copy(&mut reader, &mut file).context("Failed to write downloaded asset")?;
     Ok(())
