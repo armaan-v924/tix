@@ -138,18 +138,22 @@ fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
         );
         
         // Try SSH key from agent/default location
-        if allowed_types.is_ssh_key()
-            && let Ok(cred) = Cred::ssh_key_from_agent(username_from_url.unwrap_or("git")) {
+        if allowed_types.is_ssh_key() {
+            if let Ok(cred) = Cred::ssh_key_from_agent(username_from_url.unwrap_or("git")) {
                 debug!("Using SSH key from agent");
                 return Ok(cred);
             }
+        }
         
         // Try username/password from credential helper or memory
-        if (allowed_types.is_user_pass_plaintext() || allowed_types.is_username())
-            && let Ok(cred) = Cred::credential_helper(&git2::Config::open_default()?, _url, username_from_url) {
-                debug!("Using credentials from git credential helper");
-                return Ok(cred);
+        if allowed_types.is_user_pass_plaintext() || allowed_types.is_username() {
+            if let Ok(config) = git2::Config::open_default() {
+                if let Ok(cred) = Cred::credential_helper(&config, _url, username_from_url) {
+                    debug!("Using credentials from git credential helper");
+                    return Ok(cred);
+                }
             }
+        }
         
         // Try default git credentials
         if let Ok(cred) = Cred::default() {
