@@ -4,7 +4,7 @@ use crate::core::config::Config;
 use crate::core::git;
 use crate::core::ticket::Ticket;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use log::{debug, error, info, warn};
 use std::fs;
 
@@ -121,10 +121,14 @@ pub fn run(
                 e
             })?;
 
-            match git::create_worktree(&repo_def.path, &target_worktree_path, &branch_name, None) {
-                Ok(_) => info!("Created worktree: {:?}", target_worktree_path),
-                Err(e) => error!("Failed to create worktree for '{}': {}", alias, e),
-            }
+            git::create_worktree(&repo_def.path, &target_worktree_path, &branch_name, None)
+                .with_context(|| {
+                    format!(
+                        "Failed to create worktree for '{}' at {:?}",
+                        alias, target_worktree_path
+                    )
+                })?;
+            info!("Created worktree: {:?}", target_worktree_path);
         }
     }
 

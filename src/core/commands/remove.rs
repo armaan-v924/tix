@@ -31,16 +31,17 @@ pub fn run(repo_alias: &str, ticket: Option<&str>) -> Result<()> {
     }
 
     // Safety: ensure worktree is clean
-    match git::is_clean(&target_worktree) {
-        Ok(true) => {}
-        Ok(false) => bail!(
+    let is_clean = git::is_clean(&target_worktree).with_context(|| {
+        format!(
+            "Could not check clean status for worktree {:?}",
+            target_worktree
+        )
+    })?;
+    if !is_clean {
+        bail!(
             "Worktree at {:?} has uncommitted changes. Commit or clean before removing.",
             target_worktree
-        ),
-        Err(e) => warn!(
-            "Could not check clean status for {:?}: {}",
-            target_worktree, e
-        ),
+        );
     }
 
     info!(
@@ -75,18 +76,19 @@ pub fn run(repo_alias: &str, ticket: Option<&str>) -> Result<()> {
             crate::core::ticket::worktree_name_for_branch(&branch_for_repo)
         });
 
-    if let Err(e) = git::remove_worktree(&repo_def.path, &worktree_name) {
-        warn!(
-            "Failed to prune worktree metadata '{}' for repo '{}': {}",
-            worktree_name, repo_alias, e
-        );
-    }
+    git::remove_worktree(&repo_def.path, &worktree_name).with_context(|| {
+        format!(
+            "Failed to prune worktree metadata '{}' for repo '{}'",
+            worktree_name, repo_alias
+        )
+    })?;
 
     info!(
         "Removed worktree '{}' from ticket '{}'",
         repo_alias, ticket_meta.metadata.id
     );
-    let _ = Ticket::remove_repo(&ticket_root, repo_alias);
+    Ticket::remove_repo(&ticket_root, repo_alias)
+        .with_context(|| format!("Failed to update ticket metadata for '{}'", repo_alias))?;
     Ok(())
 }
 
