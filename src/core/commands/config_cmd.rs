@@ -60,17 +60,17 @@ fn expand_path(input: &str) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::config::Config;
+    use crate::core::{config::Config, defaults};
     use std::collections::HashMap;
     use std::path::PathBuf;
 
     fn base_config() -> Config {
         Config {
-            branch_prefix: "feature".into(),
-            github_base_url: "git@github.com".into(),
-            default_repository_owner: "my-org".into(),
-            code_directory: PathBuf::from("/code"),
-            tickets_directory: PathBuf::from("/tickets"),
+            branch_prefix: defaults::DEFAULT_BRANCH_PREFIX.into(),
+            github_base_url: defaults::DEFAULT_GITHUB_BASE_URL.into(),
+            default_repository_owner: defaults::DEFAULT_REPOSITORY_OWNER.into(),
+            code_directory: PathBuf::from(defaults::DEFAULT_CODE_DIR_FALLBACK),
+            tickets_directory: PathBuf::from(defaults::DEFAULT_TICKETS_DIR_FALLBACK),
             repositories: HashMap::new(),
         }
     }

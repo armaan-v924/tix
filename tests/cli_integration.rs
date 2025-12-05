@@ -53,7 +53,7 @@ path = "{path}"
     let config = format!(
         r#"
 branch_prefix = "feature"
-github_base_url = "git@github.com"
+github_base_url = "https://github.com"
 default_repository_owner = "my-org"
 code_directory = "{code}"
 tickets_directory = "{tickets}"

@@ -33,7 +33,7 @@ Located in standard OS config path (e.g., `~/.config/tix/config.toml`).
 | `tickets_directory` | Path | Root folder for ticket workspaces. |
 | `code_directory` | Path | Root folder for source repositories. |
 | `default_repository_owner` | String | Default Github org/user (e.g., "my-org"). |
-| `github_base_url` | String | Base git URL (e.g., "git@github.com"). |
+| `github_base_url` | String | Base git URL (e.g., "https://github.com"). |
 | `branch_prefix` | String | Default prefix for branches (e.g., "feature/"). |
 | `repositories` | Map | Key: Alias, Value: `RepoDefinition { url, path }`. |
 

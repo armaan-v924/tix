@@ -144,17 +144,17 @@ fn repo_name_from_path(input: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{build_url, parse_repo_input, plan_repo_registration, repo_name_from_path};
-    use crate::core::config::Config;
+    use crate::core::{config::Config, defaults};
     use std::collections::HashMap;
     use std::path::PathBuf;
 
     fn base_config() -> Config {
         Config {
-            branch_prefix: "feature".into(),
-            github_base_url: "git@github.com".into(),
-            default_repository_owner: "my-org".into(),
-            code_directory: PathBuf::from("/code"),
-            tickets_directory: PathBuf::from("/tickets"),
+            branch_prefix: defaults::DEFAULT_BRANCH_PREFIX.into(),
+            github_base_url: defaults::DEFAULT_GITHUB_BASE_URL.into(),
+            default_repository_owner: defaults::DEFAULT_REPOSITORY_OWNER.into(),
+            code_directory: PathBuf::from(defaults::DEFAULT_CODE_DIR_FALLBACK),
+            tickets_directory: PathBuf::from(defaults::DEFAULT_TICKETS_DIR_FALLBACK),
             repositories: HashMap::new(),
         }
     }
@@ -196,7 +196,7 @@ mod tests {
         let config = base_config();
         let parsed = parse_repo_input(&config, "foo/bar").unwrap();
         assert_eq!(parsed.name, "bar");
-        assert_eq!(parsed.url, "git@github.com:foo/bar.git");
+        assert_eq!(parsed.url, "https://github.com/foo/bar.git");
     }
 
     #[test]
@@ -204,7 +204,7 @@ mod tests {
         let config = base_config();
         let parsed = parse_repo_input(&config, "service").unwrap();
         assert_eq!(parsed.name, "service");
-        assert_eq!(parsed.url, "git@github.com:my-org/service.git");
+        assert_eq!(parsed.url, "https://github.com/my-org/service.git");
     }
 
     #[test]
@@ -214,6 +214,9 @@ mod tests {
             plan_repo_registration(&config, "git@github.com:foo/bar.git", Some("api")).unwrap();
         assert_eq!(alias, "api");
         assert_eq!(def.url, "git@github.com:foo/bar.git");
-        assert_eq!(def.path, PathBuf::from("/code/api"));
+        assert_eq!(
+            def.path,
+            PathBuf::from(defaults::DEFAULT_CODE_DIR_FALLBACK).join("api")
+        );
     }
 }
