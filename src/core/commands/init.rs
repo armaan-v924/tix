@@ -83,11 +83,7 @@ pub fn run() -> Result<()> {
 }
 
 fn fallback<'a>(value: &'a str, default: &'a str) -> &'a str {
-    if value.is_empty() {
-        default
-    } else {
-        value
-    }
+    if value.is_empty() { default } else { value }
 }
 
 fn default_path_str(current: &Path, candidate: Option<PathBuf>, fallback: &str) -> String {

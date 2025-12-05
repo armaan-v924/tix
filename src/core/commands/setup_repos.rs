@@ -2,7 +2,7 @@
 
 use crate::core::config::{Config, RepoDefinition};
 use crate::core::git;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
 use std::fs;
 

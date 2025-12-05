@@ -1,7 +1,7 @@
 //! Self-update command: checks GitHub releases for a newer version and installs it.
 
 use crate::core::defaults;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use log::{info, warn};
 use semver::Version;
 use serde::Deserialize;

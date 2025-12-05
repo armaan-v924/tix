@@ -4,7 +4,7 @@ use crate::core::commands::setup::sanitize_description;
 use crate::core::config::Config;
 use crate::core::git;
 use crate::core::ticket::Ticket;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use log::{info, warn};
 use std::env;
 use std::path::{Path, PathBuf};

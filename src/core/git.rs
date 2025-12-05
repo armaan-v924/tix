@@ -2,7 +2,9 @@
 
 use anyhow::{Context, Result};
 use git2::build::CheckoutBuilder;
-use git2::{BranchType, Commit, Cred, RemoteCallbacks, Repository, StatusOptions, WorktreeAddOptions};
+use git2::{
+    BranchType, Commit, Cred, RemoteCallbacks, Repository, StatusOptions, WorktreeAddOptions,
+};
 use log::{debug, warn};
 use std::path::Path;
 
@@ -119,14 +121,14 @@ pub fn remove_worktree(repo_path: &Path, worktree_name: &str) -> Result<()> {
 }
 
 /// Create callbacks for git operations that use system credentials.
-/// 
+///
 /// This function creates a `RemoteCallbacks` instance configured to authenticate
 /// with private repositories using the system's git credentials. It attempts multiple
 /// authentication methods in order:
 /// 1. SSH key from ssh-agent or default SSH key location
 /// 2. Username/password from git credential helpers
 /// 3. Default git credentials
-/// 
+///
 /// This resolves the "remote authentication required but no callback set" error
 /// when cloning or fetching from private repositories.
 fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
@@ -136,7 +138,7 @@ fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
             "Git credential callback: url={}, username={:?}, allowed_types={:?}",
             _url, username_from_url, allowed_types
         );
-        
+
         // Try SSH key from agent/default location
         if allowed_types.is_ssh_key() {
             if let Ok(cred) = Cred::ssh_key_from_agent(username_from_url.unwrap_or("git")) {
@@ -144,7 +146,7 @@ fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
                 return Ok(cred);
             }
         }
-        
+
         // Try username/password from credential helper or memory
         if allowed_types.is_user_pass_plaintext() || allowed_types.is_username() {
             if let Ok(config) = git2::Config::open_default() {
@@ -154,20 +156,20 @@ fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
                 }
             }
         }
-        
+
         // Try default git credentials
         if let Ok(cred) = Cred::default() {
             debug!("Using default git credentials");
             return Ok(cred);
         }
-        
+
         Err(git2::Error::from_str("No valid credentials found"))
     });
     callbacks
 }
 
 /// Clone a repository to `target`.
-/// 
+///
 /// Supports cloning both public and private repositories by using system git credentials.
 /// Authentication is handled automatically through SSH keys, credential helpers, or default credentials.
 pub fn clone_repo(url: &str, target: &Path) -> Result<()> {
@@ -175,7 +177,7 @@ pub fn clone_repo(url: &str, target: &Path) -> Result<()> {
     let mut fetch_options = git2::FetchOptions::new();
     fetch_options.remote_callbacks(create_git_callbacks());
     builder.fetch_options(fetch_options);
-    
+
     builder
         .clone(url, target)
         .context("Failed to clone repository")?;
@@ -195,10 +197,10 @@ pub fn fetch_and_fast_forward(repo_path: &Path, remote_name: &str) -> Result<()>
         remote_name, repo_path
     );
     let refspec = format!("refs/heads/*:refs/remotes/{}/*", remote_name);
-    
+
     let mut fetch_options = git2::FetchOptions::new();
     fetch_options.remote_callbacks(create_git_callbacks());
-    
+
     remote
         .fetch(&[&refspec], Some(&mut fetch_options), None)
         .context("Fetch failed")?;

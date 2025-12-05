@@ -1,7 +1,7 @@
 //! Register a repository in the configuration without cloning it.
 
 use crate::core::config::{Config, RepoDefinition};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
 
 /// Resolve the desired alias and repo definition for a given user input.
