@@ -3,7 +3,7 @@
 use clap::builder::styling::AnsiColor;
 use clap::builder::Styles;
 use clap::{Parser, Subcommand};
-use clap_verbosity_flag::Verbosity;
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 
 const HELP_STYLES: Styles = Styles::styled()
     .header(AnsiColor::Cyan.on_default().bold())
@@ -17,7 +17,7 @@ const HELP_STYLES: Styles = Styles::styled()
 #[command(name = "tix", author, version, about, styles = HELP_STYLES)]
 pub struct Cli {
     #[command(flatten)]
-    pub verbose: Verbosity,
+    pub verbose: Verbosity<InfoLevel>,
 
     #[command(subcommand)]
     pub command: Commands,

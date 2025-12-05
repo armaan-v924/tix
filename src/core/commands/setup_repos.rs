@@ -3,7 +3,7 @@
 use crate::core::config::{Config, RepoDefinition};
 use crate::core::git;
 use anyhow::{bail, Context, Result};
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use std::fs;
 
 /// Run the setup-repos command: clone any missing repositories.
@@ -37,7 +37,7 @@ pub fn run() -> Result<()> {
         return Ok(());
     }
 
-    let mut failed = Vec::new();
+    let mut failures = Vec::new();
 
     for (alias, repo_def) in plan {
         if let Some(parent) = repo_def.path.parent() {
@@ -49,20 +49,42 @@ pub fn run() -> Result<()> {
             alias, repo_def.url, repo_def.path
         );
 
-        match git::clone_repo(&repo_def.url, &repo_def.path) {
-            Ok(_) => info!("Cloned '{}'", alias),
-            Err(e) => {
-                error!("Failed to clone '{}': {}", alias, e);
-                failed.push(alias);
-            }
+        if let Err(e) = git::clone_repo(&repo_def.url, &repo_def.path) {
+            let enriched = e.context(format!(
+                "Failed to clone '{}' from {} into {:?}",
+                alias, repo_def.url, repo_def.path
+            ));
+            failures.push(enriched);
+        } else {
+            info!("Cloned '{}'", alias);
         }
     }
 
-    if failed.is_empty() {
+    if failures.is_empty() {
         info!("setup-repos complete.");
         Ok(())
     } else {
-        bail!("Failed to clone: {}", failed.join(", "))
+        // Bubble the first error with the rest summarized for top-level logging.
+        let mut iter = failures.into_iter();
+        let mut err = iter
+            .next()
+            .unwrap()
+            .context("Failed to clone one or more repositories");
+        let mut summaries = Vec::new();
+        for extra in iter {
+            summaries.push(extra.to_string());
+        }
+        if !summaries.is_empty() {
+            err = err.context(format!(
+                "Additional clone failures:\n{}",
+                summaries
+                    .into_iter()
+                    .map(|s| format!("- {}", s))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ));
+        }
+        Err(err)
     }
 }
 
