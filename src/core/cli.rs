@@ -26,7 +26,7 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 /// Supported subcommands for tix.
 pub enum Commands {
-    // Add a repo to an existing ticket
+    /// Add a repository worktree to an existing ticket
     Add {
         /// Repository alias
         repo: String,
@@ -40,6 +40,7 @@ pub enum Commands {
         branch: Option<String>,
     },
 
+    /// Register a repository in the configuration
     AddRepo {
         // Repository reference
         /// Formats: "my-repo", "owner/my-repo", or "https://github.com/owner/my-repo"
@@ -50,6 +51,7 @@ pub enum Commands {
         alias: Option<String>,
     },
 
+    /// View or set configuration values
     Config {
         /// The config key (e.g., "git_base_url")
         key: String,
@@ -58,6 +60,7 @@ pub enum Commands {
         value: Option<String>,
     },
 
+    /// Delete a ticket workspace and its worktrees
     Destroy {
         /// Ticket name
         ticket: String,
@@ -67,8 +70,10 @@ pub enum Commands {
         force: bool,
     },
 
+    /// Initialize tix configuration interactively
     Init,
 
+    /// Remove a repository worktree from a ticket
     Remove {
         /// Repository alias to remove
         repo: String,
@@ -78,6 +83,7 @@ pub enum Commands {
         ticket: Option<String>,
     },
 
+    /// Create a new ticket workspace with repository worktrees
     Setup {
         /// Ticket name (e.g., JIRA-123)
         ticket: String,
@@ -95,6 +101,7 @@ pub enum Commands {
         repos: Vec<String>,
     },
 
+    /// Clone all registered repositories
     SetupRepos,
 
     /// Validate configuration and environment
