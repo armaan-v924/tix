@@ -38,7 +38,9 @@ fn main() -> Result<()> {
         Commands::Init => {
             core::commands::init::run()?;
         }
-        Commands::Remove { repo, ticket } => todo!(),
+        Commands::Remove { repo, ticket } => {
+            core::commands::remove::run(&repo, ticket.as_deref())?;
+        }
         Commands::Setup {
             ticket,
             all,
