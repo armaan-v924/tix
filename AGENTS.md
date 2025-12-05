@@ -28,7 +28,7 @@
   - `setup-repos`: implemented. Clones any missing repos from `repositories` into `code_directory`.
   - `config`: implemented. View/set core config keys (`branch_prefix`, `github_base_url`, `default_repository_owner`, `code_directory`, `tickets_directory`).
   - `destroy`: implemented. Checks you’re not inside the ticket dir, verifies worktrees clean unless `--force`, removes dirs, prunes worktree metadata using computed branch name.
-  - `add`: add a single repo worktree to an existing ticket; infer ticket via `.tix` when omitted. **Not implemented.**
+  - `add`: implemented. Infers ticket from current `.tix` if not provided, refuses to overwrite existing worktree for alias, updates repo (fetch/ff), uses branch name derived from ticket metadata and optional `--branch` base.
   - `remove`: remove one repo worktree with clean-check + prune. **Not implemented.**
   - `config`: view/edit individual config values. **Not implemented.**
   - `setup-repos`: clone all registered repos into `code_directory` when missing. **Not implemented.**

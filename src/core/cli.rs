@@ -33,7 +33,7 @@ pub enum Commands {
 
         /// Ticket name. If omitted, tries to infer from current directory
         #[arg(short, long)]
-        ticekt: Option<String>,
+        ticket: Option<String>,
 
         /// Base branch to checkout. Defaults to repo default
         #[arg(short, long)]

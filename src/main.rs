@@ -21,9 +21,11 @@ fn main() -> Result<()> {
         }
         Commands::Add {
             repo,
-            ticekt,
+            ticket,
             branch,
-        } => todo!(),
+        } => {
+            core::commands::add::run(&repo, ticket.as_deref(), branch.as_deref())?;
+        }
         Commands::AddRepo { repo, alias } => {
             core::commands::add_repo::run(&repo, alias)?;
         }
