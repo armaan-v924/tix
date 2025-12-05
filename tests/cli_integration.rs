@@ -11,6 +11,18 @@ fn bin() -> assert_cmd::Command {
     cmd
 }
 
+fn get_completions_output(shell: &str) -> String {
+    let mut cmd = bin();
+    let output = cmd
+        .args(["completions", shell])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    String::from_utf8(output).unwrap()
+}
+
 fn init_repo_with_origin(path: &Path) {
     let repo = Repository::init(path).unwrap();
     let sig = Signature::now("Test", "test@example.com").unwrap();
@@ -213,4 +225,53 @@ fn remove_respects_clean_check() {
         .current_dir(tickets.join("JIRA-3"))
         .assert()
         .success();
+}
+
+#[test]
+fn completions_zsh_works_with_eval() {
+    // Test that zsh completions output is eval-friendly
+    let completions_script = get_completions_output("zsh");
+
+    // The first line should be a comment (not an active #compdef directive)
+    let first_line = completions_script.lines().next().unwrap();
+    assert_eq!(
+        first_line, "# compdef tix",
+        "First line should be commented #compdef"
+    );
+
+    // Should contain the _tix function definition
+    assert!(
+        completions_script.contains("_tix() {"),
+        "Should define _tix function"
+    );
+
+    // Should contain the compdef call for eval context
+    assert!(
+        completions_script.contains("compdef _tix tix"),
+        "Should contain compdef call for eval"
+    );
+
+    // Should contain the conditional that handles both file and eval contexts
+    assert!(
+        completions_script.contains(r#"if [ "$funcstack[1]" = "_tix" ]; then"#),
+        "Should contain funcstack conditional"
+    );
+}
+
+#[test]
+fn completions_bash_unchanged() {
+    // Test that bash completions still work as before
+    let completions_script = get_completions_output("bash");
+
+    // Bash completions should define the _tix function
+    assert!(
+        completions_script.contains("_tix() {"),
+        "Should define _tix function"
+    );
+
+    // Bash completions should have complete -F command
+    assert!(
+        completions_script.contains("complete -F _tix"),
+        "Should contain complete command"
+    );
 }

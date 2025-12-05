@@ -1,6 +1,6 @@
 mod core;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser};
 use core::cli::{Cli, Commands};
 use log::{debug, error};
@@ -19,7 +19,33 @@ fn main() -> Result<()> {
     let result = match args.command {
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();
-            clap_complete::generate(shell, &mut cmd, "tix", &mut std::io::stdout());
+            // For zsh, we need to modify the output to work with eval
+            if shell == clap_complete::Shell::Zsh {
+                let mut buffer = Vec::new();
+                clap_complete::generate(shell, &mut cmd, "tix", &mut buffer);
+                let completion_script = String::from_utf8(buffer)
+                    .context("Failed to generate valid UTF-8 completion script")?;
+
+                // Replace #compdef directive with a comment to make it eval-friendly
+                // Process line by line to handle the first line robustly
+                let modified_script = completion_script
+                    .lines()
+                    .enumerate()
+                    .map(|(i, line)| {
+                        if i == 0 && line.starts_with("#compdef") {
+                            // Add a space after # to make it a regular comment
+                            line.replacen("#compdef", "# compdef", 1)
+                        } else {
+                            line.to_string()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                println!("{}", modified_script);
+            } else {
+                clap_complete::generate(shell, &mut cmd, "tix", &mut std::io::stdout());
+            }
             Ok(())
         }
         Commands::Add {
