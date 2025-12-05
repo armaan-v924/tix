@@ -5,7 +5,7 @@ use crate::core::config::Config;
 use crate::core::git;
 use crate::core::ticket::Ticket;
 use anyhow::{anyhow, bail, Context, Result};
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -43,15 +43,13 @@ pub fn run(ticket_id: &str, force: bool) -> Result<()> {
     // Safety checks: ensure clean unless --force
     if !force {
         for dir in &worktree_dirs {
-            match git::is_clean(dir) {
-                Ok(true) => {}
-                Ok(false) => {
-                    return Err(anyhow!(
-                        "Worktree at {:?} has uncommitted changes. Use --force to override.",
-                        dir
-                    ));
-                }
-                Err(e) => warn!("Could not check clean status for {:?}: {}", dir, e),
+            let is_clean = git::is_clean(dir)
+                .with_context(|| format!("Could not check clean status for {:?}", dir))?;
+            if !is_clean {
+                return Err(anyhow!(
+                    "Worktree at {:?} has uncommitted changes. Use --force to override.",
+                    dir
+                ));
             }
         }
     }
@@ -60,16 +58,16 @@ pub fn run(ticket_id: &str, force: bool) -> Result<()> {
     for dir in &worktree_dirs {
         if dir.exists() {
             info!("Removing worktree directory {:?}", dir);
-            if let Err(e) = fs::remove_dir_all(dir) {
-                error!("Failed to remove {:?}: {}", dir, e);
-            }
+            fs::remove_dir_all(dir)
+                .with_context(|| format!("Failed to remove worktree directory {:?}", dir))?;
         }
     }
 
-    prune_worktrees(&config, &ticket_dir, ticket_id, ticket_meta.as_ref());
+    prune_worktrees(&config, &ticket_dir, ticket_id, ticket_meta.as_ref())?;
 
     info!("Removing ticket directory {:?}", ticket_dir);
-    fs::remove_dir_all(&ticket_dir)?;
+    fs::remove_dir_all(&ticket_dir)
+        .with_context(|| format!("Failed to remove ticket directory {:?}", ticket_dir))?;
     info!("Destroyed ticket '{}'", ticket_id);
     Ok(())
 }
@@ -108,7 +106,7 @@ fn prune_worktrees(
     ticket_dir: &Path,
     ticket_id: &str,
     meta: Option<&crate::core::ticket::TicketMetadata>,
-) {
+) -> Result<()> {
     for (alias, repo_def) in &config.repositories {
         let target_path = ticket_dir.join(alias);
         if !target_path.exists() {
@@ -141,13 +139,14 @@ fn prune_worktrees(
             "Pruning worktree metadata '{}' in repo {:?}",
             worktree_name, repo_def.path
         );
-        if let Err(e) = git::remove_worktree(&repo_def.path, &worktree_name) {
-            warn!(
-                "Failed to prune worktree '{}' for repo '{}': {}",
-                worktree_name, alias, e
-            );
-        }
+        git::remove_worktree(&repo_def.path, &worktree_name).with_context(|| {
+            format!(
+                "Failed to prune worktree '{}' for repo '{}' at {:?}",
+                worktree_name, alias, repo_def.path
+            )
+        })?;
     }
+    Ok(())
 }
 
 fn build_branch_name(config: &Config, ticket_id: &str, description: Option<&String>) -> String {

@@ -66,15 +66,12 @@ pub fn run(repo_alias: &str, ticket: Option<&str>, branch: Option<&str>) -> Resu
     );
 
     // Ensure repo is up to date before branching.
-    git::fetch_and_fast_forward(&repo_def.path, "origin")
-        .map_err(|e| {
-            warn!(
-                "Failed to update repo '{}' at {:?}: {}. Continuing.",
-                repo_alias, repo_def.path, e
-            );
-            e
-        })
-        .ok();
+    git::fetch_and_fast_forward(&repo_def.path, "origin").with_context(|| {
+        format!(
+            "Failed to update repo '{}' at {:?}",
+            repo_alias, repo_def.path
+        )
+    })?;
 
     git::create_worktree(
         &repo_def.path,

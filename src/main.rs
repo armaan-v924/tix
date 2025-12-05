@@ -26,38 +26,20 @@ fn main() -> Result<()> {
             repo,
             ticket,
             branch,
-        } => {
-            core::commands::add::run(&repo, ticket.as_deref(), branch.as_deref())
-        }
-        Commands::AddRepo { repo, alias } => {
-            core::commands::add_repo::run(&repo, alias)
-        }
-        Commands::Config { key, value } => {
-            core::commands::config_cmd::run(&key, value.as_deref())
-        }
-        Commands::Destroy { ticket, force } => {
-            core::commands::destroy::run(&ticket, force)
-        }
-        Commands::Init => {
-            core::commands::init::run()
-        }
-        Commands::Remove { repo, ticket } => {
-            core::commands::remove::run(&repo, ticket.as_deref())
-        }
+        } => core::commands::add::run(&repo, ticket.as_deref(), branch.as_deref()),
+        Commands::AddRepo { repo, alias } => core::commands::add_repo::run(&repo, alias),
+        Commands::Config { key, value } => core::commands::config_cmd::run(&key, value.as_deref()),
+        Commands::Destroy { ticket, force } => core::commands::destroy::run(&ticket, force),
+        Commands::Init => core::commands::init::run(),
+        Commands::Remove { repo, ticket } => core::commands::remove::run(&repo, ticket.as_deref()),
         Commands::Setup {
             ticket,
             all,
             repos,
             description,
-        } => {
-            core::commands::setup::run(&ticket, &repos, all, description)
-        }
-        Commands::SetupRepos => {
-            core::commands::setup_repos::run()
-        }
-        Commands::Doctor => {
-            core::commands::doctor::run()
-        }
+        } => core::commands::setup::run(&ticket, &repos, all, description),
+        Commands::SetupRepos => core::commands::setup_repos::run(),
+        Commands::Doctor => core::commands::doctor::run(),
     };
 
     if let Err(err) = result {
