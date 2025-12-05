@@ -11,6 +11,18 @@ fn bin() -> assert_cmd::Command {
     cmd
 }
 
+fn get_completions_output(shell: &str) -> String {
+    let mut cmd = bin();
+    let output = cmd
+        .args(["completions", shell])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    String::from_utf8(output).unwrap()
+}
+
 fn init_repo_with_origin(path: &Path) {
     let repo = Repository::init(path).unwrap();
     let sig = Signature::now("Test", "test@example.com").unwrap();
@@ -218,16 +230,7 @@ fn remove_respects_clean_check() {
 #[test]
 fn completions_zsh_works_with_eval() {
     // Test that zsh completions output is eval-friendly
-    let mut cmd = bin();
-    let output = cmd
-        .args(["completions", "zsh"])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-
-    let completions_script = String::from_utf8(output).unwrap();
+    let completions_script = get_completions_output("zsh");
 
     // The first line should be a comment (not an active #compdef directive)
     let first_line = completions_script.lines().next().unwrap();
@@ -258,16 +261,7 @@ fn completions_zsh_works_with_eval() {
 #[test]
 fn completions_bash_unchanged() {
     // Test that bash completions still work as before
-    let mut cmd = bin();
-    let output = cmd
-        .args(["completions", "bash"])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-
-    let completions_script = String::from_utf8(output).unwrap();
+    let completions_script = get_completions_output("bash");
 
     // Bash completions should define the _tix function
     assert!(

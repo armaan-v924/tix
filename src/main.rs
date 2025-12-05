@@ -21,9 +21,11 @@ fn main() -> Result<()> {
             let mut cmd = Cli::command();
             // For zsh, we need to modify the output to work with eval
             if shell == clap_complete::Shell::Zsh {
+                use anyhow::Context;
                 let mut buffer = Vec::new();
                 clap_complete::generate(shell, &mut cmd, "tix", &mut buffer);
-                let completion_script = String::from_utf8(buffer)?;
+                let completion_script = String::from_utf8(buffer)
+                    .context("Failed to generate valid UTF-8 completion script")?;
 
                 // Replace #compdef directive with a comment to make it eval-friendly
                 let modified_script = completion_script.replace("#compdef tix", "# compdef tix");
