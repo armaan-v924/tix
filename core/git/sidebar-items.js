@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["clone_repo","create_worktree","fetch_and_fast_forward","is_clean","remove_worktree","resolve_default_branch"]};
