@@ -1,7 +1,7 @@
 //! View or set configuration values.
 
 use crate::core::config::Config;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use log::{info, warn};
 use std::path::PathBuf;
 

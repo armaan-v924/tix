@@ -1,7 +1,7 @@
 //! Command-line interface definitions for tix.
 
-use clap::builder::styling::AnsiColor;
 use clap::builder::Styles;
+use clap::builder::styling::AnsiColor;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 
