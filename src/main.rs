@@ -40,6 +40,7 @@ fn main() -> Result<()> {
         } => core::commands::setup::run(&ticket, &repos, all, description),
         Commands::SetupRepos => core::commands::setup_repos::run(),
         Commands::Doctor => core::commands::doctor::run(),
+        Commands::Update => core::commands::update::run(),
     };
 
     if let Err(err) = result {

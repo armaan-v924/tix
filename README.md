@@ -11,6 +11,7 @@ Rust CLI for managing ticket-scoped git worktrees across multiple repositories. 
 - `add-repo`: Register a repo alias (url/owner+name/name-only parsing).
 - `config <key> [value]`: View/set core config fields.
 - `doctor`: Validate config and report warnings/errors.
+- `update`: Self-update from the latest GitHub release.
 - Shell completions via `tix completions`.
 
 ## Configuration
@@ -45,6 +46,7 @@ Commands prefer stored branches/worktrees and warn when falling back to computed
 - Doctor: `tix doctor`
 
 ## Installation
+- Quick install script (macOS/Linux): `curl -fsSL https://raw.githubusercontent.com/armaan-v924/worktree-manager/main/install_tix.sh | bash`
 - Prebuilt binaries: download the archive from the GitHub release matching your OS (`tix-<version>-linux-x86_64`, `tix-<version>-macos-aarch64`, `tix-<version>-windows-x86_64`), unpack, and place `tix`/`tix.exe` on your `PATH`.
 - From source: `cargo install --path .` (requires Rust toolchain).
 - Completions: `tix completions <shell>` and follow your shell’s instructions.

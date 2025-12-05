@@ -7,3 +7,6 @@ pub const DEFAULT_CODE_DIR_BASENAME: &str = "code";
 pub const DEFAULT_TICKETS_DIR_BASENAME: &str = "tickets";
 pub const DEFAULT_CODE_DIR_FALLBACK: &str = "./code";
 pub const DEFAULT_TICKETS_DIR_FALLBACK: &str = "./tickets";
+pub const DEFAULT_RELEASE_OWNER: &str = "armaan-v924";
+pub const DEFAULT_RELEASE_REPO: &str = "worktree-manager";
+pub const UPDATE_USER_AGENT: &str = concat!("tix/", env!("CARGO_PKG_VERSION"));
