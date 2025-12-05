@@ -1,3 +1,5 @@
+//! Setup command: initialize a ticket workspace and create repo worktrees.
+
 use crate::git;
 use crate::ticket::Ticket;
 use crate::config::Config;
@@ -59,7 +61,7 @@ pub fn run(
         return Ok(());
     };
 
-    /// 3. Create worktrees
+    // 3. Create worktrees
     let mut branch_name = format!("{}/{}", config.branch_prefix, ticket_id);
 
     if let Some(desc) = &description {
@@ -90,8 +92,8 @@ pub fn run(
     Ok(())
 }
 
-/// Helper: specific sanitation for git branch compatibility
-fn sanitize_description(input: &str) -> String {
+/// Sanitize free-form text for inclusion in a git branch name (lowercase, alnum, single hyphens).
+pub fn sanitize_description(input: &str) -> String {
     let mut result = String::new();
     let mut last_was_hyphen = true; // Start true to trim leading hyphens
 

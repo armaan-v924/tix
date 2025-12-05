@@ -1,8 +1,11 @@
+//! Git helpers built on `git2` for worktree management and safety checks.
+
 use anyhow::{Context, Result};
 use git2::{Commit, Repository, StatusOptions, WorktreeAddOptions};
+use log::debug;
 use std::path::Path;
 
-// Checks if a directory has uncommited changes (modified or staged)
+/// Return `true` if the repository at `repo_path` has no modified/staged/untracked files.
 pub fn is_clean(repo_path: &Path) -> Result<bool> {
     // Open the repo
     let repo =
@@ -20,7 +23,7 @@ pub fn is_clean(repo_path: &Path) -> Result<bool> {
     Ok(statuses.is_empty())
 }
 
-// Create a worktree
+/// Create a git worktree at `target_path`, using `branch_name`, optionally created from `base_ref`.
 pub fn create_worktree(
     repo_path: &Path,
     target_path: &Path,
@@ -33,10 +36,13 @@ pub fn create_worktree(
     let branch = match repo.find_branch(branch_name, git2::BranchType::Local) {
         Ok(b) => {
             // Case A: Branch already exists, we'll use it.
+            debug!("Found existing branch '{}'", branch_name);
             b
         }
         Err(_) => {
             // Case B: Branch does not exist. Create it from HEAD.
+            debug!("Branch '{}' not found. Creating from base...", branch_name);
+
             let commit = get_base_commit(&repo, base_ref)?;
 
             repo.branch(branch_name, &commit, false)
@@ -82,6 +88,7 @@ fn get_base_commit<'a>(repo: &'a Repository, base: Option<&str>) -> Result<Commi
         .context("Base reference did not point to a commit")
 }
 
+/// Remove worktree metadata by name from the repository at `repo_path`.
 pub fn remove_worktree(repo_path: &Path, worktree_name: &str) -> Result<()> {
     let repo = Repository::open(repo_path).context("Failed to open repository")?;
 
@@ -100,6 +107,7 @@ pub fn remove_worktree(repo_path: &Path, worktree_name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Clone a repository to `target`.
 pub fn clone_repo(url: &str, target: &Path) -> Result<()> {
     Repository::clone(url, target).context("Failed to clone repository")?;
     Ok(())

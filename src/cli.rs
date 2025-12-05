@@ -1,7 +1,10 @@
+//! Command-line interface definitions for tix.
+
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 
 #[derive(Parser, Debug)]
+/// Root CLI parser for tix.
 #[command(name = "tix", author, version, about)]
 pub struct Cli {
     #[command(flatten)]
@@ -12,6 +15,7 @@ pub struct Cli {
 }
 
 #[derive(Subcommand, Debug)]
+/// Supported subcommands for tix.
 pub enum Commands {
     // Add a repo to an existing ticket
     Add {
