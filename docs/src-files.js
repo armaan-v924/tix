@@ -1,0 +1,2 @@
+createSrcSidebar('[["tix",["",[["core",[["commands",[],["add.rs","add_repo.rs","config_cmd.rs","destroy.rs","doctor.rs","init.rs","mod.rs","remove.rs","setup.rs","setup_repos.rs"]]],["cli.rs","config.rs","git.rs","mod.rs","ticket.rs"]]],["lib.rs"]]]]');
+//{"start":19,"fragment_lengths":[230]}

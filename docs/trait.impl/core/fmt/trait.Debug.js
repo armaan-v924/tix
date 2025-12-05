@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["tix",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/fmt/trait.Debug.html\" title=\"trait core::fmt::Debug\">Debug</a> for <a class=\"enum\" href=\"tix/core/cli/enum.Commands.html\" title=\"enum tix::core::cli::Commands\">Commands</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/fmt/trait.Debug.html\" title=\"trait core::fmt::Debug\">Debug</a> for <a class=\"struct\" href=\"tix/core/cli/struct.Cli.html\" title=\"struct tix::core::cli::Cli\">Cli</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/fmt/trait.Debug.html\" title=\"trait core::fmt::Debug\">Debug</a> for <a class=\"struct\" href=\"tix/core/config/struct.Config.html\" title=\"struct tix::core::config::Config\">Config</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/fmt/trait.Debug.html\" title=\"trait core::fmt::Debug\">Debug</a> for <a class=\"struct\" href=\"tix/core/config/struct.RepoDefinition.html\" title=\"struct tix::core::config::RepoDefinition\">RepoDefinition</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.91.1/core/fmt/trait.Debug.html\" title=\"trait core::fmt::Debug\">Debug</a> for <a class=\"struct\" href=\"tix/core/ticket/struct.TicketMetadata.html\" title=\"struct tix::core::ticket::TicketMetadata\">TicketMetadata</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1341]}
