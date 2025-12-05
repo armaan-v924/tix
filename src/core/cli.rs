@@ -105,4 +105,7 @@ pub enum Commands {
     Completions {
         shell: clap_complete::Shell,
     },
+
+    /// Check for a newer release and install it
+    Update,
 }
