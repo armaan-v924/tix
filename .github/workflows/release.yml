@@ -42,7 +42,7 @@ jobs:
           rm -rf ./*
           rm -rf .gitignore
           mkdir -p .
-          cp -r target/doc/* .
+          cp -r target/doc/tix/* .
           touch .nojekyll
           git add -A
           git commit -m "Update docs for ${VERSION}" || echo "No changes to commit"
