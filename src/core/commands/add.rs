@@ -15,8 +15,9 @@ pub fn run(repo_alias: &str, ticket: Option<&str>, branch: Option<&str>) -> Resu
     let ticket_root = locate_ticket_root(ticket, &config)?;
     ensure_ticket_exists(&ticket_root)?;
 
-    let ticket_meta = Ticket::load(&ticket_root)
-        .context("Failed to load ticket metadata. Run from a valid ticket directory or specify --ticket")?;
+    let ticket_meta = Ticket::load(&ticket_root).context(
+        "Failed to load ticket metadata. Run from a valid ticket directory or specify --ticket",
+    )?;
 
     let repo_def = config
         .repositories
@@ -32,7 +33,11 @@ pub fn run(repo_alias: &str, ticket: Option<&str>, branch: Option<&str>) -> Resu
         );
     }
 
-    let branch_name = build_branch_name(&config, &ticket_meta.metadata.id, ticket_meta.metadata.description.as_ref());
+    let branch_name = build_branch_name(
+        &config,
+        &ticket_meta.metadata.id,
+        ticket_meta.metadata.description.as_ref(),
+    );
     let base_ref = branch.map(|s| s.to_string());
 
     info!(
@@ -117,9 +122,9 @@ mod tests {
     use super::{build_branch_name, find_ticket_root_from_cwd};
     use crate::core::config::Config;
     use std::collections::HashMap;
+    use std::env;
     use std::fs;
     use std::path::PathBuf;
-    use std::env;
 
     fn base_config() -> Config {
         Config {

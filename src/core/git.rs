@@ -62,7 +62,7 @@ pub fn create_worktree(
 
     repo.worktree(
         &worktree_name, // metadata name for the worktree
-        target_path, // disk path
+        target_path,    // disk path
         Some(&mut worktree_options),
     )
     .context("Failed to create a worktree")?;
@@ -178,8 +178,7 @@ pub fn fetch_and_fast_forward(repo_path: &Path, remote_name: &str) -> Result<()>
             .context("Failed to set reference target during fast-forward")?;
         repo.set_head(&head_name)?;
         repo.checkout_head(Some(
-            CheckoutBuilder::default()
-                .force(), // ensure worktree matches new commit
+            CheckoutBuilder::default().force(), // ensure worktree matches new commit
         ))?;
     }
 
