@@ -52,6 +52,9 @@ fn main() -> Result<()> {
         Commands::SetupRepos => {
             core::commands::setup_repos::run()?;
         }
+        Commands::Doctor => {
+            core::commands::doctor::run()?;
+        }
     }
 
     Ok(())

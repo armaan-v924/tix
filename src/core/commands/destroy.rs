@@ -3,7 +3,7 @@
 use crate::core::commands::setup::sanitize_description;
 use crate::core::config::Config;
 use crate::core::git;
-use crate::core::ticket::Ticket;
+use crate::core::ticket::{Ticket, TicketMetadata};
 use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, error, info, warn};
 use std::env;
@@ -37,13 +37,6 @@ pub fn run(ticket_id: &str, force: bool) -> Result<()> {
         }
     };
 
-    let branch_name = build_branch_name(
-        &config,
-        ticket_id,
-        ticket_meta.as_ref().and_then(|m| m.description.as_ref()),
-    );
-    let worktree_name = branch_name.replace('/', "_");
-
     let worktree_dirs = worktree_dirs(&ticket_dir);
     debug!("Found worktree directories: {:?}", worktree_dirs);
 
@@ -73,22 +66,7 @@ pub fn run(ticket_id: &str, force: bool) -> Result<()> {
         }
     }
 
-    // Prune worktree metadata for known repos
-    for (alias, repo_def) in &config.repositories {
-        let target_path = ticket_dir.join(alias);
-        if target_path.exists() {
-            debug!(
-                "Pruning worktree metadata '{}' in repo {:?}",
-                worktree_name, repo_def.path
-            );
-            if let Err(e) = git::remove_worktree(&repo_def.path, &worktree_name) {
-                warn!(
-                    "Failed to prune worktree '{}' for repo '{}': {}",
-                    worktree_name, alias, e
-                );
-            }
-        }
-    }
+    prune_worktrees(&config, &ticket_dir, ticket_id, ticket_meta.as_ref());
 
     info!("Removing ticket directory {:?}", ticket_dir);
     fs::remove_dir_all(&ticket_dir)?;
@@ -123,6 +101,44 @@ fn ensure_not_inside(ticket_dir: &Path) -> Result<()> {
         );
     }
     Ok(())
+}
+
+fn prune_worktrees(
+    config: &Config,
+    ticket_dir: &Path,
+    ticket_id: &str,
+    meta: Option<&crate::core::ticket::TicketMetadata>,
+) {
+    for (alias, repo_def) in &config.repositories {
+        let target_path = ticket_dir.join(alias);
+        if !target_path.exists() {
+            continue;
+        }
+
+        let branch = meta
+            .and_then(|m| m.repo_branches.get(alias))
+            .cloned()
+            .or_else(|| meta.map(|m| m.branch.clone()))
+            .unwrap_or_else(|| {
+                build_branch_name(
+                    config,
+                    ticket_id,
+                    meta.and_then(|m| m.description.as_ref()),
+                )
+            });
+        let worktree_name = crate::core::ticket::worktree_name_for_branch(&branch);
+
+        debug!(
+            "Pruning worktree metadata '{}' in repo {:?}",
+            worktree_name, repo_def.path
+        );
+        if let Err(e) = git::remove_worktree(&repo_def.path, &worktree_name) {
+            warn!(
+                "Failed to prune worktree '{}' for repo '{}': {}",
+                worktree_name, alias, e
+            );
+        }
+    }
 }
 
 fn build_branch_name(config: &Config, ticket_id: &str, description: Option<&String>) -> String {

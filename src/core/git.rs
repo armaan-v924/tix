@@ -44,7 +44,9 @@ pub fn create_worktree(
             // Case B: Branch does not exist. Create it from HEAD.
             debug!("Branch '{}' not found. Creating from base...", branch_name);
 
-            let commit = get_base_commit(&repo, base_ref)?;
+            let default = resolve_default_branch(&repo);
+            let base = base_ref.or(default.as_deref());
+            let commit = get_base_commit(&repo, base)?;
 
             repo.branch(branch_name, &commit, false)
                 .context(format!("Failed to create branch '{}'", branch_name))?
@@ -183,4 +185,22 @@ pub fn fetch_and_fast_forward(repo_path: &Path, remote_name: &str) -> Result<()>
     }
 
     Ok(())
+}
+
+/// Resolve the default branch reference (e.g., origin/HEAD) to a revspec string.
+pub fn resolve_default_branch(repo: &Repository) -> Option<String> {
+    // Try remote HEAD first
+    if let Ok(remote) = repo.find_remote("origin") {
+        if let Ok(head) = remote.default_branch() {
+            if let Some(name) = head.as_str() {
+                return Some(name.to_string());
+            }
+        }
+    }
+
+    // Fallback to symbolic reference of HEAD
+    repo.head()
+        .ok()
+        .and_then(|h| h.resolve().ok())
+        .and_then(|r| r.name().map(|s| s.to_string()))
 }

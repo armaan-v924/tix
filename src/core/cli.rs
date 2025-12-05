@@ -97,6 +97,9 @@ pub enum Commands {
 
     SetupRepos,
 
+    /// Validate configuration and environment
+    Doctor,
+
     // Req 1: Support shell completions
     /// Generate shell completions
     Completions {

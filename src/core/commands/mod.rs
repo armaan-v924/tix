@@ -1,6 +1,7 @@
 pub mod add;
 pub mod add_repo;
 pub mod config_cmd;
+pub mod doctor;
 pub mod destroy;
 pub mod init;
 pub mod remove;

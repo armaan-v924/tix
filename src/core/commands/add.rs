@@ -38,6 +38,20 @@ pub fn run(repo_alias: &str, ticket: Option<&str>, branch: Option<&str>) -> Resu
         &ticket_meta.metadata.id,
         ticket_meta.metadata.description.as_ref(),
     );
+    // Prefer recorded branch for this repo, then ticket branch, then computed branch
+    let branch_name = ticket_meta
+        .metadata
+        .repo_branches
+        .get(repo_alias)
+        .cloned()
+        .or_else(|| {
+            if !ticket_meta.metadata.branch.is_empty() {
+                Some(ticket_meta.metadata.branch.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap_or(branch_name);
     let base_ref = branch.map(|s| s.to_string());
 
     info!(
@@ -65,6 +79,8 @@ pub fn run(repo_alias: &str, ticket: Option<&str>, branch: Option<&str>) -> Resu
     .context("Failed to create worktree")?;
 
     info!("Created worktree at {:?}", target_worktree);
+    Ticket::ensure_branch(&ticket_root, &branch_name)?;
+    Ticket::add_repo_branch(&ticket_root, repo_alias, &branch_name)?;
     Ok(())
 }
 

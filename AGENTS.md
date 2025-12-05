@@ -7,7 +7,7 @@
   - Config is read/written at the OS config dir (e.g., `~/.config/tix/config.toml`) via `Config::load/save` (no CLI editing yet).
 
 - **Setup flow (implemented)**:
-  - Creates or reuses `tickets_directory/<ticket>` and stamps `.tix/info.toml` with `{id, description, created_at}`.
+  - Creates or reuses `tickets_directory/<ticket>` and stamps `.tix/info.toml` with `{id, description, created_at, branch, repos, repo_branches}` (per-repo branch tracking).
   - Branch name: `<branch_prefix>/<ticket>-<sanitized-description>` (sanitization = lowercase, alnum, single hyphens). Current code already uses the slash form; confirm prefix contents.
   - Repo selection: `--all` picks every configured alias; explicit aliases are filtered with warnings; none selected exits after stamping.
   - Worktrees: for each target alias, call `git::create_worktree(repo.path, ticket_dir/alias, branch_name, None)`; base defaults to `HEAD`, branch created if missing.
@@ -29,9 +29,8 @@
   - `config`: implemented. View/set core config keys (`branch_prefix`, `github_base_url`, `default_repository_owner`, `code_directory`, `tickets_directory`).
   - `destroy`: implemented. Checks you’re not inside the ticket dir, verifies worktrees clean unless `--force`, removes dirs, prunes worktree metadata using computed branch name.
   - `add`: implemented. Infers ticket from current `.tix` if not provided, refuses to overwrite existing worktree for alias, updates repo (fetch/ff), uses branch name derived from ticket metadata and optional `--branch` base.
-  - `remove`: remove one repo worktree with clean-check + prune. **Not implemented.**
-  - `config`: view/edit individual config values. **Not implemented.**
-  - `setup-repos`: clone all registered repos into `code_directory` when missing. **Not implemented.**
+  - `remove`: implemented. Infers ticket, checks clean, deletes worktree dir, prunes metadata using computed worktree name.
+  - `doctor`: implemented. Validates config fields, directories, and repo definitions; reports warnings/errors.
 
 - **Testing/validation gaps**:
   - No automated tests; branch-name sanitization and repo selection logic need coverage.

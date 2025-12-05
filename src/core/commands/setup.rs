@@ -17,24 +17,7 @@ pub fn run(
     let config = Config::load()?;
     let ticket_dir = config.tickets_directory.join(ticket_id);
 
-    // 1. Create or load the ticket directory
-    if !ticket_dir.exists() {
-        info!("Creating ticket directory at {:?}", ticket_dir);
-        fs::create_dir_all(&ticket_dir)?;
-
-        Ticket::create(&ticket_dir, ticket_id, description.as_ref())?;
-    } else {
-        debug!("Using existing ticket directory {:?}", ticket_dir);
-
-        // Check for metadata
-        if let Err(e) = Ticket::load(&ticket_dir) {
-            warn!("Missing .tix metadata in existing directory: {}", e);
-            info!("Initializing new .tix stamp");
-            Ticket::create(&ticket_dir, ticket_id, description.as_ref())?;
-        }
-    }
-
-    // 2. Determine Target Repositories
+    // 1. Determine Target Repositories
     let target_repos: Vec<String> = if all {
         debug!("Flag --all detected. Selecting all registered repositories.");
         config.repositories.keys().cloned().collect()
@@ -61,7 +44,7 @@ pub fn run(
         return Ok(());
     };
 
-    // 3. Create worktrees
+    // 2. Compute branch name
     let mut branch_name = format!("{}/{}", config.branch_prefix, ticket_id);
 
     if let Some(desc) = &description {
@@ -69,6 +52,51 @@ pub fn run(
         if !sanitized.is_empty() {
             branch_name.push('-');
             branch_name.push_str(&sanitized);
+        }
+    }
+
+    // 3. Create or load the ticket directory and metadata
+    if !ticket_dir.exists() {
+        info!("Creating ticket directory at {:?}", ticket_dir);
+        fs::create_dir_all(&ticket_dir)?;
+
+        let repo_branches: Vec<(String, String)> = target_repos
+            .iter()
+            .map(|r| (r.clone(), branch_name.clone()))
+            .collect();
+        Ticket::create(
+            &ticket_dir,
+            ticket_id,
+            description.as_ref(),
+            &branch_name,
+            &repo_branches,
+        )?;
+    } else {
+        debug!("Using existing ticket directory {:?}", ticket_dir);
+
+        // Check for metadata
+        match Ticket::load(&ticket_dir) {
+            Ok(existing) => {
+                if existing.metadata.branch.is_empty() {
+                    Ticket::ensure_branch(&ticket_dir, &branch_name)?;
+                }
+                Ticket::add_repos_with_branch(&ticket_dir, &target_repos, &branch_name)?;
+            }
+            Err(e) => {
+                warn!("Missing .tix metadata in existing directory: {}", e);
+                info!("Initializing new .tix stamp");
+                let repo_branches: Vec<(String, String)> = target_repos
+                    .iter()
+                    .map(|r| (r.clone(), branch_name.clone()))
+                    .collect();
+                Ticket::create(
+                    &ticket_dir,
+                    ticket_id,
+                    description.as_ref(),
+                    &branch_name,
+                    &repo_branches,
+                )?;
+            }
         }
     }
 

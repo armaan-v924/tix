@@ -50,11 +50,19 @@ pub fn run(repo_alias: &str, ticket: Option<&str>) -> Result<()> {
     fs::remove_dir_all(&target_worktree)
         .with_context(|| format!("Failed to remove {:?}", target_worktree))?;
 
-    let worktree_name = build_worktree_name(
-        &config,
-        &ticket_meta.metadata.id,
-        ticket_meta.metadata.description.as_ref(),
-    );
+    let branch_for_repo = ticket_meta
+        .metadata
+        .repo_branches
+        .get(repo_alias)
+        .cloned()
+        .unwrap_or_else(|| {
+            build_worktree_name(
+                &config,
+                &ticket_meta.metadata.id,
+                ticket_meta.metadata.description.as_ref(),
+            )
+        });
+    let worktree_name = crate::core::ticket::worktree_name_for_branch(&branch_for_repo);
 
     if let Err(e) = git::remove_worktree(&repo_def.path, &worktree_name) {
         warn!(
@@ -67,6 +75,7 @@ pub fn run(repo_alias: &str, ticket: Option<&str>) -> Result<()> {
         "Removed worktree '{}' from ticket '{}'",
         repo_alias, ticket_meta.metadata.id
     );
+    let _ = Ticket::remove_repo(&ticket_root, repo_alias);
     Ok(())
 }
 
