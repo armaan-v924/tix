@@ -70,7 +70,8 @@ pub fn run() -> Result<()> {
 
     config.save()?;
 
-    info!("Configuration saved.");
+    let config_path = Config::config_path()?;
+    info!("Configuration saved at {:?}", config_path);
     Ok(())
 }
 

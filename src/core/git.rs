@@ -208,10 +208,7 @@ pub fn resolve_default_branch(repo: &Repository) -> Option<String> {
     if let Ok(head) = repo.head() {
         if let Ok(resolved) = head.resolve() {
             if let Some(name) = resolved.name() {
-                warn!(
-                    "Using HEAD ({}) as base; origin/HEAD not configured",
-                    name
-                );
+                warn!("Using HEAD ({}) as base; origin/HEAD not configured", name);
                 return Some(name.to_string());
             }
         }
