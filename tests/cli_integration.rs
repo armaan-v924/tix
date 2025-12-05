@@ -214,3 +214,70 @@ fn remove_respects_clean_check() {
         .assert()
         .success();
 }
+
+#[test]
+fn completions_zsh_works_with_eval() {
+    // Test that zsh completions output is eval-friendly
+    let mut cmd = bin();
+    let output = cmd
+        .args(["completions", "zsh"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let completions_script = String::from_utf8(output).unwrap();
+
+    // The first line should be a comment (not an active #compdef directive)
+    let first_line = completions_script.lines().next().unwrap();
+    assert_eq!(
+        first_line, "# compdef tix",
+        "First line should be commented #compdef"
+    );
+
+    // Should contain the _tix function definition
+    assert!(
+        completions_script.contains("_tix() {"),
+        "Should define _tix function"
+    );
+
+    // Should contain the compdef call for eval context
+    assert!(
+        completions_script.contains("compdef _tix tix"),
+        "Should contain compdef call for eval"
+    );
+
+    // Should contain the conditional that handles both file and eval contexts
+    assert!(
+        completions_script.contains(r#"if [ "$funcstack[1]" = "_tix" ]; then"#),
+        "Should contain funcstack conditional"
+    );
+}
+
+#[test]
+fn completions_bash_unchanged() {
+    // Test that bash completions still work as before
+    let mut cmd = bin();
+    let output = cmd
+        .args(["completions", "bash"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let completions_script = String::from_utf8(output).unwrap();
+
+    // Bash completions should define the _tix function
+    assert!(
+        completions_script.contains("_tix() {"),
+        "Should define _tix function"
+    );
+
+    // Bash completions should have complete -F command
+    assert!(
+        completions_script.contains("complete -F _tix"),
+        "Should contain complete command"
+    );
+}
