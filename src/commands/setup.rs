@@ -1,6 +1,6 @@
 use crate::git;
 use crate::ticket::Ticket;
-use crate::{config::Config, ticket};
+use crate::config::Config;
 
 use anyhow::Result;
 use log::{debug, error, info, warn};

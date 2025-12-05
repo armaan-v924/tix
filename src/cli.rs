@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
-use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "tix", author, version, about)]

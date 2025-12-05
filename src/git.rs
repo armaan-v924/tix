@@ -1,5 +1,5 @@
-use anyhow::{bail, Context, Result};
-use git2::{BranchType, Commit, Repository, StatusOptions, WorktreeAddOptions};
+use anyhow::{Context, Result};
+use git2::{Commit, Repository, StatusOptions, WorktreeAddOptions};
 use std::path::Path;
 
 // Checks if a directory has uncommited changes (modified or staged)
