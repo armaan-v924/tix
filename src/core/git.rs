@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use git2::build::CheckoutBuilder;
 use git2::{BranchType, Commit, Repository, StatusOptions, WorktreeAddOptions};
-use log::debug;
+use log::{debug, warn};
 use std::path::Path;
 
 /// Return `true` if the repository at `repo_path` has no modified/staged/untracked files.
@@ -46,6 +46,12 @@ pub fn create_worktree(
 
             let default = resolve_default_branch(&repo);
             let base = base_ref.or(default.as_deref());
+            if base_ref.is_none() && default.is_none() {
+                warn!(
+                    "No base_ref provided and no default branch detected; falling back to HEAD for {}",
+                    repo_path.display()
+                );
+            }
             let commit = get_base_commit(&repo, base)?;
 
             repo.branch(branch_name, &commit, false)
@@ -199,8 +205,17 @@ pub fn resolve_default_branch(repo: &Repository) -> Option<String> {
     }
 
     // Fallback to symbolic reference of HEAD
-    repo.head()
-        .ok()
-        .and_then(|h| h.resolve().ok())
-        .and_then(|r| r.name().map(|s| s.to_string()))
+    if let Ok(head) = repo.head() {
+        if let Ok(resolved) = head.resolve() {
+            if let Some(name) = resolved.name() {
+                warn!(
+                    "Using HEAD ({}) as base; origin/HEAD not configured",
+                    name
+                );
+                return Some(name.to_string());
+            }
+        }
+    }
+
+    None
 }

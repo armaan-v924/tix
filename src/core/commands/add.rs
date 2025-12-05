@@ -52,6 +52,12 @@ pub fn run(repo_alias: &str, ticket: Option<&str>, branch: Option<&str>) -> Resu
             }
         })
         .unwrap_or(branch_name);
+    if !ticket_meta.metadata.repo_branches.contains_key(repo_alias) {
+        warn!(
+            "No stored branch for repo '{}'; using computed branch '{}'",
+            repo_alias, branch_name
+        );
+    }
     let base_ref = branch.map(|s| s.to_string());
 
     info!(

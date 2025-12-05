@@ -1,37 +1,36 @@
 # tix: quick orientation for agents
 
-- **Purpose**: Rust CLI to manage ticket-scoped git worktrees across multiple repos. Only `tix setup` and completions are wired; the rest are stubs.
+- **Purpose**: Rust CLI to manage ticket-scoped git worktrees across multiple repos. All core commands are wired (setup, add, remove, destroy, add-repo, setup-repos, config, doctor, completions).
 
 - **Global behavior**:
-  - Uses clap + clap-verbosity-flag; `env_logger` drives output (`-q` quiet, `-v/-vv` for debug).
-  - Config is read/written at the OS config dir (e.g., `~/.config/tix/config.toml`) via `Config::load/save` (no CLI editing yet).
+  - clap + clap-verbosity-flag + env_logger (`-q` quiet, `-v/-vv` debug).
+  - Config at `~/.config/tix/config.toml` (or `XDG_CONFIG_HOME`), loaded/saved via `Config::load/save`.
 
-- **Setup flow (implemented)**:
-  - Creates or reuses `tickets_directory/<ticket>` and stamps `.tix/info.toml` with `{id, description, created_at, branch, repos, repo_branches}` (per-repo branch tracking).
-  - Branch name: `<branch_prefix>/<ticket>-<sanitized-description>` (sanitization = lowercase, alnum, single hyphens). Current code already uses the slash form; confirm prefix contents.
-  - Repo selection: `--all` picks every configured alias; explicit aliases are filtered with warnings; none selected exits after stamping.
-  - Worktrees: for each target alias, call `git::create_worktree(repo.path, ticket_dir/alias, branch_name, None)`; base defaults to `HEAD`, branch created if missing.
+- **Setup flow**:
+  - Creates/reuses `tickets_directory/<ticket>`; stamps `.tix/info.toml` with `{id, description, created_at, branch, repos, repo_branches, repo_worktrees}` (per-repo branch/worktree).
+  - Branch: `<branch_prefix>/<ticket>-<sanitized-description>` (lowercase, alnum, single hyphens).
+  - Repo selection: `--all` picks all; explicit aliases filtered with warnings; none exits after stamping.
+  - Worktrees: `git::create_worktree(repo.path, ticket_dir/alias, branch_name, base)` with base from `--branch` or default branch (prefers `origin/HEAD`, warns when falling back).
 
-- **Config model (`src/config.rs`)**:
+- **Config model (`src/core/config.rs`)**:
   - Fields: `branch_prefix`, `github_base_url`, `default_repository_owner`, `code_directory`, `tickets_directory`, `repositories` (alias → `{ url, path }`).
-  - Missing config yields `Config::default()` (empty paths/strings). REQS expects interactive `init` to populate via `dialoguer`.
+  - `init` prompts via dialoguer; otherwise edit TOML.
 
-- **Git helpers (`src/git.rs`)**:
-  - `create_worktree` handles branch lookup/creation (optional `base_ref`), then adds a worktree.
-  - `is_clean` checks uncommitted/untracked changes.
-  - `remove_worktree` prunes by worktree name; `clone_repo` wraps cloning.
+- **Git helpers (`src/core/git.rs`)**:
+  - `create_worktree` resolves/creates branch (base ref optional, default branch preferred, warns on HEAD fallback) and adds a worktree.
+  - `is_clean` checks status; `remove_worktree` prunes by worktree name; `clone_repo` clones; `fetch_and_fast_forward` updates from remote.
 
-- **Command expectations from REQS vs current code**:
-  - `init`: interactive config bootstrap (dialoguer). **Not implemented.**
-  - `add-repo`: implemented. Parses url/owner+name/name-only, builds URL from config defaults, stores alias → `{url, path}` (path under `code_directory`).
-  - `setup`: implemented as above; needs branch format alignment and better config defaults/validation.
-  - `setup-repos`: implemented. Clones any missing repos from `repositories` into `code_directory`.
-  - `config`: implemented. View/set core config keys (`branch_prefix`, `github_base_url`, `default_repository_owner`, `code_directory`, `tickets_directory`).
-  - `destroy`: implemented. Checks you’re not inside the ticket dir, verifies worktrees clean unless `--force`, removes dirs, prunes worktree metadata using computed branch name.
-  - `add`: implemented. Infers ticket from current `.tix` if not provided, refuses to overwrite existing worktree for alias, updates repo (fetch/ff), uses branch name derived from ticket metadata and optional `--branch` base.
-  - `remove`: implemented. Infers ticket, checks clean, deletes worktree dir, prunes metadata using computed worktree name.
-  - `doctor`: implemented. Validates config fields, directories, and repo definitions; reports warnings/errors.
+- **Commands (implemented)**:
+  - `init`: interactive config bootstrap.
+  - `add-repo`: parse url/owner+name/name-only, store alias → `{url, path}` under `code_directory`.
+  - `setup`: branch + worktrees + metadata stamp; updates metadata when reusing.
+  - `add`: infer ticket from `.tix` or flag, refuse overwrite, use stored branch/worktree when present (warn on fallback), optional `--branch` base.
+  - `remove`: infer ticket, require clean, delete worktree dir, prune using stored worktree (warn on fallback), update metadata.
+  - `destroy`: ensure not inside ticket, clean-check unless `--force`, remove dirs, prune using stored per-repo branch/worktree (warn on fallback).
+  - `config`: view/set config keys.
+  - `setup-repos`: clone missing repos into `code_directory`.
+  - `doctor`: validate config and repo defs; reports warnings/errors.
 
-- **Testing/validation gaps**:
-  - No automated tests; branch-name sanitization and repo selection logic need coverage.
-  - Config defaults are unchecked (empty paths), so add validation before enabling other commands.
+- **Testing**:
+  - Unit tests across helpers.
+  - Integration tests (`tests/cli_integration.rs`) cover doctor, setup, add, remove flows with temp git repos (no network).

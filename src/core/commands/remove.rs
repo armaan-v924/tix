@@ -62,7 +62,18 @@ pub fn run(repo_alias: &str, ticket: Option<&str>) -> Result<()> {
                 ticket_meta.metadata.description.as_ref(),
             )
         });
-    let worktree_name = crate::core::ticket::worktree_name_for_branch(&branch_for_repo);
+    let worktree_name = ticket_meta
+        .metadata
+        .repo_worktrees
+        .get(repo_alias)
+        .cloned()
+        .unwrap_or_else(|| {
+            warn!(
+                "No stored worktree name for repo '{}'; deriving from branch '{}'",
+                repo_alias, branch_for_repo
+            );
+            crate::core::ticket::worktree_name_for_branch(&branch_for_repo)
+        });
 
     if let Err(e) = git::remove_worktree(&repo_def.path, &worktree_name) {
         warn!(

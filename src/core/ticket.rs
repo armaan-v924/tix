@@ -28,11 +28,14 @@ pub struct TicketMetadata {
     /// Mapping of repo alias to branch name.
     #[serde(default)]
     pub repo_branches: HashMap<String, String>,
+    /// Mapping of repo alias to sanitized worktree name.
+    #[serde(default)]
+    pub repo_worktrees: HashMap<String, String>,
 }
 
 /// Represents a ticket workspace and its metadata.
 pub struct Ticket {
-    pub root: PathBuf,
+    pub _root: PathBuf,
     pub metadata: TicketMetadata,
 }
 
@@ -49,8 +52,10 @@ impl Ticket {
         fs::create_dir_all(&stamp_dir).context("Failed to create .tix directory")?;
 
         let mut repo_branch_map: HashMap<String, String> = HashMap::new();
+        let mut repo_worktree_map: HashMap<String, String> = HashMap::new();
         for (alias, branch) in repo_branches {
             repo_branch_map.insert(alias.clone(), branch.clone());
+            repo_worktree_map.insert(alias.clone(), worktree_name_for_branch(branch));
         }
 
         let repos = repo_branch_map.keys().cloned().collect();
@@ -62,13 +67,14 @@ impl Ticket {
             branch: default_branch.to_string(),
             repos,
             repo_branches: repo_branch_map,
+            repo_worktrees: repo_worktree_map,
         };
 
         // Write info.toml
         write_metadata(root, &metadata)?;
 
         Ok(Ticket {
-            root: root.to_path_buf(),
+            _root: root.to_path_buf(),
             metadata,
         })
     }
@@ -91,11 +97,21 @@ impl Ticket {
                 metadata
                     .repo_branches
                     .insert(alias.clone(), metadata.branch.clone());
+                metadata
+                    .repo_worktrees
+                    .insert(alias.clone(), worktree_name_for_branch(&metadata.branch));
             }
+        }
+        // Compatibility: ensure repo_worktrees populated for existing branches.
+        for (alias, branch) in metadata.repo_branches.clone() {
+            metadata
+                .repo_worktrees
+                .entry(alias.clone())
+                .or_insert_with(|| worktree_name_for_branch(&branch));
         }
 
         Ok(Ticket {
-            root: root.to_path_buf(),
+            _root: root.to_path_buf(),
             metadata,
         })
     }
@@ -112,6 +128,11 @@ impl Ticket {
                 .repo_branches
                 .entry(r.clone())
                 .or_insert_with(|| branch.to_string());
+            ticket
+                .metadata
+                .repo_worktrees
+                .entry(r.clone())
+                .or_insert_with(|| worktree_name_for_branch(branch));
         }
         write_metadata(root, &ticket.metadata)
     }
@@ -127,6 +148,11 @@ impl Ticket {
             .repo_branches
             .entry(repo.to_string())
             .or_insert_with(|| branch.to_string());
+        ticket
+            .metadata
+            .repo_worktrees
+            .entry(repo.to_string())
+            .or_insert_with(|| worktree_name_for_branch(branch));
         write_metadata(root, &ticket.metadata)
     }
 
@@ -135,6 +161,7 @@ impl Ticket {
         let mut ticket = Ticket::load(root)?;
         ticket.metadata.repos.retain(|existing| existing != repo);
         ticket.metadata.repo_branches.remove(repo);
+        ticket.metadata.repo_worktrees.remove(repo);
         write_metadata(root, &ticket.metadata)
     }
 

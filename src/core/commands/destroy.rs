@@ -3,7 +3,7 @@
 use crate::core::commands::setup::sanitize_description;
 use crate::core::config::Config;
 use crate::core::git;
-use crate::core::ticket::{Ticket, TicketMetadata};
+use crate::core::ticket::Ticket;
 use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, error, info, warn};
 use std::env;
@@ -120,9 +120,22 @@ fn prune_worktrees(
             .cloned()
             .or_else(|| meta.map(|m| m.branch.clone()))
             .unwrap_or_else(|| {
+                warn!(
+                    "No stored branch for repo '{}'; deriving branch name for pruning",
+                    alias
+                );
                 build_branch_name(config, ticket_id, meta.and_then(|m| m.description.as_ref()))
             });
-        let worktree_name = crate::core::ticket::worktree_name_for_branch(&branch);
+        let worktree_name = meta
+            .and_then(|m| m.repo_worktrees.get(alias))
+            .cloned()
+            .unwrap_or_else(|| {
+                warn!(
+                    "No stored worktree name for repo '{}'; deriving from branch '{}'",
+                    alias, branch
+                );
+                crate::core::ticket::worktree_name_for_branch(&branch)
+            });
 
         debug!(
             "Pruning worktree metadata '{}' in repo {:?}",
