@@ -46,7 +46,7 @@ pub enum Commands {
         /// Formats: "my-repo", "owner/my-repo", or "https://github.com/owner/my-repo"
         repo: String,
 
-        /// Optional aalias. Defaults the repo name
+        /// Optional alias. Defaults the repo name
         #[arg(short, long)]
         alias: Option<String>,
     },
@@ -56,7 +56,7 @@ pub enum Commands {
         /// The config key (e.g., "git_base_url")
         key: String,
 
-        // The value to be set. If omitted, shows the current value
+        /// The value to be set. If omitted, shows the current value
         value: Option<String>,
     },
 
@@ -78,7 +78,7 @@ pub enum Commands {
         /// Repository alias to remove
         repo: String,
 
-        /// Ticket name. If ommitted, inferred from context
+        /// Ticket name. If omitted, inferred from context
         #[arg(short, long)]
         ticket: Option<String>,
     },
