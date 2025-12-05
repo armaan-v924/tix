@@ -17,13 +17,13 @@ Rust CLI for managing ticket-scoped git worktrees across multiple repositories. 
 Stored at `~/.config/tix/config.toml` (or `XDG_CONFIG_HOME`):
 ```toml
 branch_prefix = "feature"
-github_base_url = "git@github.com"
+github_base_url = "https://github.com"
 default_repository_owner = "my-org"
 code_directory = "/path/to/code"
 tickets_directory = "/path/to/tickets"
 
 [repositories.api]
-url = "git@github.com:my-org/api.git"
+url = "https://github.com/my-org/api.git"
 path = "/path/to/code/api"
 ```
 Initialize interactively with `tix init`, or edit the file directly.

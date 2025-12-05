@@ -115,7 +115,10 @@ pub fn compute_clone_plan(config: &Config) -> Result<Vec<(String, RepoDefinition
 #[cfg(test)]
 mod tests {
     use super::compute_clone_plan;
-    use crate::core::config::{Config, RepoDefinition};
+    use crate::core::{
+        config::{Config, RepoDefinition},
+        defaults,
+    };
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
@@ -133,11 +136,11 @@ mod tests {
 
     fn base_config(root: &PathBuf) -> Config {
         Config {
-            branch_prefix: "feature".into(),
-            github_base_url: "git@github.com".into(),
-            default_repository_owner: "my-org".into(),
-            code_directory: root.join("code"),
-            tickets_directory: root.join("tickets"),
+            branch_prefix: defaults::DEFAULT_BRANCH_PREFIX.into(),
+            github_base_url: defaults::DEFAULT_GITHUB_BASE_URL.into(),
+            default_repository_owner: defaults::DEFAULT_REPOSITORY_OWNER.into(),
+            code_directory: root.join(defaults::DEFAULT_CODE_DIR_BASENAME),
+            tickets_directory: root.join(defaults::DEFAULT_TICKETS_DIR_BASENAME),
             repositories: HashMap::new(),
         }
     }

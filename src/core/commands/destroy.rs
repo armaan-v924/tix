@@ -164,7 +164,7 @@ fn build_branch_name(config: &Config, ticket_id: &str, description: Option<&Stri
 #[cfg(test)]
 mod tests {
     use super::{build_branch_name, ensure_not_inside};
-    use crate::core::config::Config;
+    use crate::core::{config::Config, defaults};
     use std::collections::HashMap;
     use std::env;
     use std::fs;
@@ -172,11 +172,11 @@ mod tests {
 
     fn base_config() -> Config {
         Config {
-            branch_prefix: "feature".into(),
-            github_base_url: "git@github.com".into(),
-            default_repository_owner: "my-org".into(),
-            code_directory: PathBuf::from("/code"),
-            tickets_directory: PathBuf::from("/tickets"),
+            branch_prefix: defaults::DEFAULT_BRANCH_PREFIX.into(),
+            github_base_url: defaults::DEFAULT_GITHUB_BASE_URL.into(),
+            default_repository_owner: defaults::DEFAULT_REPOSITORY_OWNER.into(),
+            code_directory: PathBuf::from(defaults::DEFAULT_CODE_DIR_FALLBACK),
+            tickets_directory: PathBuf::from(defaults::DEFAULT_TICKETS_DIR_FALLBACK),
             repositories: HashMap::new(),
         }
     }

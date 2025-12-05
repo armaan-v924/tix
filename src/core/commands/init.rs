@@ -1,6 +1,6 @@
 //! Interactive `tix init` command to bootstrap configuration.
 
-use crate::core::config::Config;
+use crate::core::{config::Config, defaults};
 use anyhow::Result;
 use dialoguer::Input;
 use log::info;
@@ -25,17 +25,25 @@ pub fn run() -> Result<()> {
     let home_dir = home::home_dir();
     let default_tickets = default_path_str(
         &config.tickets_directory,
-        home_dir.as_ref().map(|h| h.join("tickets")),
-        "./tickets",
+        home_dir
+            .as_ref()
+            .map(|h| h.join(defaults::DEFAULT_TICKETS_DIR_BASENAME)),
+        defaults::DEFAULT_TICKETS_DIR_FALLBACK,
     );
     let default_code = default_path_str(
         &config.code_directory,
-        home_dir.as_ref().map(|h| h.join("code")),
-        "./code",
+        home_dir
+            .as_ref()
+            .map(|h| h.join(defaults::DEFAULT_CODE_DIR_BASENAME)),
+        defaults::DEFAULT_CODE_DIR_FALLBACK,
     );
-    let default_branch_prefix = fallback(&config.branch_prefix, "feature");
-    let default_github_base = fallback(&config.github_base_url, "git@github.com");
-    let default_owner = fallback(&config.default_repository_owner, "my-org");
+    let default_branch_prefix = fallback(&config.branch_prefix, defaults::DEFAULT_BRANCH_PREFIX);
+    let default_github_base =
+        fallback(&config.github_base_url, defaults::DEFAULT_GITHUB_BASE_URL);
+    let default_owner = fallback(
+        &config.default_repository_owner,
+        defaults::DEFAULT_REPOSITORY_OWNER,
+    );
 
     let tickets_input: String = Input::new()
         .with_prompt("Tickets directory")
