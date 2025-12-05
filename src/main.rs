@@ -1,6 +1,6 @@
 mod core;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser};
 use core::cli::{Cli, Commands};
 use log::{debug, error};
@@ -21,7 +21,6 @@ fn main() -> Result<()> {
             let mut cmd = Cli::command();
             // For zsh, we need to modify the output to work with eval
             if shell == clap_complete::Shell::Zsh {
-                use anyhow::Context;
                 let mut buffer = Vec::new();
                 clap_complete::generate(shell, &mut cmd, "tix", &mut buffer);
                 let completion_script = String::from_utf8(buffer)
