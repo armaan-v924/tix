@@ -109,9 +109,7 @@ pub enum Commands {
 
     // Req 1: Support shell completions
     /// Generate shell completions
-    Completions {
-        shell: clap_complete::Shell,
-    },
+    Completions { shell: clap_complete::Shell },
 
     /// Check for a newer release and install it
     Update,
