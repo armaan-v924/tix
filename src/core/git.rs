@@ -7,6 +7,8 @@ use git2::{
 };
 use log::{debug, warn};
 use std::path::Path;
+use std::process::{Command, Stdio};
+use std::io::Write;
 
 /// Return `true` if the repository at `repo_path` has no modified/staged/untracked files.
 pub fn is_clean(repo_path: &Path) -> Result<bool> {
@@ -120,50 +122,168 @@ pub fn remove_worktree(repo_path: &Path, worktree_name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Attempt to retrieve credentials using `git credential fill` command.
+/// This uses the same credential system as command-line git, which can access
+/// OS keychains and other credential stores that libgit2 might not be able to access directly.
+fn get_credentials_via_git_command(url: &str) -> Option<(String, String)> {
+    debug!("Attempting to get credentials via 'git credential fill' for {}", url);
+    
+    // Parse URL to extract protocol and host
+    let (protocol, host) = if let Some(https_start) = url.strip_prefix("https://") {
+        ("https", https_start.split('/').next()?)
+    } else if let Some(http_start) = url.strip_prefix("http://") {
+        ("http", http_start.split('/').next()?)
+    } else {
+        return None;
+    };
+    
+    // Prepare input for git credential fill
+    let input = format!("protocol={}\nhost={}\n\n", protocol, host);
+    
+    // Spawn git credential fill command
+    let mut child = Command::new("git")
+        .arg("credential")
+        .arg("fill")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .ok()?;
+    
+    // Write input to stdin
+    if let Some(mut stdin) = child.stdin.take() {
+        if stdin.write_all(input.as_bytes()).is_err() {
+            debug!("Failed to write to git credential fill stdin");
+            return None;
+        }
+    }
+    
+    // Read output
+    let output = child.wait_with_output().ok()?;
+    
+    if !output.status.success() {
+        debug!("git credential fill failed with status: {}", output.status);
+        return None;
+    }
+    
+    // Parse output to extract username and password
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    let mut username = None;
+    let mut password = None;
+    
+    for line in output_str.lines() {
+        if let Some(user) = line.strip_prefix("username=") {
+            username = Some(user.to_string());
+        } else if let Some(pass) = line.strip_prefix("password=") {
+            password = Some(pass.to_string());
+        }
+    }
+    
+    match (username, password) {
+        (Some(u), Some(p)) => {
+            debug!("Successfully retrieved credentials via git credential fill");
+            Some((u, p))
+        }
+        _ => {
+            debug!("git credential fill did not return username and password");
+            None
+        }
+    }
+}
+
 /// Create callbacks for git operations that use system credentials.
 ///
 /// This function creates a `RemoteCallbacks` instance configured to authenticate
 /// with private repositories using the system's git credentials. It attempts multiple
-/// authentication methods in order:
-/// 1. SSH key from ssh-agent or default SSH key location
-/// 2. Username/password from git credential helpers
-/// 3. Default git credentials
+/// authentication methods based on what git requests:
+/// 1. SSH key from ssh-agent (for SSH URLs)
+/// 2. Username/password from git credential helpers via git2
+/// 3. Username/password from git credential helpers via git command (fallback)
 ///
-/// This resolves the "remote authentication required but no callback set" error
-/// when cloning or fetching from private repositories.
+/// For HTTPS authentication, this relies on git's credential helper system.
+/// The git command fallback allows access to OS keychains and other credential stores.
 fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
     let mut callbacks = RemoteCallbacks::new();
-    callbacks.credentials(|_url, username_from_url, allowed_types| {
+    let mut tried_sshkey = false;
+    let mut tried_cred_helper = false;
+    let mut tried_git_command = false;
+    
+    callbacks.credentials(move |url, username_from_url, allowed_types| {
         debug!(
             "Git credential callback: url={}, username={:?}, allowed_types={:?}",
-            _url, username_from_url, allowed_types
+            url, username_from_url, allowed_types
         );
 
-        // Try SSH key from agent/default location
-        if allowed_types.is_ssh_key() {
-            if let Ok(cred) = Cred::ssh_key_from_agent(username_from_url.unwrap_or("git")) {
-                debug!("Using SSH key from agent");
-                return Ok(cred);
-            }
-        }
-
-        // Try username/password from credential helper or memory
-        if allowed_types.is_user_pass_plaintext() || allowed_types.is_username() {
-            if let Ok(config) = git2::Config::open_default() {
-                if let Ok(cred) = Cred::credential_helper(&config, _url, username_from_url) {
-                    debug!("Using credentials from git credential helper");
+        // Try SSH key from agent
+        if allowed_types.is_ssh_key() && !tried_sshkey {
+            tried_sshkey = true;
+            debug!("Attempting SSH key authentication");
+            match Cred::ssh_key_from_agent(username_from_url.unwrap_or("git")) {
+                Ok(cred) => {
+                    debug!("Successfully using SSH key from agent");
                     return Ok(cred);
+                }
+                Err(e) => {
+                    debug!("SSH key authentication failed: {}", e);
+                    // Fall through to try other methods
                 }
             }
         }
 
-        // Try default git credentials
-        if let Ok(cred) = Cred::default() {
-            debug!("Using default git credentials");
-            return Ok(cred);
+        // Try username/password from credential helper via git2
+        if (allowed_types.is_user_pass_plaintext() || allowed_types.is_username()) && !tried_cred_helper {
+            tried_cred_helper = true;
+            debug!("Attempting to retrieve credentials from git2 credential helper");
+            if let Ok(config) = git2::Config::open_default() {
+                if let Ok(cred) = Cred::credential_helper(&config, url, username_from_url) {
+                    debug!("Successfully retrieved credentials from git2 credential helper");
+                    return Ok(cred);
+                } else {
+                    debug!("git2 credential helper did not provide credentials");
+                }
+            } else {
+                debug!("Could not open git config");
+            }
+            
+            // Try using git credential fill command as fallback
+            if !tried_git_command {
+                tried_git_command = true;
+                if let Some((username, password)) = get_credentials_via_git_command(url) {
+                    match Cred::userpass_plaintext(&username, &password) {
+                        Ok(cred) => {
+                            debug!("Successfully created credentials from git command");
+                            return Ok(cred);
+                        }
+                        Err(e) => {
+                            debug!("Failed to create userpass credential: {}", e);
+                        }
+                    }
+                }
+            }
         }
 
-        Err(git2::Error::from_str("No valid credentials found"))
+        // If all attempts failed, return a helpful error
+        Err(git2::Error::from_str(
+            &format!(
+                "Failed to authenticate to {}.\n\
+                 \n\
+                 The repository requires authentication, but no valid credentials were found.\n\
+                 \n\
+                 Please try one of the following:\n\
+                 1. Configure git credential helper to cache your credentials:\n\
+                    git config --global credential.helper cache\n\
+                    Then run 'git fetch' manually in the repository to cache credentials\n\
+                 \n\
+                 2. Use SSH instead of HTTPS by updating the repository URL:\n\
+                    git remote set-url origin git@github.com:USER/REPO.git\n\
+                 \n\
+                 3. For GitHub, create a personal access token and use it as your password\n\
+                 \n\
+                 The command-line 'git fetch' may work because it can prompt for credentials,\n\
+                 but programmatic access requires pre-configured authentication.",
+                url
+            )
+        ))
     });
     callbacks
 }
