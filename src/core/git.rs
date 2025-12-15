@@ -144,14 +144,20 @@ fn get_credentials_via_git_command(url: &str) -> Option<(String, String)> {
     let input = format!("protocol={}\nhost={}\n\n", protocol, host);
 
     // Spawn git credential fill command
-    let mut child = Command::new("git")
+    let mut child = match Command::new("git")
         .arg("credential")
         .arg("fill")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .ok()?;
+    {
+        Ok(c) => c,
+        Err(e) => {
+            debug!("Failed to spawn 'git credential fill' command: {}", e);
+            return None;
+        }
+    };
 
     // Write input to stdin
     if let Some(mut stdin) = child.stdin.take() {
@@ -162,7 +168,13 @@ fn get_credentials_via_git_command(url: &str) -> Option<(String, String)> {
     }
 
     // Read output
-    let output = child.wait_with_output().ok()?;
+    let output = match child.wait_with_output() {
+        Ok(o) => o,
+        Err(e) => {
+            debug!("Failed to read output from 'git credential fill': {}", e);
+            return None;
+        }
+    };
 
     if !output.status.success() {
         debug!("git credential fill failed with status: {}", output.status);
