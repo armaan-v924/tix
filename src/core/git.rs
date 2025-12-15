@@ -6,9 +6,9 @@ use git2::{
     BranchType, Commit, Cred, RemoteCallbacks, Repository, StatusOptions, WorktreeAddOptions,
 };
 use log::{debug, warn};
+use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::io::Write;
 
 /// Return `true` if the repository at `repo_path` has no modified/staged/untracked files.
 pub fn is_clean(repo_path: &Path) -> Result<bool> {
@@ -126,8 +126,11 @@ pub fn remove_worktree(repo_path: &Path, worktree_name: &str) -> Result<()> {
 /// This uses the same credential system as command-line git, which can access
 /// OS keychains and other credential stores that libgit2 might not be able to access directly.
 fn get_credentials_via_git_command(url: &str) -> Option<(String, String)> {
-    debug!("Attempting to get credentials via 'git credential fill' for {}", url);
-    
+    debug!(
+        "Attempting to get credentials via 'git credential fill' for {}",
+        url
+    );
+
     // Parse URL to extract protocol and host
     let (protocol, host) = if let Some(https_start) = url.strip_prefix("https://") {
         ("https", https_start.split('/').next()?)
@@ -136,10 +139,10 @@ fn get_credentials_via_git_command(url: &str) -> Option<(String, String)> {
     } else {
         return None;
     };
-    
+
     // Prepare input for git credential fill
     let input = format!("protocol={}\nhost={}\n\n", protocol, host);
-    
+
     // Spawn git credential fill command
     let mut child = Command::new("git")
         .arg("credential")
@@ -149,7 +152,7 @@ fn get_credentials_via_git_command(url: &str) -> Option<(String, String)> {
         .stderr(Stdio::piped())
         .spawn()
         .ok()?;
-    
+
     // Write input to stdin
     if let Some(mut stdin) = child.stdin.take() {
         if stdin.write_all(input.as_bytes()).is_err() {
@@ -157,20 +160,20 @@ fn get_credentials_via_git_command(url: &str) -> Option<(String, String)> {
             return None;
         }
     }
-    
+
     // Read output
     let output = child.wait_with_output().ok()?;
-    
+
     if !output.status.success() {
         debug!("git credential fill failed with status: {}", output.status);
         return None;
     }
-    
+
     // Parse output to extract username and password
     let output_str = String::from_utf8_lossy(&output.stdout);
     let mut username = None;
     let mut password = None;
-    
+
     for line in output_str.lines() {
         if let Some(user) = line.strip_prefix("username=") {
             username = Some(user.to_string());
@@ -178,7 +181,7 @@ fn get_credentials_via_git_command(url: &str) -> Option<(String, String)> {
             password = Some(pass.to_string());
         }
     }
-    
+
     match (username, password) {
         (Some(u), Some(p)) => {
             debug!("Successfully retrieved credentials via git credential fill");
@@ -207,7 +210,7 @@ fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
     let mut tried_sshkey = false;
     let mut tried_cred_helper = false;
     let mut tried_git_command = false;
-    
+
     callbacks.credentials(move |url, username_from_url, allowed_types| {
         debug!(
             "Git credential callback: url={}, username={:?}, allowed_types={:?}",
@@ -231,7 +234,9 @@ fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
         }
 
         // Try username/password from credential helper via git2
-        if (allowed_types.is_user_pass_plaintext() || allowed_types.is_username()) && !tried_cred_helper {
+        if (allowed_types.is_user_pass_plaintext() || allowed_types.is_username())
+            && !tried_cred_helper
+        {
             tried_cred_helper = true;
             debug!("Attempting to retrieve credentials from git2 credential helper");
             if let Ok(config) = git2::Config::open_default() {
@@ -244,7 +249,7 @@ fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
             } else {
                 debug!("Could not open git config");
             }
-            
+
             // Try using git credential fill command as fallback
             if !tried_git_command {
                 tried_git_command = true;
@@ -263,9 +268,8 @@ fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
         }
 
         // If all attempts failed, return a helpful error
-        Err(git2::Error::from_str(
-            &format!(
-                "Failed to authenticate to {}.\n\
+        Err(git2::Error::from_str(&format!(
+            "Failed to authenticate to {}.\n\
                  \n\
                  The repository requires authentication, but no valid credentials were found.\n\
                  \n\
@@ -281,9 +285,8 @@ fn create_git_callbacks<'a>() -> RemoteCallbacks<'a> {
                  \n\
                  The command-line 'git fetch' may work because it can prompt for credentials,\n\
                  but programmatic access requires pre-configured authentication.",
-                url
-            )
-        ))
+            url
+        )))
     });
     callbacks
 }
