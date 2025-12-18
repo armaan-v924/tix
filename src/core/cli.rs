@@ -13,7 +13,7 @@ const HELP_STYLES: Styles = Styles::styled()
     .error(AnsiColor::Red.on_default().bold());
 
 #[derive(Parser, Debug)]
-/// Root CLI parser for tix.
+/// Manage ticket-scoped git worktrees across multiple repositories
 #[command(name = "tix", author, version, about, styles = HELP_STYLES)]
 pub struct Cli {
     #[command(flatten)]
