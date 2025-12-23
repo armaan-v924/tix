@@ -142,6 +142,7 @@ mod tests {
             code_directory: root.join(defaults::DEFAULT_CODE_DIR_BASENAME),
             tickets_directory: root.join(defaults::DEFAULT_TICKETS_DIR_BASENAME),
             repositories: HashMap::new(),
+            plugins: HashMap::new(),
         }
     }
 

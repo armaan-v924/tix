@@ -124,4 +124,50 @@ pub enum Commands {
         #[arg(short, long)]
         ticket: Option<String>,
     },
+
+    /// Manage registered plugins
+    Plugins {
+        #[command(subcommand)]
+        command: PluginCommands,
+    },
+
+    /// Run a registered plugin as a subcommand
+    #[command(external_subcommand)]
+    Plugin(Vec<String>),
+}
+
+#[derive(Subcommand, Debug)]
+/// Plugin management subcommands.
+pub enum PluginCommands {
+    /// List registered plugins
+    List,
+
+    /// Register a new plugin in the config
+    Register {
+        /// Plugin name
+        name: String,
+
+        /// Path to plugin entrypoint (Python file)
+        entrypoint: String,
+
+        /// Optional description
+        #[arg(short, long)]
+        description: Option<String>,
+
+        /// Optional Python interpreter override (e.g., python3.11)
+        #[arg(short, long)]
+        python: Option<String>,
+    },
+
+    /// Remove a plugin from the config (also clears its cache)
+    Deregister {
+        /// Plugin name
+        name: String,
+    },
+
+    /// Clear plugin cache (default: all plugins if no name provided)
+    Clean {
+        /// Optional plugin name; omit to clear all plugin caches
+        name: Option<String>,
+    },
 }

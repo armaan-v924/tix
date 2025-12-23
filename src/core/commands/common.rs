@@ -88,6 +88,7 @@ mod tests {
             code_directory: PathBuf::from(defaults::DEFAULT_CODE_DIR_FALLBACK),
             tickets_directory: PathBuf::from(defaults::DEFAULT_TICKETS_DIR_FALLBACK),
             repositories: HashMap::new(),
+            plugins: HashMap::new(),
         }
     }
 

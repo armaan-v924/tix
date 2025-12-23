@@ -16,7 +16,20 @@ pub struct RepoDefinition {
     pub path: PathBuf,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+/// Definition of a registered plugin.
+pub struct PluginDefinition {
+    /// Path to the plugin entrypoint (e.g., `/path/to/plugin.py`).
+    pub entrypoint: PathBuf,
+    /// Optional description shown in listings.
+    #[serde(default)]
+    pub description: String,
+    /// Optional Python interpreter override (e.g., `python3.11`).
+    #[serde(default)]
+    pub python: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 /// Global configuration values loaded from `config.toml`.
 pub struct Config {
     /// Default branch prefix for ticket branches (e.g., `feature`).
@@ -32,6 +45,10 @@ pub struct Config {
 
     /// Map of repository aliases to their definitions.
     pub repositories: HashMap<String, RepoDefinition>,
+
+    /// Map of plugin names to their definitions.
+    #[serde(default)]
+    pub plugins: HashMap<String, PluginDefinition>,
 }
 
 impl Config {
