@@ -1,0 +1,9 @@
+[project]
+name = "tix-plugin-template"
+version = "0.1.0"
+description = "Template plugin for tix"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.uv]
+dev-dependencies = []

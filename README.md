@@ -12,6 +12,7 @@ Rust CLI for managing ticket-scoped git worktrees across multiple repositories. 
 - `config <key> [value]`: View/set core config fields.
 - `doctor`: Validate config and report warnings/errors.
 - `update`: Self-update from the latest GitHub release.
+- `tix <plugin> [args...]`: Run a registered Python plugin inside the ticket workspace.
 - Shell completions via `tix completions`.
 
 ## Configuration
@@ -26,6 +27,10 @@ tickets_directory = "/path/to/tickets"
 [repositories.api]
 url = "https://github.com/my-org/api.git"
 path = "/path/to/code/api"
+
+[plugins.myplugin]
+entrypoint = "/path/to/plugin.py"
+description = "Do something useful"
 ```
 Initialize interactively with `tix init`, or edit the file directly.
 Supported keys: `branch_prefix`, `github_base_url`, `default_repository_owner`, `code_directory`, `tickets_directory`.
@@ -51,6 +56,29 @@ Commands prefer stored branches/worktrees and warn when falling back to computed
 - Destroy a ticket (force): `tix destroy JIRA-123 --force`
 - Clone missing repos: `tix setup-repos`
 - Doctor: `tix doctor`
+- List plugins: `tix plugins list`
+- Register a plugin: `tix plugins register my-plugin /path/to/plugin.py -d "Does stuff"`
+- Remove a plugin (and cache): `tix plugins deregister my-plugin`
+- Clear caches: `tix plugins clean` or `tix plugins clean my-plugin`
+
+## Plugins
+Plugins are registered under `[plugins.<name>]` in `config.toml` with an `entrypoint` pointing to a Python script.
+Plugins are executed via `uv run` and must live inside a uv project (`pyproject.toml` present).
+Your plugin should export `main(context, argv)` where `argv` is a list of CLI args.
+When you run `tix <plugin>`, tix sets the working directory to the ticket root and exposes:
+- `TIX_CONTEXT_PATH`: JSON file containing ticket metadata, config snapshot, and repo definitions.
+- `TIX_TICKET_ROOT`: absolute path to the ticket directory.
+- `TIX_PLUGIN_CACHE_DIR`: plugin-specific cache directory under `XDG_CACHE_HOME/tix/plugins/<name>` (or OS cache dir).
+- `TIX_PLUGIN_STATE_DIR`: plugin-specific global state directory under `XDG_STATE_HOME/tix/plugins/<name>` (or OS state dir).
+- `TIX_PLUGIN_TICKET_STATE_DIR`: per-ticket state directory under `<ticket>/.tix/plugins/<name>`.
+
+See `plugins/PLUGINS.md` for the full API and development docs, plus a template plugin.
+
+Quick install:
+1) Install `uv` and ensure it is on your `PATH`.
+2) Clone or create a plugin folder with a `pyproject.toml`.
+3) Register it: `tix plugins register my-plugin /abs/path/to/plugin.py -d "Does something"`.
+4) Run it: `tix my-plugin --help`.
 
 ## Installation
 - Quick install script (macOS/Linux): `curl -fsSL https://raw.githubusercontent.com/armaan-v924/worktree-manager/main/install_tix.sh | bash`

@@ -2,7 +2,7 @@ mod core;
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser};
-use core::cli::{Cli, Commands};
+use core::cli::{Cli, Commands, PluginCommands};
 use log::{debug, error};
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::process;
@@ -70,6 +70,23 @@ fn main() -> Result<()> {
         Commands::Doctor => core::commands::doctor::run(),
         Commands::Update => core::commands::update::run(),
         Commands::Info { ticket } => core::commands::info::run(ticket.as_deref()),
+        Commands::Plugins { command } => match command {
+            PluginCommands::List => core::commands::plugins::list(),
+            PluginCommands::Register {
+                name,
+                entrypoint,
+                description,
+                python,
+            } => core::commands::plugins::register(
+                &name,
+                &entrypoint,
+                description.as_deref(),
+                python.as_deref(),
+            ),
+            PluginCommands::Deregister { name } => core::commands::plugins::deregister(&name),
+            PluginCommands::Clean { name } => core::commands::plugins::clean(name.as_deref()),
+        },
+        Commands::Plugin(args) => core::plugins::run_external(args),
     };
 
     if let Err(err) = result {
