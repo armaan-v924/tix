@@ -12,7 +12,7 @@ clap-verbosity-flag = "3.0.4"
 clap_complete = "4.5.61"
 directories = "6.0.0"
 env_logger = "0.11.8"
-git2 = { version = "0.20.2", features = ["https", "ssh"] }
+git2 = { version = "0.20.3", features = ["https", "ssh"] }
 home = "0.5.11"
 log = "0.4.29"
 serde = "1.0.228"
