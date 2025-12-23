@@ -53,11 +53,15 @@ pub enum Commands {
 
     /// View or set configuration values
     Config {
-        /// The config key (e.g., "git_base_url")
-        key: String,
+        /// The config key (e.g., "github_base_url"). If omitted, prints full config
+        key: Option<String>,
 
         /// The value to be set. If omitted, shows the current value
         value: Option<String>,
+
+        /// Open the config file in $EDITOR
+        #[arg(short, long)]
+        edit: bool,
     },
 
     /// Delete a ticket workspace and its worktrees

@@ -1,6 +1,6 @@
 //! Destroy a ticket workspace after safety checks.
 
-use crate::core::commands::setup::sanitize_description;
+use crate::core::commands::common::build_branch_name;
 use crate::core::config::Config;
 use crate::core::git;
 use crate::core::ticket::Ticket;
@@ -39,6 +39,7 @@ pub fn run(ticket_id: &str, force: bool) -> Result<()> {
 
     let worktree_dirs = worktree_dirs(&ticket_dir);
     debug!("Found worktree directories: {:?}", worktree_dirs);
+    let aliases_to_prune = aliases_to_prune(&worktree_dirs, ticket_meta.as_ref());
 
     // Safety checks: ensure clean unless --force
     if !force {
@@ -63,7 +64,7 @@ pub fn run(ticket_id: &str, force: bool) -> Result<()> {
         }
     }
 
-    prune_worktrees(&config, &ticket_dir, ticket_id, ticket_meta.as_ref())?;
+    prune_worktrees(&config, ticket_id, ticket_meta.as_ref(), &aliases_to_prune)?;
 
     info!("Removing ticket directory {:?}", ticket_dir);
     fs::remove_dir_all(&ticket_dir)
@@ -101,17 +102,40 @@ fn ensure_not_inside(ticket_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+fn aliases_to_prune(
+    worktree_dirs: &[PathBuf],
+    meta: Option<&crate::core::ticket::TicketMetadata>,
+) -> Vec<String> {
+    if let Some(m) = meta {
+        return m.repo_branches.keys().cloned().collect::<Vec<String>>();
+    }
+
+    let mut aliases = Vec::new();
+    for dir in worktree_dirs {
+        if let Some(name) = dir.file_name().and_then(|n| n.to_str()) {
+            aliases.push(name.to_string());
+        }
+    }
+    aliases
+}
+
 fn prune_worktrees(
     config: &Config,
-    ticket_dir: &Path,
     ticket_id: &str,
     meta: Option<&crate::core::ticket::TicketMetadata>,
+    aliases: &[String],
 ) -> Result<()> {
-    for (alias, repo_def) in &config.repositories {
-        let target_path = ticket_dir.join(alias);
-        if !target_path.exists() {
-            continue;
-        }
+    for alias in aliases {
+        let repo_def = match config.repositories.get(alias) {
+            Some(def) => def,
+            None => {
+                warn!(
+                    "Repo alias '{}' not found in config; skipping worktree pruning",
+                    alias
+                );
+                continue;
+            }
+        };
 
         let branch = meta
             .and_then(|m| m.repo_branches.get(alias))
@@ -149,48 +173,19 @@ fn prune_worktrees(
     Ok(())
 }
 
-fn build_branch_name(config: &Config, ticket_id: &str, description: Option<&String>) -> String {
-    let mut branch_name = format!("{}/{}", config.branch_prefix, ticket_id);
-    if let Some(desc) = description {
-        let sanitized = sanitize_description(desc);
-        if !sanitized.is_empty() {
-            branch_name.push('-');
-            branch_name.push_str(&sanitized);
-        }
-    }
-    branch_name
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{build_branch_name, ensure_not_inside};
-    use crate::core::{config::Config, defaults};
-    use std::collections::HashMap;
+    use super::ensure_not_inside;
     use std::env;
     use std::fs;
     use std::path::PathBuf;
-
-    fn base_config() -> Config {
-        Config {
-            branch_prefix: defaults::DEFAULT_BRANCH_PREFIX.into(),
-            github_base_url: defaults::DEFAULT_GITHUB_BASE_URL.into(),
-            default_repository_owner: defaults::DEFAULT_REPOSITORY_OWNER.into(),
-            code_directory: PathBuf::from(defaults::DEFAULT_CODE_DIR_FALLBACK),
-            tickets_directory: PathBuf::from(defaults::DEFAULT_TICKETS_DIR_FALLBACK),
-            repositories: HashMap::new(),
-        }
-    }
-
-    #[test]
-    fn branch_name_includes_description() {
-        let cfg = base_config();
-        let desc = "Short Summary".to_string();
-        let name = build_branch_name(&cfg, "JIRA-1", Some(&desc));
-        assert_eq!(name, "feature/JIRA-1-short-summary");
-    }
+    use std::sync::Mutex;
 
     #[test]
     fn ensure_not_inside_detects_nested() {
+        static CWD_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = CWD_LOCK.lock().unwrap();
+
         let tmp = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".tmp-tests-destroy");
         let nested = tmp.join("child");
         fs::create_dir_all(&nested).unwrap();

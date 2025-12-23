@@ -1,5 +1,6 @@
 pub mod add;
 pub mod add_repo;
+pub mod common;
 pub mod config_cmd;
 pub mod destroy;
 pub mod doctor;

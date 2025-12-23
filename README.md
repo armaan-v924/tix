@@ -28,6 +28,13 @@ url = "https://github.com/my-org/api.git"
 path = "/path/to/code/api"
 ```
 Initialize interactively with `tix init`, or edit the file directly.
+Supported keys: `branch_prefix`, `github_base_url`, `default_repository_owner`, `code_directory`, `tickets_directory`.
+
+Examples:
+- Show a value: `tix config branch_prefix`
+- Set a value: `tix config branch_prefix hotfix`
+- Show full config: `tix config`
+- Edit config in `$EDITOR`: `tix config --edit`
 
 ## Metadata
 Each ticket directory contains `.tix/info.toml` with:
@@ -57,5 +64,18 @@ Commands prefer stored branches/worktrees and warn when falling back to computed
 
 ## Notes / Caveats
 - Base branch resolution prefers `origin/HEAD`; warns and falls back to `HEAD` if not configured.
+- When a matching `origin/<branch>` exists, new worktrees set upstream tracking automatically.
 - Destructive commands refuse to run when inside the target ticket directory.
 - Safety checks: `remove` and `destroy` require clean worktrees unless `--force` (destroy).
+
+## Update
+The `tix update` command downloads the latest GitHub release for your platform and replaces the current binary.
+Environment overrides:
+- `TIX_UPDATE_OWNER`: release owner (default `armaan-v924`)
+- `TIX_UPDATE_REPO`: release repo (default `worktree-manager`)
+- `TIX_INSTALL_PATH`: explicit install destination (defaults to the current executable path)
+
+Supported platforms:
+- `linux-x86_64`
+- `macos-aarch64`
+- `windows-x86_64`

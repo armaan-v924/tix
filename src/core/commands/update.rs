@@ -228,3 +228,27 @@ fn install_binary(src: &Path, dest: &Path) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{detect_target, parse_tag};
+
+    #[test]
+    fn parse_tag_accepts_v_prefix() {
+        let version = parse_tag("v1.2.3").unwrap();
+        assert_eq!(version.to_string(), "1.2.3");
+    }
+
+    #[test]
+    fn parse_tag_rejects_invalid_version() {
+        assert!(parse_tag("not-a-version").is_err());
+    }
+
+    #[test]
+    fn detect_target_matches_supported_platforms() {
+        let target = detect_target().unwrap();
+        assert!(!target.asset_suffix.is_empty());
+        assert!(!target.archive_ext.is_empty());
+        assert!(!target.exe_name.is_empty());
+    }
+}

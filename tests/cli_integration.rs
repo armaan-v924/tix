@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use tix::core::ticket::Ticket;
+use toml::Value;
 
 fn bin() -> assert_cmd::Command {
     let mut cmd = assert_cmd::Command::new(assert_cmd::cargo::cargo_bin!("tix"));
@@ -60,6 +61,47 @@ path = "{path}"
 "#,
             alias = alias,
             url = path.display(),
+            path = path.display()
+        ));
+    }
+
+    let config = format!(
+        r#"
+branch_prefix = "feature"
+github_base_url = "https://github.com"
+default_repository_owner = "my-org"
+code_directory = "{code}"
+tickets_directory = "{tickets}"
+
+{repos}
+"#,
+        code = code.display(),
+        tickets = tickets.display(),
+        repos = repos_toml
+    );
+    fs::write(config_root.join("config.toml"), config).unwrap();
+    config_root
+}
+
+fn write_config_with_urls(
+    root: &TempDir,
+    code: &Path,
+    tickets: &Path,
+    repos: &[(&str, &Path, &Path)],
+) -> PathBuf {
+    let config_root = root.path().join("tix");
+    fs::create_dir_all(&config_root).unwrap();
+
+    let mut repos_toml = String::from("[repositories]\n");
+    for (alias, url, path) in repos {
+        repos_toml.push_str(&format!(
+            r#"[repositories.{alias}]
+url = "{url}"
+path = "{path}"
+
+"#,
+            alias = alias,
+            url = url.display(),
             path = path.display()
         ));
     }
@@ -225,6 +267,317 @@ fn remove_respects_clean_check() {
     cmd.env("XDG_CONFIG_HOME", temp.path())
         .args(["remove", "api"])
         .current_dir(tickets.join("JIRA-3"))
+        .assert()
+        .success();
+}
+
+#[test]
+fn setup_without_repos_stamps_metadata() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+    write_config(&temp, &code, &tickets, &[]);
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["setup", "JIRA-EMPTY"])
+        .assert()
+        .success();
+
+    let ticket_dir = tickets.join("JIRA-EMPTY");
+    let ticket = Ticket::load(&ticket_dir).unwrap();
+    assert_eq!(ticket.metadata.id, "JIRA-EMPTY");
+    assert!(ticket.metadata.repos.is_empty());
+}
+
+#[test]
+fn setup_with_invalid_repo_stamps_metadata() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+    write_config(&temp, &code, &tickets, &[]);
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["setup", "JIRA-INVALID", "missing"])
+        .assert()
+        .success();
+
+    let ticket_dir = tickets.join("JIRA-INVALID");
+    let ticket = Ticket::load(&ticket_dir).unwrap();
+    assert_eq!(ticket.metadata.id, "JIRA-INVALID");
+    assert!(ticket.metadata.repos.is_empty());
+}
+
+#[test]
+fn destroy_prunes_worktree_metadata() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+
+    let api_repo = code.join("api");
+    init_repo_with_origin(&api_repo);
+
+    write_config(&temp, &code, &tickets, &[("api", &api_repo)]);
+
+    // setup ticket with api
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["setup", "JIRA-4", "api"])
+        .assert()
+        .success();
+
+    let ticket_dir = tickets.join("JIRA-4");
+    let ticket = Ticket::load(&ticket_dir).unwrap();
+    let worktree_name = ticket.metadata.repo_worktrees.get("api").unwrap();
+    let worktree_meta_dir = api_repo.join(".git").join("worktrees").join(worktree_name);
+    assert!(worktree_meta_dir.exists());
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["destroy", "JIRA-4"])
+        .current_dir(temp.path())
+        .assert()
+        .success();
+
+    assert!(!ticket_dir.exists());
+    assert!(!worktree_meta_dir.exists());
+}
+
+#[test]
+fn destroy_prunes_when_worktree_dir_missing() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+
+    let api_repo = code.join("api");
+    init_repo_with_origin(&api_repo);
+
+    write_config(&temp, &code, &tickets, &[("api", &api_repo)]);
+
+    // setup ticket with api
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["setup", "JIRA-5", "api"])
+        .assert()
+        .success();
+
+    let ticket_dir = tickets.join("JIRA-5");
+    let ticket = Ticket::load(&ticket_dir).unwrap();
+    let worktree_name = ticket.metadata.repo_worktrees.get("api").unwrap();
+    let worktree_meta_dir = api_repo.join(".git").join("worktrees").join(worktree_name);
+
+    fs::remove_dir_all(ticket_dir.join("api")).unwrap();
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["destroy", "JIRA-5"])
+        .current_dir(temp.path())
+        .assert()
+        .success();
+
+    assert!(!ticket_dir.exists());
+    assert!(!worktree_meta_dir.exists());
+}
+
+#[test]
+fn setup_repos_clones_missing_repo() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&tickets).unwrap();
+
+    let origin_repo = temp.path().join("origin-api");
+    init_repo_with_origin(&origin_repo);
+
+    write_config_with_urls(
+        &temp,
+        &code,
+        &tickets,
+        &[("api", &origin_repo, &code.join("api"))],
+    );
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .arg("setup-repos")
+        .assert()
+        .success();
+
+    assert!(code.join("api/.git").exists());
+}
+
+#[test]
+fn setup_repos_skips_existing_repo() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+
+    let origin_repo = temp.path().join("origin-web");
+    init_repo_with_origin(&origin_repo);
+
+    let existing_repo = code.join("web");
+    init_repo_with_origin(&existing_repo);
+
+    write_config_with_urls(
+        &temp,
+        &code,
+        &tickets,
+        &[("web", &origin_repo, &existing_repo)],
+    );
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .arg("setup-repos")
+        .assert()
+        .success();
+
+    assert!(existing_repo.join("README.md").exists());
+}
+
+#[test]
+fn config_updates_and_reads_value() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+    let config_root = write_config(&temp, &code, &tickets, &[]);
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["config", "branch_prefix", "hotfix"])
+        .assert()
+        .success();
+
+    let raw = fs::read_to_string(config_root.join("config.toml")).unwrap();
+    let parsed: Value = toml::from_str(&raw).unwrap();
+    assert_eq!(parsed["branch_prefix"].as_str().unwrap(), "hotfix");
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["config", "branch_prefix"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("branch_prefix = hotfix"));
+}
+
+#[test]
+fn config_without_key_prints_full_config() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+    write_config(&temp, &code, &tickets, &[]);
+
+    let mut cmd = bin();
+    let output = cmd
+        .env("XDG_CONFIG_HOME", temp.path())
+        .arg("config")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let parsed: Value = toml::from_slice(&output).unwrap();
+    assert_eq!(parsed["branch_prefix"].as_str().unwrap(), "feature");
+    assert_eq!(
+        parsed["tickets_directory"].as_str().unwrap(),
+        tickets.display().to_string()
+    );
+}
+
+#[test]
+fn config_rejects_unknown_key() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+    write_config(&temp, &code, &tickets, &[]);
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["config", "nope"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Unknown config key"));
+}
+
+#[test]
+fn config_rejects_empty_path_value() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+    write_config(&temp, &code, &tickets, &[]);
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["config", "code_directory", " "])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("cannot be empty"));
+}
+
+#[test]
+fn doctor_warns_but_succeeds() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+
+    let missing_repo_path = temp.path().join("missing-repo");
+    write_config(&temp, &code, &tickets, &[("api", &missing_repo_path)]);
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .arg("doctor")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("will be cloned by setup-repos"));
+}
+
+#[test]
+fn destroy_force_skips_dirty_check() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+
+    let api_repo = code.join("api");
+    init_repo_with_origin(&api_repo);
+
+    write_config(&temp, &code, &tickets, &[("api", &api_repo)]);
+
+    // setup ticket with api
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["setup", "JIRA-6", "api"])
+        .assert()
+        .success();
+
+    // dirty the worktree
+    fs::write(tickets.join("JIRA-6/api/new.txt"), "dirty").unwrap();
+
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["destroy", "JIRA-6", "--force"])
+        .current_dir(temp.path())
         .assert()
         .success();
 }

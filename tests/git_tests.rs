@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use git2::{Commit, Repository, Signature};
+use git2::{BranchType, Commit, Repository, Signature};
 use tix::git::{clone_repo, create_worktree, fetch_and_fast_forward, is_clean, remove_worktree};
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -157,4 +157,39 @@ fn fetch_and_fast_forward_updates_clone() {
 
     let after = head_oid(&clone_path);
     assert_ne!(before, after, "clone should fast-forward to new commit");
+}
+
+#[test]
+fn create_worktree_sets_upstream_when_remote_branch_exists() {
+    let repo_path = empty_dir("worktree-upstream");
+    let Some(repo) = skip_if_xdev(|| init_repo_with_commit(&repo_path)) else {
+        return;
+    };
+
+    repo.remote("origin", repo_path.to_str().unwrap()).unwrap();
+    let head = repo.head().unwrap();
+    let head_oid = head.target().unwrap();
+    repo.reference(
+        "refs/remotes/origin/feature/upstream",
+        head_oid,
+        true,
+        "test remote ref",
+    )
+    .unwrap();
+
+    let worktree_root = empty_dir("worktree-upstream-root");
+    let worktree_path = worktree_root.join("dst");
+    let branch_name = "feature/upstream";
+
+    let Some(_) = skip_if_xdev(|| create_worktree(&repo_path, &worktree_path, branch_name, None))
+    else {
+        return;
+    };
+
+    let repo_after = Repository::open(&repo_path).unwrap();
+    let local = repo_after
+        .find_branch(branch_name, BranchType::Local)
+        .unwrap();
+    let upstream = local.upstream().unwrap();
+    assert_eq!(upstream.name().unwrap().unwrap(), "origin/feature/upstream");
 }
