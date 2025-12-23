@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["clean","deregister","list","register"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["add","add_repo","common","config_cmd","destroy","doctor","info","init","plugins","remove","setup","setup_repos","update"]};

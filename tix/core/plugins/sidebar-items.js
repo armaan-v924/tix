@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["list_plugins","plugin_cache_dir","plugin_cache_root","plugin_state_dir","plugin_state_root","plugin_ticket_state_dir","remove_plugin_cache","run_external","run_plugin"],"struct":["PluginContext"]};
