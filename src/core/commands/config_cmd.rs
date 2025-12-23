@@ -2,13 +2,35 @@
 
 use crate::core::config::Config;
 use anyhow::{Context, Result, bail};
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::path::PathBuf;
+use std::process::Command;
 
 /// Set a key to a value or show the current value if `value` is None.
-pub fn run(key: &str, value: Option<&str>) -> Result<()> {
+/// If `key` is None, print the full config.
+pub fn run(key: Option<&str>, value: Option<&str>, edit: bool) -> Result<()> {
+    validate_edit_usage(key, value, edit)?;
+    if key.is_none() && value.is_some() {
+        bail!("Config value provided without a key");
+    }
+
+    let config_path = Config::config_path()?;
+    debug!("Loading config from {:?}", config_path);
     let mut config = Config::load()?;
 
+    if edit && key.is_none() {
+        ensure_config_file(&config)?;
+        open_in_editor(&config_path)?;
+        return Ok(());
+    }
+
+    if key.is_none() {
+        let toml_string = toml::to_string_pretty(&config)?;
+        println!("{}", toml_string);
+        return Ok(());
+    }
+
+    let key = key.unwrap();
     match key {
         "branch_prefix" => set_string(&mut config.branch_prefix, key, value)?,
         "github_base_url" => set_string(&mut config.github_base_url, key, value)?,
@@ -58,6 +80,68 @@ fn expand_path(input: &str) -> PathBuf {
     PathBuf::from(input)
 }
 
+fn validate_edit_usage(key: Option<&str>, value: Option<&str>, edit: bool) -> Result<()> {
+    if edit && key.is_some() && value.is_some() {
+        bail!("Cannot combine --edit with a key and value");
+    }
+    Ok(())
+}
+
+fn ensure_config_file(config: &Config) -> Result<()> {
+    let path = Config::config_path()?;
+    if path.exists() {
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let toml_string = toml::to_string_pretty(config)?;
+    std::fs::write(path, toml_string)?;
+    Ok(())
+}
+
+fn open_in_editor(path: &PathBuf) -> Result<()> {
+    let editor = std::env::var("EDITOR").map_err(|_| {
+        anyhow::anyhow!("$EDITOR is not set; set it or run `tix config` to view the file")
+    })?;
+    let status = spawn_editor(&editor, path)?;
+    if !status.success() {
+        bail!("Editor exited with status {}", status);
+    }
+    Ok(())
+}
+
+fn spawn_editor(editor: &str, path: &PathBuf) -> Result<std::process::ExitStatus> {
+    let path_str = path.display().to_string();
+    if cfg!(windows) {
+        let cmd = format!("{} \"{}\"", editor, path_str);
+        return Command::new("cmd")
+            .arg("/C")
+            .arg(cmd)
+            .status()
+            .map_err(Into::into);
+    }
+    let cmd = format!("{} {}", editor, shell_escape(&path_str));
+    Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .status()
+        .map_err(Into::into)
+}
+
+fn shell_escape(value: &str) -> String {
+    let mut escaped = String::from("'");
+    for c in value.chars() {
+        if c == '\'' {
+            escaped.push_str("'\\''");
+        } else {
+            escaped.push(c);
+        }
+    }
+    escaped.push('\'');
+    escaped
+}
+
 #[cfg(test)]
 mod tests {
     use crate::core::{config::Config, defaults};
@@ -97,6 +181,11 @@ mod tests {
     fn unknown_key_errors() {
         let mut config = base_config();
         assert!(run_mut(&mut config, "unknown", Some("x")).is_err());
+    }
+
+    #[test]
+    fn edit_with_key_and_value_errors() {
+        assert!(super::validate_edit_usage(Some("branch_prefix"), Some("hotfix"), true).is_err());
     }
 
     // helper to invoke run without persisting (bypass load/save)

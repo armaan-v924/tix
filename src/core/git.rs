@@ -45,21 +45,42 @@ pub fn create_worktree(
             b
         }
         Err(_) => {
-            // Case B: Branch does not exist. Create it from HEAD.
-            debug!("Branch '{}' not found. Creating from base...", branch_name);
-
-            let default = resolve_default_branch(&repo);
-            let base = base_ref.or(default.as_deref());
-            if base_ref.is_none() && default.is_none() {
-                warn!(
-                    "No base_ref provided and no default branch detected; falling back to HEAD for {}",
-                    repo_path.display()
+            // Case B: Branch does not exist. Prefer a matching remote branch if available.
+            if let Some(remote_branch) = find_remote_branch(&repo, branch_name) {
+                debug!(
+                    "Found remote branch '{}' for '{}'; creating local tracking branch",
+                    remote_branch, branch_name
                 );
-            }
-            let commit = get_base_commit(&repo, base)?;
+                let commit = get_base_commit(&repo, Some(&remote_branch))?;
+                repo.branch(branch_name, &commit, false)
+                    .context(format!("Failed to create branch '{}'", branch_name))?;
+                let mut local_branch = repo
+                    .find_branch(branch_name, BranchType::Local)
+                    .context("Failed to reload local branch")?;
+                if let Err(e) = local_branch.set_upstream(Some(&remote_branch)) {
+                    warn!(
+                        "Failed to set upstream for '{}' to '{}': {}",
+                        branch_name, remote_branch, e
+                    );
+                }
+                local_branch
+            } else {
+                // Create it from base.
+                debug!("Branch '{}' not found. Creating from base...", branch_name);
 
-            repo.branch(branch_name, &commit, false)
-                .context(format!("Failed to create branch '{}'", branch_name))?
+                let default = resolve_default_branch(&repo);
+                let base = base_ref.or(default.as_deref());
+                if base_ref.is_none() && default.is_none() {
+                    warn!(
+                        "No base_ref provided and no default branch detected; falling back to HEAD for {}",
+                        repo_path.display()
+                    );
+                }
+                let commit = get_base_commit(&repo, base)?;
+
+                repo.branch(branch_name, &commit, false)
+                    .context(format!("Failed to create branch '{}'", branch_name))?
+            }
         }
     };
 
@@ -78,6 +99,9 @@ pub fn create_worktree(
         Some(&mut worktree_options),
     )
     .context("Failed to create a worktree")?;
+
+    // If the local branch has no upstream but a remote branch exists, set it.
+    ensure_upstream(&repo, branch_name);
 
     Ok(())
 }
@@ -414,4 +438,33 @@ pub fn resolve_default_branch(repo: &Repository) -> Option<String> {
     }
 
     None
+}
+
+fn find_remote_branch(repo: &Repository, branch_name: &str) -> Option<String> {
+    let candidate = format!("origin/{}", branch_name);
+    if repo.find_branch(&candidate, BranchType::Remote).is_ok() {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
+fn ensure_upstream(repo: &Repository, branch_name: &str) {
+    let candidate = match find_remote_branch(repo, branch_name) {
+        Some(name) => name,
+        None => return,
+    };
+    let mut local = match repo.find_branch(branch_name, BranchType::Local) {
+        Ok(b) => b,
+        Err(_) => return,
+    };
+    if local.upstream().is_ok() {
+        return;
+    }
+    if let Err(e) = local.set_upstream(Some(&candidate)) {
+        warn!(
+            "Failed to set upstream for '{}' to '{}': {}",
+            branch_name, candidate, e
+        );
+    }
 }

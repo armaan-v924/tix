@@ -1,5 +1,6 @@
 //! Setup command: initialize a ticket workspace and create repo worktrees.
 
+use crate::core::commands::common::build_branch_name;
 use crate::core::config::Config;
 use crate::core::git;
 use crate::core::ticket::Ticket;
@@ -33,7 +34,6 @@ pub fn run(
 
         if valid.is_empty() {
             warn!("No valid repositories matched your input");
-            return Ok(());
         }
         valid
     } else {
@@ -41,19 +41,11 @@ pub fn run(
         warn!("No repositories specified.");
         info!("Created empty ticket environment.");
         info!("Hint: Use 'tix add <repo>' to add worktrees later.");
-        return Ok(());
+        Vec::new()
     };
 
     // 2. Compute branch name
-    let mut branch_name = format!("{}/{}", config.branch_prefix, ticket_id);
-
-    if let Some(desc) = &description {
-        let sanitized = sanitize_description(desc);
-        if !sanitized.is_empty() {
-            branch_name.push('-');
-            branch_name.push_str(&sanitized);
-        }
-    }
+    let branch_name = build_branch_name(&config, ticket_id, description.as_ref());
 
     // 3. Create or load the ticket directory and metadata
     if !ticket_dir.exists() {
@@ -137,27 +129,7 @@ pub fn run(
 }
 
 /// Sanitize free-form text for inclusion in a git branch name (lowercase, alnum, single hyphens).
+#[allow(dead_code)]
 pub fn sanitize_description(input: &str) -> String {
-    let mut result = String::new();
-    let mut last_was_hyphen = true; // Start true to trim leading hyphens
-
-    for c in input.chars() {
-        if c.is_alphanumeric() {
-            result.push(c.to_ascii_lowercase());
-            last_was_hyphen = false;
-        } else {
-            // Treat everything else (spaces, symbols) as a separator
-            if !last_was_hyphen {
-                result.push('-');
-                last_was_hyphen = true;
-            }
-        }
-    }
-
-    // Trim trailing hyphen if exists
-    if result.ends_with('-') {
-        result.pop();
-    }
-
-    result
+    crate::core::commands::common::sanitize_description(input)
 }

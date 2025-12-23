@@ -17,7 +17,7 @@
   - `init` prompts via dialoguer; otherwise edit TOML.
 
 - **Git helpers (`src/core/git.rs`)**:
-  - `create_worktree` resolves/creates branch (base ref optional, default branch preferred, warns on HEAD fallback) and adds a worktree.
+  - `create_worktree` resolves/creates branch (base ref optional, default branch preferred, warns on HEAD fallback), sets upstream when a matching `origin/<branch>` exists, and adds a worktree.
   - `is_clean` checks status; `remove_worktree` prunes by worktree name; `clone_repo` clones; `fetch_and_fast_forward` updates from remote.
 
 - **Commands (implemented)**:
@@ -27,7 +27,7 @@
   - `add`: infer ticket from `.tix` or flag, refuse overwrite, use stored branch/worktree when present (warn on fallback), optional `--branch` base.
   - `remove`: infer ticket, require clean, delete worktree dir, prune using stored worktree (warn on fallback), update metadata.
   - `destroy`: ensure not inside ticket, clean-check unless `--force`, remove dirs, prune using stored per-repo branch/worktree (warn on fallback).
-  - `config`: view/set config keys.
+  - `config`: view/set config keys, `--edit` opens `$EDITOR`, no key prints full config.
   - `setup-repos`: clone missing repos into `code_directory`.
   - `doctor`: validate config and repo defs; reports warnings/errors.
 

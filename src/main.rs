@@ -54,7 +54,9 @@ fn main() -> Result<()> {
             branch,
         } => core::commands::add::run(&repo, ticket.as_deref(), branch.as_deref()),
         Commands::AddRepo { repo, alias } => core::commands::add_repo::run(&repo, alias),
-        Commands::Config { key, value } => core::commands::config_cmd::run(&key, value.as_deref()),
+        Commands::Config { key, value, edit } => {
+            core::commands::config_cmd::run(key.as_deref(), value.as_deref(), edit)
+        }
         Commands::Destroy { ticket, force } => core::commands::destroy::run(&ticket, force),
         Commands::Init => core::commands::init::run(),
         Commands::Remove { repo, ticket } => core::commands::remove::run(&repo, ticket.as_deref()),

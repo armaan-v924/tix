@@ -1,13 +1,12 @@
 //! Remove a repo worktree from an existing ticket with safety checks.
 
+use crate::core::commands::common::{build_branch_name, locate_ticket_root};
 use crate::core::config::Config;
 use crate::core::git;
 use crate::core::ticket::Ticket;
 use anyhow::{Context, Result, anyhow, bail};
 use log::{info, warn};
-use std::env;
 use std::fs;
-use std::path::PathBuf;
 
 /// Run the remove command.
 pub fn run(repo_alias: &str, ticket: Option<&str>) -> Result<()> {
@@ -57,7 +56,7 @@ pub fn run(repo_alias: &str, ticket: Option<&str>) -> Result<()> {
         .get(repo_alias)
         .cloned()
         .unwrap_or_else(|| {
-            build_worktree_name(
+            build_branch_name(
                 &config,
                 &ticket_meta.metadata.id,
                 ticket_meta.metadata.description.as_ref(),
@@ -90,88 +89,4 @@ pub fn run(repo_alias: &str, ticket: Option<&str>) -> Result<()> {
     Ticket::remove_repo(&ticket_root, repo_alias)
         .with_context(|| format!("Failed to update ticket metadata for '{}'", repo_alias))?;
     Ok(())
-}
-
-fn locate_ticket_root(ticket: Option<&str>, config: &Config) -> Result<PathBuf> {
-    if let Some(id) = ticket {
-        return Ok(config.tickets_directory.join(id));
-    }
-
-    if let Some(dir) = find_ticket_root_from_cwd() {
-        return Ok(dir);
-    }
-
-    bail!("Could not infer ticket. Run inside a ticket directory or provide --ticket.");
-}
-
-fn find_ticket_root_from_cwd() -> Option<PathBuf> {
-    let mut current = env::current_dir().ok()?;
-    loop {
-        let candidate = current.join(".tix").join("info.toml");
-        if candidate.exists() {
-            return Some(current);
-        }
-
-        if !current.pop() {
-            break;
-        }
-    }
-    None
-}
-
-fn build_worktree_name(config: &Config, ticket_id: &str, description: Option<&String>) -> String {
-    let mut branch_name = format!("{}/{}", config.branch_prefix, ticket_id);
-    if let Some(desc) = description {
-        let sanitized = crate::core::commands::setup::sanitize_description(desc);
-        if !sanitized.is_empty() {
-            branch_name.push('-');
-            branch_name.push_str(&sanitized);
-        }
-    }
-    branch_name.replace('/', "_")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{build_worktree_name, find_ticket_root_from_cwd};
-    use crate::core::{config::Config, defaults};
-    use std::collections::HashMap;
-    use std::env;
-    use std::fs;
-    use std::path::PathBuf;
-
-    fn base_config() -> Config {
-        Config {
-            branch_prefix: defaults::DEFAULT_BRANCH_PREFIX.into(),
-            github_base_url: defaults::DEFAULT_GITHUB_BASE_URL.into(),
-            default_repository_owner: defaults::DEFAULT_REPOSITORY_OWNER.into(),
-            code_directory: PathBuf::from(defaults::DEFAULT_CODE_DIR_FALLBACK),
-            tickets_directory: PathBuf::from(defaults::DEFAULT_TICKETS_DIR_FALLBACK),
-            repositories: HashMap::new(),
-        }
-    }
-
-    #[test]
-    fn worktree_name_uses_branch_sanitization() {
-        let cfg = base_config();
-        let desc = "Short Summary".to_string();
-        let name = build_worktree_name(&cfg, "JIRA-1", Some(&desc));
-        assert_eq!(name, "feature_JIRA-1-short-summary");
-    }
-
-    #[test]
-    fn find_ticket_root_walks_upwards() {
-        let tmp = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".tmp-tests-remove");
-        let nested = tmp.join("nested/child");
-        fs::create_dir_all(&nested).unwrap();
-        fs::create_dir_all(tmp.join(".tix")).unwrap();
-        fs::write(tmp.join(".tix/info.toml"), "dummy").unwrap();
-
-        let cwd = env::current_dir().unwrap();
-        env::set_current_dir(&nested).unwrap();
-        let found = find_ticket_root_from_cwd();
-        env::set_current_dir(cwd).unwrap();
-
-        assert_eq!(found.unwrap(), tmp);
-    }
 }
