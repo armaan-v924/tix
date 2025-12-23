@@ -159,7 +159,9 @@ fn detect_current_repo(
         let candidate_path = ticket_root.join(&alias);
         if working_dir.starts_with(&candidate_path) {
             let replace = match &best_match {
-                Some((_, existing_path)) => candidate_path.as_os_str().len() > existing_path.as_os_str().len(),
+                Some((_, existing_path)) => {
+                    candidate_path.as_os_str().len() > existing_path.as_os_str().len()
+                }
                 None => true,
             };
             if replace {

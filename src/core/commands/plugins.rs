@@ -158,7 +158,10 @@ mod tests {
         let config = Config::load().unwrap();
         let plugin = config.plugins.get("my-plugin").unwrap();
         assert!(plugin.entrypoint.is_absolute());
-        assert_eq!(plugin.entrypoint, PathBuf::from(entrypoint.canonicalize().unwrap()));
+        assert_eq!(
+            plugin.entrypoint,
+            PathBuf::from(entrypoint.canonicalize().unwrap())
+        );
 
         std::env::set_current_dir(original_cwd).unwrap();
         unsafe {
