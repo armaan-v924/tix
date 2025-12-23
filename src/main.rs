@@ -67,6 +67,7 @@ fn main() -> Result<()> {
         Commands::SetupRepos => core::commands::setup_repos::run(),
         Commands::Doctor => core::commands::doctor::run(),
         Commands::Update => core::commands::update::run(),
+        Commands::Info { ticket } => core::commands::info::run(ticket.as_deref()),
     };
 
     if let Err(err) = result {

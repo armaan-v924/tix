@@ -113,4 +113,11 @@ pub enum Commands {
 
     /// Check for a newer release and install it
     Update,
+
+    /// Display ticket information
+    Info {
+        /// Ticket name. If omitted, inferred from context
+        #[arg(short, long)]
+        ticket: Option<String>,
+    },
 }

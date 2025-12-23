@@ -1,4 +1,4 @@
-use git2::{Repository, Signature};
+use git2::{BranchType, Repository, Signature};
 use predicates::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,9 @@ fn init_repo_with_origin(path: &Path) {
         .commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
         .unwrap();
     let commit = repo.find_commit(commit_id).unwrap();
-    repo.branch("main", &commit, true).unwrap();
+    if repo.find_branch("main", BranchType::Local).is_err() {
+        repo.branch("main", &commit, false).unwrap();
+    }
     repo.set_head("refs/heads/main").unwrap();
     let origin = path.to_str().unwrap();
     if repo.find_remote("origin").is_err() {
@@ -274,4 +276,78 @@ fn completions_bash_unchanged() {
         completions_script.contains("complete -F _tix"),
         "Should contain complete command"
     );
+}
+
+#[test]
+fn info_displays_ticket_information() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+
+    let api_repo = code.join("api");
+    init_repo_with_origin(&api_repo);
+
+    write_config(&temp, &code, &tickets, &[("api", &api_repo)]);
+
+    // setup ticket with description
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args([
+            "setup",
+            "JIRA-123",
+            "api",
+            "--description",
+            "Add new feature",
+        ])
+        .assert()
+        .success();
+
+    // test info from within ticket directory
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .arg("info")
+        .current_dir(tickets.join("JIRA-123"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[JIRA-123] Add new feature"));
+
+    // test info with explicit ticket parameter
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["info", "--ticket", "JIRA-123"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[JIRA-123] Add new feature"));
+}
+
+#[test]
+fn info_works_without_description() {
+    let temp = TempDir::new().unwrap();
+    let code = temp.path().join("code");
+    let tickets = temp.path().join("tickets");
+    fs::create_dir_all(&code).unwrap();
+    fs::create_dir_all(&tickets).unwrap();
+
+    let api_repo = code.join("api");
+    init_repo_with_origin(&api_repo);
+
+    write_config(&temp, &code, &tickets, &[("api", &api_repo)]);
+
+    // setup ticket without description
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .args(["setup", "JIRA-456", "api"])
+        .assert()
+        .success();
+
+    // test info displays ticket ID with empty description
+    let mut cmd = bin();
+    cmd.env("XDG_CONFIG_HOME", temp.path())
+        .arg("info")
+        .current_dir(tickets.join("JIRA-456"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[JIRA-456]"));
 }
