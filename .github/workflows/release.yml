@@ -25,7 +25,8 @@ jobs:
       - name: Stage docs
         run: |
           DOC_OUT=$(mktemp -d)
-          cp -r target/doc/tix/* "$DOC_OUT"
+          cp -r target/doc/* "$DOC_OUT"
+          touch "$DOC_OUT/.nojekyll"
           echo "DOC_OUT=$DOC_OUT" >> $GITHUB_ENV
 
       - name: Publish docs to docs branch
@@ -39,9 +40,7 @@ jobs:
             git checkout --orphan docs
           fi
           find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
-          mkdir -p .
           cp -r "$DOC_OUT"/* .
-          touch .nojekyll
           git add -A
           git commit -m "Update docs for ${GITHUB_REF_NAME}" || echo "No changes to commit"
           git push origin docs --force
