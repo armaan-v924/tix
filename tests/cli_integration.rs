@@ -1,4 +1,4 @@
-use git2::{Repository, Signature};
+use git2::{BranchType, Repository, Signature};
 use predicates::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,9 @@ fn init_repo_with_origin(path: &Path) {
         .commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
         .unwrap();
     let commit = repo.find_commit(commit_id).unwrap();
-    repo.branch("main", &commit, true).unwrap();
+    if repo.find_branch("main", BranchType::Local).is_err() {
+        repo.branch("main", &commit, false).unwrap();
+    }
     repo.set_head("refs/heads/main").unwrap();
     let origin = path.to_str().unwrap();
     if repo.find_remote("origin").is_err() {
@@ -292,7 +294,13 @@ fn info_displays_ticket_information() {
     // setup ticket with description
     let mut cmd = bin();
     cmd.env("XDG_CONFIG_HOME", temp.path())
-        .args(["setup", "JIRA-123", "api", "--description", "Add new feature"])
+        .args([
+            "setup",
+            "JIRA-123",
+            "api",
+            "--description",
+            "Add new feature",
+        ])
         .assert()
         .success();
 
