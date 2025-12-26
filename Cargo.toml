@@ -26,4 +26,4 @@ ureq = { version = "3.1.4", features = ["json", "rustls"] }
 semver = "1.0.23"
 flate2 = "1.0.35"
 tar = "0.4.43"
-zip = { version = "6.0.0", default-features = false, features = ["deflate"] }
+zip = { version = "7.0.0", default-features = false, features = ["deflate"] }
