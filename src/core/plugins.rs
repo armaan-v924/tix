@@ -440,6 +440,7 @@ mod tests {
                 tickets_directory: PathBuf::from("/tickets"),
                 repositories: HashMap::new(),
                 plugins: HashMap::new(),
+                jira_base_url: None,
             },
             code_directory: PathBuf::from("/code"),
             tickets_directory: PathBuf::from("/tickets"),

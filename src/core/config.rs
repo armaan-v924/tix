@@ -49,6 +49,10 @@ pub struct Config {
     /// Map of plugin names to their definitions.
     #[serde(default)]
     pub plugins: HashMap<String, PluginDefinition>,
+
+    /// Optional base URL for Jira (e.g., `https://company.atlassian.net/browse`).
+    #[serde(default)]
+    pub jira_base_url: Option<String>,
 }
 
 impl Config {

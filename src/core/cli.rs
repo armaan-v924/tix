@@ -125,6 +125,9 @@ pub enum Commands {
         ticket: Option<String>,
     },
 
+    /// List all ticket workspaces
+    List,
+
     /// Manage registered plugins
     Plugins {
         #[command(subcommand)]

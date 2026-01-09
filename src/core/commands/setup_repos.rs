@@ -143,6 +143,7 @@ mod tests {
             tickets_directory: root.join(defaults::DEFAULT_TICKETS_DIR_BASENAME),
             repositories: HashMap::new(),
             plugins: HashMap::new(),
+            jira_base_url: None,
         }
     }
 
