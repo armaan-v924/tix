@@ -74,10 +74,9 @@ pub fn run() -> Result<()> {
 
 /// Replace the home directory prefix with ~ for display.
 fn format_path_with_home(path: &Path) -> String {
-    if let Some(home) = home::home_dir() {
-        if let Ok(stripped) = path.strip_prefix(&home) {
-            return format!("~/{}", stripped.display());
-        }
+    if let Some(home) = home::home_dir()
+        && let Ok(stripped) = path.strip_prefix(&home) {
+        return format!("~/{}", stripped.display());
     }
     path.display().to_string()
 }
@@ -95,12 +94,18 @@ fn format_jira_link(config: &Config, ticket_id: &str) -> String {
 
 /// Truncate a string to a maximum length, adding "..." if truncated.
 fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    if max_len == 0 {
+        return String::new();
+    }
+    
+    let char_count = s.chars().count();
+    if char_count <= max_len {
         s.to_string()
     } else if max_len > 3 {
-        format!("{}...", &s[..max_len - 3])
+        let truncated: String = s.chars().take(max_len - 3).collect();
+        format!("{}...", truncated)
     } else {
-        s[..max_len].to_string()
+        s.chars().take(max_len).collect()
     }
 }
 
@@ -117,6 +122,24 @@ mod tests {
     #[test]
     fn truncate_shortens_long_strings() {
         assert_eq!(truncate("hello world", 8), "hello...");
+    }
+
+    #[test]
+    fn truncate_handles_zero_length() {
+        assert_eq!(truncate("hello", 0), "");
+    }
+
+    #[test]
+    fn truncate_handles_utf8_characters() {
+        assert_eq!(truncate("こんにちは世界", 5), "こん...");
+        assert_eq!(truncate("🎉🎊🎈", 2), "🎉🎊");
+    }
+
+    #[test]
+    fn truncate_handles_small_max_len() {
+        assert_eq!(truncate("hello", 3), "hel");
+        assert_eq!(truncate("hello", 2), "he");
+        assert_eq!(truncate("hello", 1), "h");
     }
 
     #[test]
