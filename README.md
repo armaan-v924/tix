@@ -7,6 +7,7 @@ Rust CLI for managing ticket-scoped git worktrees across multiple repositories. 
 - `add <repo>`: Add a repo worktree to an existing ticket (infers ticket from current `.tix` when omitted), reuses stored branch/worktree when present, refuses to overwrite existing worktree.
 - `remove <repo>`: Clean-check, delete worktree dir, prune stored worktree metadata, update ticket metadata.
 - `destroy <ticket>`: Ensure you’re not inside the ticket, clean-check unless `--force`, delete ticket dir, prune worktrees using stored per-repo branches/worktrees (warns on fallback).
+- `list`: Display all ticket workspaces in a table showing ticket ID, description, path, and optional Jira link.
 - `setup-repos`: Clone missing repos from config into your code directory.
 - `add-repo`: Register a repo alias (url/owner+name/name-only parsing).
 - `config <key> [value]`: View/set core config fields.
@@ -23,6 +24,7 @@ github_base_url = "https://github.com"
 default_repository_owner = "my-org"
 code_directory = "/path/to/code"
 tickets_directory = "/path/to/tickets"
+jira_base_url = "https://company.atlassian.net/browse"  # Optional: for Jira links in 'tix list'
 
 [repositories.api]
 url = "https://github.com/my-org/api.git"
@@ -33,7 +35,7 @@ entrypoint = "/path/to/plugin.py"
 description = "Do something useful"
 ```
 Initialize interactively with `tix init`, or edit the file directly.
-Supported keys: `branch_prefix`, `github_base_url`, `default_repository_owner`, `code_directory`, `tickets_directory`.
+Supported keys: `branch_prefix`, `github_base_url`, `default_repository_owner`, `code_directory`, `tickets_directory`, `jira_base_url`.
 
 Examples:
 - Show a value: `tix config branch_prefix`
@@ -54,6 +56,7 @@ Commands prefer stored branches/worktrees and warn when falling back to computed
 - Add another repo to an existing ticket: `cd ~/tickets/JIRA-123 && tix add web`
 - Remove a repo worktree: `tix remove api`
 - Destroy a ticket (force): `tix destroy JIRA-123 --force`
+- List all tickets: `tix list`
 - Clone missing repos: `tix setup-repos`
 - Doctor: `tix doctor`
 - List plugins: `tix plugins list`
