@@ -6,6 +6,7 @@ pub mod destroy;
 pub mod doctor;
 pub mod info;
 pub mod init;
+pub mod list;
 pub mod plugins;
 pub mod remove;
 pub mod setup;

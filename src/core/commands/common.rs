@@ -89,6 +89,7 @@ mod tests {
             tickets_directory: PathBuf::from(defaults::DEFAULT_TICKETS_DIR_FALLBACK),
             repositories: HashMap::new(),
             plugins: HashMap::new(),
+            jira_base_url: None,
         }
     }
 

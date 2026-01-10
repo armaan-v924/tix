@@ -70,6 +70,7 @@ fn main() -> Result<()> {
         Commands::Doctor => core::commands::doctor::run(),
         Commands::Update => core::commands::update::run(),
         Commands::Info { ticket } => core::commands::info::run(ticket.as_deref()),
+        Commands::List => core::commands::list::run(),
         Commands::Plugins { command } => match command {
             PluginCommands::List => core::commands::plugins::list(),
             PluginCommands::Register {
