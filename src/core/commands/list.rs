@@ -10,24 +10,27 @@ use std::path::Path;
 /// Run the list command.
 pub fn run() -> Result<()> {
     let config = Config::load()?;
-    
+
     // Check if tickets directory exists
     if !config.tickets_directory.exists() {
-        warn!("Tickets directory does not exist: {:?}", config.tickets_directory);
+        warn!(
+            "Tickets directory does not exist: {:?}",
+            config.tickets_directory
+        );
         println!("No tickets found.");
         return Ok(());
     }
 
     // Collect all ticket directories
     let mut tickets = Vec::new();
-    
-    let entries = fs::read_dir(&config.tickets_directory)
-        .context("Failed to read tickets directory")?;
-    
+
+    let entries =
+        fs::read_dir(&config.tickets_directory).context("Failed to read tickets directory")?;
+
     for entry in entries {
         let entry = entry?;
         let path = entry.path();
-        
+
         if path.is_dir() {
             // Try to load ticket metadata
             match Ticket::load(&path) {
@@ -51,8 +54,10 @@ pub fn run() -> Result<()> {
     tickets.sort_by(|a, b| a.1.id.cmp(&b.1.id));
 
     // Display table header
-    println!("{:<20} {:<40} {:<40} {}", 
-        "TICKET", "DESCRIPTION", "PATH", "JIRA LINK");
+    println!(
+        "{:<20} {:<40} {:<40} {}",
+        "TICKET", "DESCRIPTION", "PATH", "JIRA LINK"
+    );
     println!("{}", "-".repeat(140));
 
     // Display each ticket
@@ -62,11 +67,13 @@ pub fn run() -> Result<()> {
         let display_path = format_path_with_home(&path);
         let jira_link = format_jira_link(&config, ticket_id);
 
-        println!("{:<20} {:<40} {:<40} {}", 
+        println!(
+            "{:<20} {:<40} {:<40} {}",
             ticket_id,
             truncate(description, 40),
             truncate(&display_path, 40),
-            jira_link);
+            jira_link
+        );
     }
 
     Ok(())
@@ -75,7 +82,8 @@ pub fn run() -> Result<()> {
 /// Replace the home directory prefix with ~ for display.
 fn format_path_with_home(path: &Path) -> String {
     if let Some(home) = home::home_dir()
-        && let Ok(stripped) = path.strip_prefix(&home) {
+        && let Ok(stripped) = path.strip_prefix(&home)
+    {
         return format!("~/{}", stripped.display());
     }
     path.display().to_string()
@@ -97,7 +105,7 @@ fn truncate(s: &str, max_len: usize) -> String {
     if max_len == 0 {
         return String::new();
     }
-    
+
     let char_count = s.chars().count();
     if char_count <= max_len {
         s.to_string()

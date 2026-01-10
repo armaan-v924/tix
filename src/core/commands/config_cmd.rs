@@ -37,6 +37,7 @@ pub fn run(key: Option<&str>, value: Option<&str>, edit: bool) -> Result<()> {
         "default_repository_owner" => set_string(&mut config.default_repository_owner, key, value)?,
         "code_directory" => set_path(&mut config.code_directory, key, value)?,
         "tickets_directory" => set_path(&mut config.tickets_directory, key, value)?,
+        "jira_base_url" => set_optional_string(&mut config.jira_base_url, key, value)?,
         other => bail!("Unknown config key '{}'", other),
     }
 
@@ -53,6 +54,22 @@ fn set_string(field: &mut String, key: &str, value: Option<&str>) -> Result<()> 
         *field = val.to_string();
     } else {
         info!("{} = {}", key, field);
+    }
+    Ok(())
+}
+
+fn set_optional_string(field: &mut Option<String>, key: &str, value: Option<&str>) -> Result<()> {
+    if let Some(val) = value {
+        if val.trim().is_empty() {
+            *field = None;
+        } else {
+            *field = Some(val.to_string());
+        }
+    } else {
+        match field {
+            Some(s) => info!("{} = {}", key, s),
+            None => info!("{} = (not set)", key),
+        }
     }
     Ok(())
 }
