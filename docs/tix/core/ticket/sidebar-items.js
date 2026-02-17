@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["worktree_name_for_branch"],"struct":["Ticket","TicketMetadata"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["plan_repo_registration","run"]};

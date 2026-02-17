@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["add","add_repo","config_cmd","destroy","doctor","init","remove","setup","setup_repos"]};
