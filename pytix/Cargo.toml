@@ -1,0 +1,12 @@
+[package]
+name = "pytix"
+version = "3.0.0"
+edition = "2024"
+
+[lib]
+name = "pytix"
+crate-type = ["cdylib"]
+
+[dependencies]
+tix-engine = { path = "../tix-engine" }
+pyo3 = { version = "0.28.3", features = ["abi3-py311"] }

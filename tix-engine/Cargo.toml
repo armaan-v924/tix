@@ -1,0 +1,10 @@
+[package]
+name = "tix-engine"
+version = "3.0.0"
+edition = "2024"
+
+[dependencies]
+git2 = "0.21.0"
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "1.1.2"
+tracing = "0.1.44"
