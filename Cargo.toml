@@ -4,4 +4,8 @@ members = [
     "tix-cli",
     "pytix",
 ]
+default-members = [
+    "tix-engine",
+    "tix-cli",
+]
 resolver = "2"

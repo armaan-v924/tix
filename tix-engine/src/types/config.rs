@@ -1,32 +1,38 @@
+use std::io::Write;
 use std::path::PathBuf;
+use std::{fs, path};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::types::errors::TixError;
-use crate::types::plugins::Plugin;
-use crate::types::repository::Repository;
+use crate::types::repository::RepositoryConfig;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Config {
     pub branch_prefix: String,
     pub github_base_url: String,
     pub default_repository_owner: String,
     pub code_directory: PathBuf,
     pub tickets_directory: PathBuf,
-    pub configured_repositories: Vec<Repository>,
-    pub plugins: Plugin,
+    pub configured_repositories: Vec<RepositoryConfig>,
 }
 
 impl Config {
-    pub fn load_from() -> Self {
-        todo!()
+    pub fn load_from(path: PathBuf) -> Result<Self, TixError> {
+        let config_content = fs::read_to_string(path).map_err(TixError::IoError)?;
+        toml::from_str(&config_content).map_err(TixError::ParseError)
     }
 
-    pub fn save(&Self) -> Result<(), TixError> {
-        todo!()
+    pub fn save(&self, path: PathBuf) -> Result<(), TixError> {
+        let toml_data = toml::to_string_pretty(&self).map_err(TixError::SerializationError)?;
+        let mut file = fs::File::create(path).map_err(TixError::IoError)?;
+        file.write_all(toml_data.as_bytes())
+            .map_err(TixError::IoError)
     }
 
-    pub fn default_path() -> PathBuf {
-        todo!()
+    pub fn default_path() -> Result<PathBuf, TixError> {
+        dirs::config_local_dir()
+            .map(|p| p.join("tix").join("config.toml"))
+            .ok_or_else(|| TixError::ConfigNotFound("could not determine config directory".into()))
     }
 }
