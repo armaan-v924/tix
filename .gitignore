@@ -1,1 +1,6 @@
 /target
+/tickets
+.venv/
+*.pyc
+*.so
+.claude

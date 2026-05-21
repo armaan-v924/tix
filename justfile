@@ -47,8 +47,48 @@ upgrade:
     git commit -m "chore: upgrade lockfiles"
 
 # run checks (entrypoint for CI and local pre-release validation)
-checks:
-    @echo "no checks configured yet"
+# run all checks
+check: check-license
+    @echo "all checks passed"
+
+# run all lint and formatting checks
+lint: check-python-lint check-rust-format check-rust-clippy
+
+# verify LICENSE copyright year is current
+check-license:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    current_year=$(date +%Y)
+    license_year=$(grep -o 'Copyright (c) [0-9]\{4\}' LICENSE | grep -o '[0-9]\{4\}')
+    if [[ "$license_year" != "$current_year" ]]; then
+        echo "error: LICENSE copyright year is $license_year, expected $current_year"
+        exit 1
+    fi
+    echo "License copyright year is $current_year (ok)"
+
+# verify rust is formatted
+check-rust-format:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo fmt --check
+
+# verify rust code is linted
+check-rust-clippy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+# verify python code in ./pytix is formatted and linted (ruff)
+check-python-lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    uvx ruff check pytix
+
+# verify python code in ./pytix is correct
+check-python-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    uvx pytest pytix
 
 # tag the current version in git
 tag:

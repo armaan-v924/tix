@@ -1,11 +1,9 @@
-use std::io::Write;
-use std::path::PathBuf;
-use std::{fs, path};
-
-use serde::{Deserialize, Serialize};
-
 use crate::types::errors::TixError;
 use crate::types::repository::RepositoryConfig;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {

@@ -1,9 +1,7 @@
-use std::path::PathBuf;
-
+use crate::types::repository::Repository;
 use crate::types::worktree::Worktree;
 use serde::Serialize;
-
-use crate::types::repository::Repository;
+use std::path::PathBuf;
 
 #[derive(Serialize)]
 pub struct Ticket {

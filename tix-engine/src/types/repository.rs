@@ -1,8 +1,7 @@
-use std::path::PathBuf;
-
 use crate::types::{errors::TixError, ticket::Ticket, worktree::Worktree};
 use git2::{RepositoryState, WorktreeAddOptions};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use tracing::{debug, error, info, warn};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -32,6 +31,7 @@ impl RepositoryConfig {
 
 pub struct Repository {
     pub config: RepositoryConfig,
+    #[allow(unused)]
     repo: git2::Repository,
 }
 
