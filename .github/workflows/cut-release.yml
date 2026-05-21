@@ -1,0 +1,56 @@
+name: Cut Release Branch
+
+# Trigger manually from main. Creates a release/X.Y branch at the current
+# HEAD, then bumps main to the next minor (or major) version so development
+# can continue independently of the stable line.
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: "Version component to bump on main after branching"
+        required: true
+        type: choice
+        options: [minor, major]
+
+permissions:
+  contents: write
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: extractions/setup-just@v2
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+      - name: Create release branch from current HEAD
+        run: |
+          VERSION=$(just _current)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          BRANCH="release/${MAJOR}.${MINOR}"
+          echo "RELEASE_BRANCH=$BRANCH" >> $GITHUB_ENV
+          echo "CURRENT_VERSION=$VERSION" >> $GITHUB_ENV
+          git checkout -b "$BRANCH"
+          git push origin "$BRANCH"
+          git checkout main
+
+      - name: Bump main to next development cycle
+        run: |
+          just bump ${{ inputs.bump_type }}
+          NEW_VERSION=$(just _current)
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Commit and push main
+        run: |
+          git add tix-engine/Cargo.toml tix-cli/Cargo.toml pytix/Cargo.toml pytix/pyproject.toml
+          git commit -m "chore(release): cut ${{ env.RELEASE_BRANCH }}, advance main to v${{ env.NEW_VERSION }}"
+          git push origin main
