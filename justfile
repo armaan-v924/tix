@@ -2,6 +2,101 @@
 default:
     @just --list
 
+# ── dev ───────────────────────────────────────────────────────────────────────
+
+# run all checks and tests (local pre-flight before pushing)
+ci: check test
+    @echo "all good"
+
+# upgrade all lockfiles and commit
+upgrade:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    uv sync --upgrade
+    cargo update --workspace
+    git add uv.lock Cargo.lock
+    git commit -m "chore: upgrade lockfiles"
+
+# ── build ─────────────────────────────────────────────────────────────────────
+
+# build the CLI binary for a given target triple
+build-cli target:
+    cargo build --release -p tix-cli --target {{target}}
+
+# build rustdoc
+build-docs:
+    cargo doc --no-deps
+
+# ── test ──────────────────────────────────────────────────────────────────────
+
+# run all tests
+test: test-rust test-python
+
+# run rust unit and integration tests
+test-rust:
+    cargo test --workspace
+
+# run python unit tests
+test-python:
+    uvx pytest pytix
+
+# ── lint ──────────────────────────────────────────────────────────────────────
+
+# run all lint and formatting checks
+lint: lint-rust lint-python
+
+# run rust formatting and clippy
+lint-rust: check-rust-format check-rust-clippy
+
+# run python lint and formatting checks (ruff)
+lint-python: check-python-lint
+
+# verify rust is formatted
+check-rust-format:
+    cargo fmt --check
+
+# verify rust code passes clippy
+check-rust-clippy:
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+# verify python code in ./pytix is formatted and linted
+check-python-lint:
+    uvx ruff check pytix
+
+# ── checks ────────────────────────────────────────────────────────────────────
+
+# run all non-lint checks (CI entrypoint)
+check: check-license check-versions lint
+    @echo "all checks passed"
+
+# verify LICENSE copyright year is current
+check-license:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    current_year=$(date +%Y)
+    license_year=$(grep -o 'Copyright (c) [0-9]\{4\}' LICENSE | grep -o '[0-9]\{4\}')
+    if [[ "$license_year" != "$current_year" ]]; then
+        echo "error: LICENSE copyright year is $license_year, expected $current_year"
+        exit 1
+    fi
+    echo "license copyright year is $current_year (ok)"
+
+# verify all packages share the same version
+check-versions:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    engine=$(grep '^version' tix-engine/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+    cli=$(grep '^version' tix-cli/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+    pytix_cargo=$(grep '^version' pytix/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+    pytix_py=$(grep '^version' pytix/pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+    for v in "$cli" "$pytix_cargo" "$pytix_py"; do
+        if [[ "$v" != "$engine" ]]; then
+            echo "version mismatch: tix-engine=$engine but found $v in one of the packages"
+            exit 1
+        fi
+    done
+    echo "all packages at $engine (ok)"
+
 # ── versioning ────────────────────────────────────────────────────────────────
 
 # print the current version
@@ -35,93 +130,7 @@ _bump old new:
     done
     echo "bumped {{ old }} → {{ new }}"
 
-# ── build ─────────────────────────────────────────────────────────────────────
-
-# build the CLI binary for a given target triple
-build-cli target:
-    cargo build --release -p tix-cli --target {{target}}
-
-# build rustdoc
-build-docs:
-    cargo doc --no-deps
-
 # ── release ───────────────────────────────────────────────────────────────────
-
-# upgrade all lockfiles and commit
-upgrade:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    uv sync --upgrade
-    cargo update --workspace
-    git add uv.lock Cargo.lock
-    git commit -m "chore: upgrade lockfiles"
-
-# run checks (entrypoint for CI and local pre-release validation)
-# run all checks
-check: check-license check-versions lint
-    @echo "all checks passed"
-
-# verify all packages share the same version
-check-versions:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    engine=$(grep '^version' tix-engine/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-    cli=$(grep '^version' tix-cli/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-    pytix_cargo=$(grep '^version' pytix/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-    pytix_py=$(grep '^version' pytix/pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-    for v in "$cli" "$pytix_cargo" "$pytix_py"; do
-        if [[ "$v" != "$engine" ]]; then
-            echo "version mismatch: tix-engine=$engine but found $v in one of the packages"
-            exit 1
-        fi
-    done
-    echo "all packages at $engine (ok)"
-
-# run all lint and formatting checks
-lint: lint-rust lint-python
-
-# run rust lint and formatting checks
-lint-rust: check-rust-format check-rust-clippy
-
-# run python lint checks
-lint-python: check-python-lint
-
-# verify LICENSE copyright year is current
-check-license:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    current_year=$(date +%Y)
-    license_year=$(grep -o 'Copyright (c) [0-9]\{4\}' LICENSE | grep -o '[0-9]\{4\}')
-    if [[ "$license_year" != "$current_year" ]]; then
-        echo "error: LICENSE copyright year is $license_year, expected $current_year"
-        exit 1
-    fi
-    echo "License copyright year is $current_year (ok)"
-
-# verify rust is formatted
-check-rust-format:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cargo fmt --check
-
-# verify rust code is linted
-check-rust-clippy:
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-# verify python code in ./pytix is formatted and linted (ruff)
-check-python-lint:
-    uvx ruff check pytix
-
-# run all tests
-test: test-rust test-python
-
-# run rust unit tests
-test-rust:
-    cargo test --workspace
-
-# run python unit tests
-test-python:
-    uvx pytest pytix
 
 # tag the current version in git
 tag:
