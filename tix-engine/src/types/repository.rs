@@ -16,7 +16,7 @@ pub struct RepositoryConfig {
 }
 
 impl RepositoryConfig {
-    /// Creates a new repository configuration.
+    /// Creates a new `RepositoryConfig`.
     ///
     /// # Arguments
     ///
@@ -24,15 +24,11 @@ impl RepositoryConfig {
     /// * `alias` - The alias of the repository.
     /// * `code_path` - The path to the code directory of the repository.
     ///
-    /// # Returns
-    ///
-    /// A new `RepositoryConfig` instance.
-    ///
     /// # Examples
     ///
     /// ```
     /// # use std::path::PathBuf;
-    /// # use tix_engine::types::repository::RepositoryConfig;
+    /// # use tix_engine::RepositoryConfig;
     /// let config = RepositoryConfig::new("https://github.com/user/repo.git".to_string(), "alias".to_string(), PathBuf::from("~/code/repo"));
     /// ```
     pub fn new(remote: String, alias: String, code_path: PathBuf) -> Self {
@@ -54,7 +50,7 @@ impl RepositoryConfig {
     /// # Examples
     ///
     /// ```no_run
-    /// # use tix_engine::types::repository::RepositoryConfig;
+    /// # use tix_engine::RepositoryConfig;
     /// # use std::path::PathBuf;
     /// let config = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
@@ -78,7 +74,7 @@ impl RepositoryConfig {
     /// # Examples
     ///
     /// ```no_run
-    /// # use tix_engine::types::repository::RepositoryConfig;
+    /// # use tix_engine::RepositoryConfig;
     /// # use std::path::PathBuf;
     /// let config = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
@@ -146,8 +142,8 @@ impl Repository {
     /// # Examples
     ///
     /// ```no_run
-    /// # use tix_engine::types::repository::RepositoryConfig;
-    /// # use tix_engine::types::ticket::Ticket;
+    /// # use tix_engine::RepositoryConfig;
+    /// # use tix_engine::Ticket;
     /// # use std::path::PathBuf;
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
@@ -197,8 +193,8 @@ impl Repository {
     /// # Examples
     ///
     /// ```no_run
-    /// # use tix_engine::types::repository::RepositoryConfig;
-    /// # use tix_engine::types::ticket::Ticket;
+    /// # use tix_engine::RepositoryConfig;
+    /// # use tix_engine::Ticket;
     /// # use std::path::PathBuf;
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
@@ -244,7 +240,7 @@ impl Repository {
     /// # Examples
     ///
     /// ```no_run
-    /// # use tix_engine::types::repository::RepositoryConfig;
+    /// # use tix_engine::RepositoryConfig;
     /// # use std::path::PathBuf;
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
@@ -271,7 +267,7 @@ impl Repository {
     /// # Examples
     ///
     /// ```no_run
-    /// # use tix_engine::types::repository::RepositoryConfig;
+    /// # use tix_engine::RepositoryConfig;
     /// # use std::path::PathBuf;
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),

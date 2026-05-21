@@ -23,7 +23,7 @@ pub struct Config {
 }
 
 impl Config {
-    /// Returns a new `Config` instance with the specified values.
+    /// Creates a new `Config` with the specified values.
     ///
     /// # Arguments
     /// * `branch_prefix` - The branch prefix to use for branch names.
@@ -33,12 +33,9 @@ impl Config {
     /// * `tickets_directory` - The directory to store ticket files.
     /// * `configured_repositories` - The list of configured repositories.
     ///
-    /// # Returns
-    /// A new `Config` instance with the specified values.
-    ///
     /// # Example
     /// ```
-    /// # use tix_engine::types::config::Config;
+    /// # use tix_engine::Config;
     /// # use std::path::PathBuf;
     /// let config = Config::new(
     ///     "feat/".to_string(),
@@ -67,14 +64,11 @@ impl Config {
         }
     }
 
-    /// Returns an empty configuration with default values.
-    ///
-    /// # Returns
-    /// A new `Config` instance with default values.
+    /// Creates a `Config` with all fields set to empty/default values.
     ///
     /// # Example
     /// ```
-    /// # use tix_engine::types::config::Config;
+    /// # use tix_engine::Config;
     /// let config = Config::empty();
     /// ```
     pub fn empty() -> Self {
@@ -88,13 +82,7 @@ impl Config {
         }
     }
 
-    /// Loads a `Config` instance from the specified path.
-    ///
-    /// # Arguments
-    /// * `path` - The path to the configuration file.
-    ///
-    /// # Returns
-    /// A `Result` containing the loaded `Config` instance, or an error if loading fails.
+    /// Loads a `Config` from a TOML file at `path`.
     ///
     /// # Errors
     /// * `TixError::IoError` - If the file cannot be read.
@@ -102,7 +90,7 @@ impl Config {
     ///
     /// # Example
     /// ```
-    /// # use tix_engine::types::config::Config;
+    /// # use tix_engine::Config;
     /// # use std::path::PathBuf;
     /// let config = Config::load_from(&PathBuf::from("config.toml"));
     /// ```
@@ -112,14 +100,9 @@ impl Config {
         toml::from_str(&config_content).map_err(TixError::ParseError)
     }
 
-    /// Saves the `Config` instance to the specified path.
-    /// Note that the parent directory will be created if it does not exist.
+    /// Serializes the config to TOML and writes it to `path`.
     ///
-    /// # Arguments
-    /// * `path` - The path to save the configuration file.
-    ///
-    /// # Returns
-    /// A `Result` indicating success or failure.
+    /// Creates parent directories if they do not already exist.
     ///
     /// # Errors
     /// * `TixError::IoError` - If the file cannot be written.
@@ -127,7 +110,7 @@ impl Config {
     ///
     /// # Example
     /// ```no_run
-    /// # use tix_engine::types::config::Config;
+    /// # use tix_engine::Config;
     /// # use std::path::PathBuf;
     /// # let config = Config::empty();
     /// config.save_to(&PathBuf::from("/etc/tix/config.toml")).unwrap();
@@ -142,19 +125,16 @@ impl Config {
             .map_err(TixError::IoError)
     }
 
-    /// Returns the default path for the configuration file.
-    /// Uses the system local config directory (e.g., `~/.config/tix/config.toml`).
-    /// Warning: This path may not yet exist on the system.
+    /// Returns the default config file path (`~/.config/tix/config.toml` on Linux/macOS).
     ///
-    /// # Returns
-    /// The default path for the configuration file.
+    /// The path may not yet exist on the filesystem.
     ///
     /// # Errors
     /// * `TixError::ConfigNotFound` - If the config directory cannot be determined.
     ///
     /// # Example
     /// ```
-    /// # use tix_engine::types::config::Config;
+    /// # use tix_engine::Config;
     /// let path = Config::default_path().unwrap();
     /// ```
     pub fn default_path() -> Result<PathBuf, TixError> {
@@ -163,17 +143,10 @@ impl Config {
             .ok_or_else(|| TixError::ConfigNotFound("could not determine config directory".into()))
     }
 
-    /// Resolves a path to its canonical form, following symlinks and resolving relative paths.
-    /// Private helper function.
-    ///
-    /// # Arguments
-    /// * `path` - The path to resolve.
-    ///
-    /// # Returns
-    /// The resolved path.
+    /// Canonicalizes `path`, resolving symlinks and relative segments.
     ///
     /// # Errors
-    /// * `TixError::IoError` - If the path cannot be resolved.
+    /// * `TixError::IoError` - If the path does not exist or cannot be resolved.
     fn resolve_path(path: &PathBuf) -> Result<PathBuf, TixError> {
         fs::canonicalize(path).map_err(TixError::IoError)
     }

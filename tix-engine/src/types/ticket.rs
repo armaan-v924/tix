@@ -14,7 +14,7 @@ pub struct Ticket {
     pub branch: String,
     /// The path to the ticket workspace directory.
     pub path: PathBuf,
-    /// The worktrees associated with this ticket.
+    /// The [`Worktree`] associated with this ticket.
     pub worktrees: Vec<Worktree>,
 }
 
