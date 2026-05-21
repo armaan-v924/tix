@@ -5,13 +5,20 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
+/// Tix Engine's configuration.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Config {
+    /// The branch prefix to use for branch names, e.g. `feat/`.
     pub branch_prefix: String,
+    /// The base URL for GitHub.
     pub github_base_url: String,
-    pub default_repository_owner: String,
+    /// The default repository owner when adding a repo, e.g. `owner/repo`.
+    pub default_repository_owner: String, // todo: move this to the frontend, engine doesn't need to know about it
+    /// The default directory to store cloned repositories (the worktree root).
     pub code_directory: PathBuf,
+    /// The default directory to store ticket directories.
     pub tickets_directory: PathBuf,
+    /// Source Repositories configured by the user.
     pub configured_repositories: Vec<RepositoryConfig>,
 }
 

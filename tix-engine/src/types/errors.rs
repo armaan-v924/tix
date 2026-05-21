@@ -1,12 +1,20 @@
 use std::fmt;
 
+/// Represents an error that can occur during Tix operations.
 pub enum TixError {
+    /// An error that occurred while performing a Git operation.
     GitError(git2::Error),
+    /// An error that occurred while performing an I/O operation.
     IoError(std::io::Error),
+    /// An error that occurred while parsing a TOML document.
     ParseError(toml::de::Error),
+    /// An error that occurred while serializing a TOML document.
     SerializationError(toml::ser::Error),
+    /// An error that occurred while loading a configuration file.
     ConfigNotFound(String),
+    /// An error that occurred while loading a repository.
     RepoNotFound(String),
+    /// A non-descript error that occurred while performing a Tix operation.
     Message(String),
 }
 
