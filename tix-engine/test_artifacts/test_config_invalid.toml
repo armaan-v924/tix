@@ -1,0 +1,6 @@
+branch_prfix = "armaan"
+gitub_base_url = "https://github.com/"
+default_repoitory_owner = "armaan-v924"
+code_directoy = "~/code"
+ickets_directory = "~/tickets"
+configured_repositories = []
