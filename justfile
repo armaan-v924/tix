@@ -21,7 +21,7 @@ upgrade:
 
 # build the CLI binary for a given target triple
 build-cli target:
-    cargo build --release -p tix-cli --target {{target}}
+    cargo build --release -p tix-cli --target {{ target }}
 
 # build rustdoc
 build-docs:
@@ -37,8 +37,9 @@ test-rust:
     cargo test --workspace
 
 # run python unit tests
+[working-directory("pytix")]
 test-python:
-    uvx pytest pytix
+    uv sync --dev && uv run pytest tests
 
 # ── lint ──────────────────────────────────────────────────────────────────────
 
