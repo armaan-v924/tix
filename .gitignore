@@ -4,3 +4,4 @@
 *.pyc
 *.so
 .claude
+test_temp/

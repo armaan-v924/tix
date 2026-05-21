@@ -373,7 +373,7 @@ impl Repository {
         // worktrees and error with which one has the branch so the user knows where to look.
         let worktrees = self.repo.worktrees().map_err(TixError::GitError)?;
         for name in worktrees.iter().filter_map(|n| n.ok().flatten()) {
-            // open the worktree as its own Repository so we can inspect its HEAD
+            // open the worktree as its own git2::Repository so we can inspect its HEAD
             let wt = self.repo.find_worktree(name).map_err(TixError::GitError)?;
             let wt_repo = git2::Repository::open(wt.path()).map_err(TixError::GitError)?;
             if let Ok(head) = wt_repo.head() {
@@ -444,4 +444,122 @@ impl Repository {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use test_helpers::*;
+
+    #[test]
+    fn test_stub() {
+
+    }
+}
+
+#[cfg(test)]
+mod test_helpers {
+    use super::*;
+    use git2;
+    use std::path::Path;
+
+    /// Initialises an empty bare repository at `path`. Has no commits — call
+    /// [`add_commit_to_bare`] immediately after to establish a branch.
+    pub fn init_bare_repo(path: &Path) -> git2::Repository {
+        git2::Repository::init_bare(path).unwrap()
+    }
+
+    /// Clones the bare repository at `remote` into `dest`, setting `origin` automatically.
+    pub fn clone_repo(remote: &Path, dest: &Path) -> git2::Repository {
+        git2::Repository::clone(remote.to_str().unwrap(), dest).unwrap()
+    }
+
+    /// Wraps a `git2::Repository` in a [`Repository`], pointing `origin` at `remote`.
+    pub fn tix_repo(remote: &Path, local: git2::Repository) -> Repository {
+        Repository {
+            config: RepositoryConfig::new(remote.to_str().unwrap().into(), "default".into(), local.path().parent().unwrap().to_path_buf()),
+            repo: local,
+        }
+    }
+
+    /// Commits the current index state to `branch` in a working-directory repository.
+    /// Chains onto the existing branch tip so history is preserved across multiple calls.
+    pub fn add_commit(repo: &git2::Repository, branch: &str, message: &str) -> git2::Commit {
+        let branch_ref = repo.find_branch(branch, git2::BranchType::Local).unwrap();
+        let sig = git2::Signature::now("test", "test@test.com").unwrap();
+        let tree_id = repo.index().unwrap().write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        // resolve the current branch tip as parent; None on the first commit (root).
+        let parent = branch_ref.get().target().and_then(|oid| repo.find_commit(oid).ok());
+        let parents: Vec<&git2::Commit> = parent.iter().collect();
+        let oid = repo.commit(branch_ref.get().name().ok(), &sig, &sig, message, &tree, &parents).unwrap();
+        repo.find_commit(oid).unwrap()
+    }
+
+    /// Commits directly to `HEAD` in a bare repository (no working directory or index staging).
+    /// Chains onto the existing HEAD commit so history is preserved across multiple calls.
+    pub fn add_commit_to_bare(repo: &git2::Repository, message: &str) -> git2::Commit {
+        let sig = git2::Signature::now("test", "test@test.com").unwrap();
+        let tree_id = repo.index().unwrap().write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        // resolve HEAD as parent; None when the repo has no commits yet (root commit).
+        let parent = repo.head().ok().and_then(|h| h.target()).and_then(|oid| repo.find_commit(oid).ok());
+        let parents: Vec<&git2::Commit> = parent.iter().collect();
+        let oid = repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents).unwrap();
+        repo.find_commit(oid).unwrap()
+    }
+
+    /// Writes an untracked file to the working directory so `repo.statuses()` is non-empty.
+    pub fn make_dirty(repo: &git2::Repository) {
+        const DIRTY_FILE: &str = "this is a dirty file";
+        const DIRTY_PATH: &str = "dirty.txt";
+        let path = repo.workdir().unwrap().join(DIRTY_PATH);
+        std::fs::write(&path, DIRTY_FILE).unwrap();
+    }
+
+    /// Writes `.git/MERGE_HEAD` to put the repository into a non-`Clean` state,
+    /// simulating a mid-merge without actually creating a conflict.
+    pub fn make_mid_operation(repo: &git2::Repository) {
+        let commit_sha = repo.head().unwrap().target().unwrap().to_string();
+        let path = repo.path().join("MERGE_HEAD");
+        std::fs::write(&path, commit_sha).unwrap();
+    }
+
+    /// Creates a git worktree for `branch` at `path`.
+    pub fn add_worktree(repo: &git2::Repository, branch: &str, path: &Path) -> git2::Worktree {
+        repo.worktree(
+            branch,
+            path,
+            None,
+        ).unwrap()
+    }
+
+    /// Creates a worktree for `branch` then deletes its directory, leaving the git
+    /// metadata intact so `worktree.validate()` returns `Err`.
+    pub fn orphan_worktree(repo: &git2::Repository, branch: &str, path: &Path) -> git2::Worktree {
+        let worktree = repo.worktree(
+            branch,
+            path,
+            None,
+        ).unwrap();
+
+        std::fs::remove_dir_all(path).unwrap();
+        worktree
+    }
+
+    /// Constructs a minimal [`Ticket`] with the given `branch` and `path`.
+    pub fn make_ticket(branch: &str, path: &Path) -> Ticket {
+        Ticket {
+            key: branch.to_string(),
+            description: "".to_string(),
+            branch: branch.to_string(),
+            path: path.to_path_buf(),
+            worktrees: Vec::new(),
+        }
+    }
+
+    /// Creates `branch` on the bare remote without creating it locally,
+    /// simulating a branch that exists on origin but has never been fetched.
+    pub fn add_remote_branch(repo: &git2::Repository, branch: &str) {
+        let head_oid = repo.head().unwrap().target().unwrap();
+        repo.reference(&format!("refs/heads/{}", branch), head_oid, false, "add_remote_branch").unwrap();
+    }
+
+}
