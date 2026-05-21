@@ -1,8 +1,8 @@
 use serde::Serialize;
 use std::path::PathBuf;
 
-/// Represents a worktree for a repository.
-#[derive(Serialize)]
+/// A git worktree associated with a repository and ticket branch.
+#[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct Worktree {
     /// The alias of the repository.
     pub repo_alias: String,

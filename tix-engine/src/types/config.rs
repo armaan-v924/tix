@@ -38,9 +38,8 @@ impl Config {
     ///
     /// # Example
     /// ```
-    /// use tix_engine::types::config::Config;
-    /// use std::path::PathBuf;
-    ///
+    /// # use tix_engine::types::config::Config;
+    /// # use std::path::PathBuf;
     /// let config = Config::new(
     ///     "feat/".to_string(),
     ///     "https://github.com".to_string(),
@@ -75,8 +74,7 @@ impl Config {
     ///
     /// # Example
     /// ```
-    /// use tix_engine::types::config::Config;
-    ///
+    /// # use tix_engine::types::config::Config;
     /// let config = Config::empty();
     /// ```
     pub fn empty() -> Self {
@@ -104,9 +102,8 @@ impl Config {
     ///
     /// # Example
     /// ```
-    /// use tix_engine::types::config::Config;
-    /// use std::path::PathBuf;
-    ///
+    /// # use tix_engine::types::config::Config;
+    /// # use std::path::PathBuf;
     /// let config = Config::load_from(&PathBuf::from("config.toml"));
     /// ```
     pub fn load_from(path: &PathBuf) -> Result<Self, TixError> {
@@ -129,12 +126,11 @@ impl Config {
     /// * `TixError::SerializationError` - If the configuration cannot be serialized to TOML.
     ///
     /// # Example
-    /// ```
-    /// use tix_engine::types::config::Config;
-    /// use std::path::PathBuf;
-    ///
-    /// let config = Config::empty();
-    /// config.save_to(&PathBuf::from("config.toml")).unwrap();
+    /// ```no_run
+    /// # use tix_engine::types::config::Config;
+    /// # use std::path::PathBuf;
+    /// # let config = Config::empty();
+    /// config.save_to(&PathBuf::from("/etc/tix/config.toml")).unwrap();
     /// ```
     pub fn save_to(&self, path: &PathBuf) -> Result<(), TixError> {
         if let Some(parent) = path.parent() {
@@ -158,8 +154,7 @@ impl Config {
     ///
     /// # Example
     /// ```
-    /// use tix_engine::types::config::Config;
-    ///
+    /// # use tix_engine::types::config::Config;
     /// let path = Config::default_path().unwrap();
     /// ```
     pub fn default_path() -> Result<PathBuf, TixError> {
