@@ -1,6 +1,1 @@
-branch_prefix = ""
-github_base_url = ""
-default_repository_owner = ""
-code_directory = ""
-tickets_directory = ""
 configured_repositories = []

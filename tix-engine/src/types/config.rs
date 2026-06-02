@@ -8,58 +8,20 @@ use std::path::PathBuf;
 /// Tix Engine's configuration.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Config {
-    /// The branch prefix to use for branch names, e.g. `feat/`.
-    pub branch_prefix: String,
-    /// The base URL for GitHub.
-    pub github_base_url: String,
-    /// The default repository owner when adding a repo, e.g. `owner/repo`.
-    pub default_repository_owner: String, // todo: move this to the frontend, engine doesn't need to know about it
-    /// The default directory to store cloned repositories (the worktree root).
-    pub code_directory: PathBuf,
-    /// The default directory to store ticket directories.
-    pub tickets_directory: PathBuf,
     /// Source Repositories configured by the user.
     pub configured_repositories: Vec<RepositoryConfig>,
 }
 
 impl Config {
-    /// Creates a new `Config` with the specified values.
-    ///
-    /// # Arguments
-    /// * `branch_prefix` - The branch prefix to use for branch names.
-    /// * `github_base_url` - The base URL for GitHub.
-    /// * `default_repository_owner` - The default repository owner.
-    /// * `code_directory` - The directory to store code files.
-    /// * `tickets_directory` - The directory to store ticket files.
-    /// * `configured_repositories` - The list of configured repositories.
+    /// Creates a new `Config` with the given repositories.
     ///
     /// # Example
     /// ```
     /// # use tix_engine::Config;
-    /// # use std::path::PathBuf;
-    /// let config = Config::new(
-    ///     "feat/".to_string(),
-    ///     "https://github.com".to_string(),
-    ///     "owner".to_string(),
-    ///     PathBuf::new(),
-    ///     PathBuf::new(),
-    ///     Vec::new(),
-    /// );
+    /// let config = Config::new(Vec::new());
     /// ```
-    pub fn new(
-        branch_prefix: String,
-        github_base_url: String,
-        default_repository_owner: String,
-        code_directory: PathBuf,
-        tickets_directory: PathBuf,
-        configured_repositories: Vec<RepositoryConfig>,
-    ) -> Self {
+    pub fn new(configured_repositories: Vec<RepositoryConfig>) -> Self {
         Self {
-            branch_prefix,
-            github_base_url,
-            default_repository_owner,
-            code_directory,
-            tickets_directory,
             configured_repositories,
         }
     }
@@ -73,11 +35,6 @@ impl Config {
     /// ```
     pub fn empty() -> Self {
         Self {
-            branch_prefix: "".into(),
-            github_base_url: "".into(),
-            default_repository_owner: "".into(),
-            code_directory: PathBuf::new(),
-            tickets_directory: PathBuf::new(),
             configured_repositories: Vec::new(),
         }
     }

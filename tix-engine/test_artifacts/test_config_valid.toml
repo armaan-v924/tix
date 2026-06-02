@@ -1,8 +1,1 @@
-branch_prefix = "armaan"
-github_base_url = "https://github.com/"
-default_repository_owner = "armaan-v924"
-code_directory = "~/code"
-tickets_directory = "~/tickets"
-configured_repositories = [
-
-]
+configured_repositories = []
