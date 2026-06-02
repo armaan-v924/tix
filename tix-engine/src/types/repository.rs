@@ -60,7 +60,13 @@ impl RepositoryConfig {
     /// let repo = config.resolve();
     /// ```
     pub fn resolve(self) -> Result<Repository, TixError> {
-        todo!()
+        debug!(alias = %self.alias, path = %self.code_path.display(), "opening repository");
+        let repo = git2::Repository::open(&self.code_path).map_err(|e| {
+            error!(alias = %self.alias, error = %e, "failed to open repository");
+            TixError::GitError(e)
+        })?;
+        debug!(alias = %self.alias, "repository opened");
+        Ok(Repository { config: self, repo })
     }
 
     /// Clones [`Self::remote`] into [`Self::code_path`] and returns a live [`Repository`].
@@ -84,7 +90,13 @@ impl RepositoryConfig {
     /// let repo = config.clone_remote();
     /// ```
     pub fn clone_remote(self) -> Result<Repository, TixError> {
-        todo!()
+        info!(alias = %self.alias, remote = %self.remote, "cloning repository");
+        let repo = git2::Repository::clone(&self.remote, &self.code_path).map_err(|e| {
+            error!(alias = %self.alias, error = %e, "clone failed");
+            TixError::GitError(e)
+        })?;
+        info!(alias = %self.alias, path = %self.code_path.display(), "clone complete");
+        Ok(Repository { config: self, repo })
     }
 }
 
@@ -105,29 +117,6 @@ impl Repository {
         // TODO: Register to config
         // TODO: validate remote url
         Self { config, repo }
-    }
-
-    /// Clones the repository from [`RepositoryConfig::remote`] into [`RepositoryConfig::code_path`].
-    ///
-    /// Prefer calling this via [`RepositoryConfig::clone_remote`], which constructs the
-    /// `Repository` for you after the clone succeeds.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TixError::GitError`] if the clone fails.
-    pub fn git_clone(&self) -> Result<PathBuf, TixError> {
-        info!(alias = %self.config.alias, remote = %self.config.remote, "cloning repository");
-        let git_repo = git2::Repository::clone(&self.config.remote, &self.config.code_path)
-            .map_err(|e| {
-                error!(alias = %self.config.alias, error = %e, "clone failed");
-                TixError::GitError(e)
-            })?;
-        let path = git_repo
-            .workdir()
-            .map(|p| p.to_path_buf())
-            .ok_or_else(|| TixError::from("no workdir found"))?;
-        info!(alias = %self.config.alias, path = %path.display(), "clone complete");
-        Ok(path)
     }
 
     /// Creates a git worktree for the given ticket's branch at the ticket's path.
@@ -162,6 +151,10 @@ impl Repository {
             .find_branch(&ticket.branch, git2::BranchType::Local)
             .ok();
         let reference = branch.map(|b| b.into_reference());
+
+        if let Some(parent) = ticket.path.parent() {
+            std::fs::create_dir_all(parent).map_err(TixError::IoError)?;
+        }
 
         let mut options = WorktreeAddOptions::new();
         options.reference(reference.as_ref());
@@ -225,7 +218,7 @@ impl Repository {
         }
 
         let mut opts = git2::WorktreePruneOptions::new();
-        opts.working_tree(true);
+        opts.working_tree(true).valid(true);
 
         worktree.prune(Some(&mut opts)).map_err(|e| {
             error!(alias = %self.config.alias, ticket = %ticket.key, error = %e, "failed to remove worktree");
@@ -277,7 +270,7 @@ impl Repository {
     /// repo.sync_base("main", false);
     /// ```
     pub fn sync_base(&self, branch: &str, force: bool) -> Result<(), TixError> {
-        info!(alias = %self.config.alias, branch, force, "syncing repository");
+        debug!(alias = %self.config.alias, branch, force, "syncing repository");
 
         // RepositoryState::Clean means no git operation is in progress.
         // force cannot recover from this — the user must resolve it manually.
@@ -359,7 +352,7 @@ impl Repository {
                 .repo
                 .merge_analysis(&[&fetch_commit])
                 .map_err(TixError::GitError)?;
-            if !analysis.is_fast_forward() {
+            if !analysis.is_fast_forward() && !analysis.is_up_to_date() {
                 error!(alias = %self.config.alias, branch, "branch has diverged from remote");
                 return Err(TixError::from(format!(
                     "'{}' has diverged from remote, use force to reset",
@@ -438,7 +431,7 @@ impl Repository {
             .checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
             .map_err(TixError::GitError)?;
 
-        info!(alias = %self.config.alias, branch, "sync complete");
+        debug!(alias = %self.config.alias, branch, "sync complete");
         Ok(())
     }
 }
@@ -446,11 +439,373 @@ impl Repository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_helpers::*;
+    use tempfile::tempdir;
+    // use test_helpers::*;
 
+    // --- clone_remote / resolve ---
+
+    /// A valid remote clones successfully and returns a `Repository` pointed at the workdir.
     #[test]
-    fn test_stub() {
+    fn test_clone_remote_valid() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let config = RepositoryConfig::new(
+            dir.path().join("remote").to_str().unwrap().into(),
+            "test".into(),
+            dir.path().join("local"),
+        );
+        assert!(config.clone_remote().is_ok());
+    }
 
+    /// An invalid/nonexistent remote URL returns `TixError::GitError`.
+    #[test]
+    fn test_clone_remote_invalid_url() {
+        let dir = tempdir().unwrap();
+        let config = RepositoryConfig::new(
+            "https://invalid.invalid/repo.git".into(),
+            "test".into(),
+            dir.path().join("local"),
+        );
+        assert!(matches!(config.clone_remote(), Err(TixError::GitError(_))));
+    }
+
+    /// A valid path opens successfully and returns a `Repository`.
+    #[test]
+    fn test_resolve_valid() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let config = RepositoryConfig::new(
+            dir.path().join("remote").to_str().unwrap().into(),
+            "test".into(),
+            dir.path().join("local"),
+        );
+        assert!(config.resolve().is_ok());
+    }
+
+    /// A path that is not a git repository returns `TixError::GitError`.
+    #[test]
+    fn test_resolve_invalid_path() {
+        let remote = "this/is/an/invalid/repo/dir";
+        let dir = tempdir().unwrap();
+        let config = RepositoryConfig::new(
+            remote.into(),
+            "test".into(),
+            dir.path().join("local").into(),
+        );
+        assert!(matches!(config.resolve(), Err(TixError::GitError(_))));
+    }
+
+    // --- create_worktree ---
+
+    /// A ticket whose branch doesn't exist locally creates a new branch and returns the correct `Worktree`.
+    #[test]
+    fn test_create_worktree_new_branch() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
+        let worktree = repo.create_worktree(&ticket, false).unwrap();
+
+        assert_eq!(worktree.branch, "feature");
+        assert_eq!(worktree.path, dir.path().join("worktrees/feature"));
+    }
+
+    /// A ticket whose branch already exists locally reuses it and returns the correct `Worktree`.
+    #[test]
+    fn test_create_worktree_existing_local() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        {
+            let oid = local.head().unwrap().target().unwrap();
+            let commit = local.find_commit(oid).unwrap();
+            local.branch("feature", &commit, false).unwrap();
+        }
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
+        let worktree = repo.create_worktree(&ticket, false).unwrap();
+
+        assert_eq!(worktree.branch, "feature");
+        assert_eq!(worktree.path, dir.path().join("worktrees/feature"));
+    }
+
+    /// Creating a worktree with a name that already exists returns `TixError::GitError`.
+    #[test]
+    fn test_create_worktree_duplicate_name() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
+        repo.create_worktree(&ticket, false).unwrap();
+
+        assert!(matches!(
+            repo.create_worktree(&ticket, false),
+            Err(TixError::GitError(_))
+        ));
+    }
+
+    /// A sync failure propagates as an error before the worktree is created.
+    #[test]
+    fn test_create_worktree_sync_error() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::make_mid_operation(&local);
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
+        assert!(matches!(
+            repo.create_worktree(&ticket, false),
+            Err(TixError::Message(_))
+        ));
+    }
+
+    // --- remove_worktree ---
+
+    /// Removing a worktree that doesn't exist returns `TixError::Message`.
+    #[test]
+    fn test_remove_worktree_not_found() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        let ticket =
+            test_helpers::make_ticket("nonexistent", &dir.path().join("worktrees/nonexistent"));
+        assert!(matches!(
+            repo.remove_worktree(&ticket, "nonexistent", false),
+            Err(TixError::Message(_))
+        ));
+    }
+
+    /// Removing an orphaned worktree (missing directory) without `force` returns `TixError::Message`.
+    #[test]
+    fn test_remove_worktree_orphaned_no_force() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::orphan_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
+        assert!(matches!(
+            repo.remove_worktree(&ticket, "feature", false),
+            Err(TixError::Message(_))
+        ));
+    }
+
+    /// Removing an orphaned worktree with `force` succeeds even though the directory is gone.
+    #[test]
+    fn test_remove_worktree_orphaned_force() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::orphan_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
+        assert!(repo.remove_worktree(&ticket, "feature", true).is_ok());
+    }
+
+    /// Removing a valid worktree succeeds and returns `Ok(())`.
+    #[test]
+    fn test_remove_worktree_valid() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::add_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
+        assert!(repo.remove_worktree(&ticket, "feature", false).is_ok());
+    }
+
+    // --- sync_base ---
+
+    /// A repository mid-operation (e.g. mid-merge) returns an error regardless of `force`.
+    #[test]
+    fn test_sync_base_mid_operation() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::make_mid_operation(&local);
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(matches!(
+            repo.sync_base("main", false),
+            Err(TixError::Message(_))
+        ));
+        assert!(matches!(
+            repo.sync_base("main", true),
+            Err(TixError::Message(_))
+        ));
+    }
+
+    /// A dirty working tree without `force` returns an error rather than discarding changes.
+    #[test]
+    fn test_sync_base_dirty_no_force() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::make_dirty(&local);
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(matches!(
+            repo.sync_base("main", false),
+            Err(TixError::Message(_))
+        ));
+    }
+
+    /// A dirty working tree with `force` discards changes and syncs successfully.
+    #[test]
+    fn test_sync_base_dirty_force() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::make_dirty(&local);
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(repo.sync_base("main", true).is_ok());
+    }
+
+    /// A repository with no `origin` remote returns `TixError::GitError` on fetch.
+    #[test]
+    fn test_sync_base_no_origin() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        local.remote_delete("origin").unwrap();
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(matches!(
+            repo.sync_base("main", false),
+            Err(TixError::GitError(_))
+        ));
+    }
+
+    /// A branch that doesn't exist on the remote returns `TixError::Message`.
+    #[test]
+    fn test_sync_base_branch_not_on_remote() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(matches!(
+            repo.sync_base("nonexistent", false),
+            Err(TixError::Message(_))
+        ));
+    }
+
+    /// A branch that exists on the remote but not locally is created as a local tracking branch.
+    #[test]
+    fn test_sync_base_branch_only_on_remote() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        // create feature on the remote before cloning so it exists on origin but won't have
+        // a local tracking branch created automatically — only origin/feature will exist
+        test_helpers::add_remote_branch(&remote, "feature");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(repo.sync_base("feature", false).is_ok());
+    }
+
+    /// A branch already up to date with the remote syncs successfully without moving the pointer.
+    #[test]
+    fn test_sync_base_already_up_to_date() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(repo.sync_base("main", false).is_ok());
+    }
+
+    /// A branch behind the remote fast-forwards successfully and the local pointer advances.
+    #[test]
+    fn test_sync_base_fast_forward() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::add_commit_to_bare(&remote, "second commit");
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(repo.sync_base("main", false).is_ok());
+    }
+
+    /// A branch that has diverged from the remote without `force` returns an error.
+    #[test]
+    fn test_sync_base_diverged_no_force() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::add_commit_to_bare(&remote, "remote commit");
+        test_helpers::add_commit(&local, "main", "local commit");
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(matches!(
+            repo.sync_base("main", false),
+            Err(TixError::Message(_))
+        ));
+    }
+
+    /// A branch that has diverged from the remote with `force` resets to the remote state.
+    #[test]
+    fn test_sync_base_diverged_force() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::add_commit_to_bare(&remote, "remote commit");
+        test_helpers::add_commit(&local, "main", "local commit");
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(repo.sync_base("main", true).is_ok());
+    }
+
+    /// A branch already checked out in another worktree returns `TixError::Message`.
+    #[test]
+    fn test_sync_base_branch_checked_out_in_worktree() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        // create feature on the remote so sync_base can fetch it
+        test_helpers::add_remote_branch(&remote, "feature");
+        // create a local worktree on "feature" — git creates and checks out the branch there
+        test_helpers::add_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(matches!(
+            repo.sync_base("feature", false),
+            Err(TixError::Message(_))
+        ));
     }
 }
 
@@ -463,7 +818,9 @@ mod test_helpers {
     /// Initialises an empty bare repository at `path`. Has no commits — call
     /// [`add_commit_to_bare`] immediately after to establish a branch.
     pub fn init_bare_repo(path: &Path) -> git2::Repository {
-        git2::Repository::init_bare(path).unwrap()
+        let repo = git2::Repository::init_bare(path).unwrap();
+        repo.set_head("refs/heads/main").unwrap();
+        repo
     }
 
     /// Clones the bare repository at `remote` into `dest`, setting `origin` automatically.
@@ -473,36 +830,63 @@ mod test_helpers {
 
     /// Wraps a `git2::Repository` in a [`Repository`], pointing `origin` at `remote`.
     pub fn tix_repo(remote: &Path, local: git2::Repository) -> Repository {
+        let code_path = local.path().parent().unwrap().to_path_buf();
         Repository {
-            config: RepositoryConfig::new(remote.to_str().unwrap().into(), "default".into(), local.path().parent().unwrap().to_path_buf()),
+            config: RepositoryConfig::new(
+                remote.to_str().unwrap().into(),
+                "default".into(),
+                code_path,
+            ),
             repo: local,
         }
     }
 
     /// Commits the current index state to `branch` in a working-directory repository.
     /// Chains onto the existing branch tip so history is preserved across multiple calls.
-    pub fn add_commit(repo: &git2::Repository, branch: &str, message: &str) -> git2::Commit {
+    pub fn add_commit<'a>(
+        repo: &'a git2::Repository,
+        branch: &str,
+        message: &str,
+    ) -> git2::Commit<'a> {
         let branch_ref = repo.find_branch(branch, git2::BranchType::Local).unwrap();
         let sig = git2::Signature::now("test", "test@test.com").unwrap();
         let tree_id = repo.index().unwrap().write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap();
         // resolve the current branch tip as parent; None on the first commit (root).
-        let parent = branch_ref.get().target().and_then(|oid| repo.find_commit(oid).ok());
+        let parent = branch_ref
+            .get()
+            .target()
+            .and_then(|oid| repo.find_commit(oid).ok());
         let parents: Vec<&git2::Commit> = parent.iter().collect();
-        let oid = repo.commit(branch_ref.get().name().ok(), &sig, &sig, message, &tree, &parents).unwrap();
+        let oid = repo
+            .commit(
+                branch_ref.get().name().ok(),
+                &sig,
+                &sig,
+                message,
+                &tree,
+                &parents,
+            )
+            .unwrap();
         repo.find_commit(oid).unwrap()
     }
 
     /// Commits directly to `HEAD` in a bare repository (no working directory or index staging).
     /// Chains onto the existing HEAD commit so history is preserved across multiple calls.
-    pub fn add_commit_to_bare(repo: &git2::Repository, message: &str) -> git2::Commit {
+    pub fn add_commit_to_bare<'a>(repo: &'a git2::Repository, message: &str) -> git2::Commit<'a> {
         let sig = git2::Signature::now("test", "test@test.com").unwrap();
         let tree_id = repo.index().unwrap().write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap();
         // resolve HEAD as parent; None when the repo has no commits yet (root commit).
-        let parent = repo.head().ok().and_then(|h| h.target()).and_then(|oid| repo.find_commit(oid).ok());
+        let parent = repo
+            .head()
+            .ok()
+            .and_then(|h| h.target())
+            .and_then(|oid| repo.find_commit(oid).ok());
         let parents: Vec<&git2::Commit> = parent.iter().collect();
-        let oid = repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents).unwrap();
+        let oid = repo
+            .commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)
+            .unwrap();
         repo.find_commit(oid).unwrap()
     }
 
@@ -524,21 +908,15 @@ mod test_helpers {
 
     /// Creates a git worktree for `branch` at `path`.
     pub fn add_worktree(repo: &git2::Repository, branch: &str, path: &Path) -> git2::Worktree {
-        repo.worktree(
-            branch,
-            path,
-            None,
-        ).unwrap()
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        repo.worktree(branch, path, None).unwrap()
     }
 
     /// Creates a worktree for `branch` then deletes its directory, leaving the git
     /// metadata intact so `worktree.validate()` returns `Err`.
     pub fn orphan_worktree(repo: &git2::Repository, branch: &str, path: &Path) -> git2::Worktree {
-        let worktree = repo.worktree(
-            branch,
-            path,
-            None,
-        ).unwrap();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let worktree = repo.worktree(branch, path, None).unwrap();
 
         std::fs::remove_dir_all(path).unwrap();
         worktree
@@ -559,7 +937,12 @@ mod test_helpers {
     /// simulating a branch that exists on origin but has never been fetched.
     pub fn add_remote_branch(repo: &git2::Repository, branch: &str) {
         let head_oid = repo.head().unwrap().target().unwrap();
-        repo.reference(&format!("refs/heads/{}", branch), head_oid, false, "add_remote_branch").unwrap();
+        repo.reference(
+            &format!("refs/heads/{}", branch),
+            head_oid,
+            false,
+            "add_remote_branch",
+        )
+        .unwrap();
     }
-
 }
