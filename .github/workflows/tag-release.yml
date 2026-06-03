@@ -1,0 +1,29 @@
+name: Tag Release
+
+# Trigger manually from a release/X.Y branch. Tags the current version and
+# pushes the tag, which fires the Release workflow and produces a GitHub release.
+# Running this from any other branch is a no-op (the job is skipped).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/release/')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: extractions/setup-just@v2
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+      - name: Tag and push
+        run: just push-tag

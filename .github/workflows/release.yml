@@ -6,21 +6,23 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: extractions/setup-just@v2
 
       - name: Build docs
-        run: cargo doc --no-deps
+        run: just build-docs
 
       - name: Stage docs
         run: |
@@ -81,19 +83,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
+      - uses: extractions/setup-just@v2
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
 
       - name: Build release binary
         shell: bash
-        run: |
-          cargo build --release --target ${{ matrix.target }}
+        run: just build-cli ${{ matrix.target }}
 
       - name: Package binary (tar)
         if: matrix.format == 'tar'
-        shell: bash
         run: |
           mkdir -p dist pkg
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} pkg/
@@ -104,14 +107,14 @@ jobs:
 
       - name: Package binary (zip)
         if: matrix.format == 'zip'
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p dist pkg
-          cp target/${{ matrix.target }}/release/${{ matrix.binary }} pkg/
-          cp README.md LICENSE pkg/
-          ARCHIVE="tix-${GITHUB_REF_NAME}-${{ matrix.suffix }}"
-          powershell -Command "Compress-Archive -Path pkg\\* -DestinationPath dist\\${ARCHIVE}"
-          echo "ARCHIVE_NAME=${ARCHIVE}" >> $GITHUB_ENV
+          New-Item -ItemType Directory -Force -Path dist, pkg | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" pkg/
+          Copy-Item README.md, LICENSE pkg/
+          $archive = "tix-$env:GITHUB_REF_NAME-${{ matrix.suffix }}"
+          Compress-Archive -Path pkg\* -DestinationPath "dist\$archive"
+          "ARCHIVE_NAME=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -121,6 +124,8 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs: [docs, build]
     steps:
       - name: Download artifacts
@@ -133,5 +138,6 @@ jobs:
         with:
           files: artifacts/**/*.*
           overwrite_files: true
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

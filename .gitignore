@@ -1,4 +1,7 @@
 /target
-/.target
-/.tmp-tests
-/.tmp-tests**
+/tickets
+.venv/
+*.pyc
+*.so
+.claude
+test_temp/
