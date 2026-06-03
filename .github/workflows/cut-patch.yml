@@ -1,0 +1,53 @@
+name: Cut Patch
+
+# Trigger manually from a release/X.Y branch. Bumps the patch version on that
+# branch so it's ready to tag. Run tag-release.yml afterwards to cut the release.
+on:
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: "Release branch to patch (e.g. release/3.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  cut-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch name
+        run: |
+          if [[ ! "${{ inputs.release_branch }}" =~ ^release/[0-9]+\.[0-9]+$ ]]; then
+            echo "error: release_branch must match release/X.Y (got '${{ inputs.release_branch }}')"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_branch }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: extractions/setup-just@v2
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+      - name: Bump patch version
+        run: |
+          OLD=$(just _current)
+          just bump patch
+          NEW=$(just _current)
+          echo "OLD_VERSION=$OLD" >> $GITHUB_ENV
+          echo "NEW_VERSION=$NEW" >> $GITHUB_ENV
+
+      - name: Commit and push
+        run: |
+          git add tix-engine/Cargo.toml tix-cli/Cargo.toml pytix/Cargo.toml pytix/pyproject.toml
+          git commit -m "chore(release): bump patch v${{ env.OLD_VERSION }} → v${{ env.NEW_VERSION }}"
+          git push origin ${{ inputs.release_branch }}

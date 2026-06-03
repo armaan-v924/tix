@@ -1,4 +1,4 @@
-name: Tag Release
+name: Create Release Tag
 
 # Trigger manually from a release/X.Y branch. Tags the current version and
 # pushes the tag, which fires the Release workflow and produces a GitHub release.
