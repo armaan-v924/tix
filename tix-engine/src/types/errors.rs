@@ -75,3 +75,55 @@ impl From<String> for TixError {
         TixError::Message(s)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `From<io::Error>` wraps into `IoError`.
+    #[test]
+    fn test_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "not found");
+        assert!(matches!(TixError::from(io_err), TixError::IoError(_)));
+    }
+
+    /// `From<&str>` wraps into `Message`.
+    #[test]
+    fn test_from_str() {
+        assert!(matches!(TixError::from("oops"), TixError::Message(_)));
+    }
+
+    /// `From<String>` wraps into `Message`.
+    #[test]
+    fn test_from_string() {
+        assert!(matches!(TixError::from("oops".to_string()), TixError::Message(_)));
+    }
+
+    /// `From<toml::de::Error>` wraps into `ParseError`.
+    #[test]
+    fn test_from_toml_de_error() {
+        let de_err = toml::from_str::<toml::Value>("[[[not valid").unwrap_err();
+        assert!(matches!(TixError::from(de_err), TixError::ParseError(_)));
+    }
+
+    /// `Display` produces a non-empty string for every variant.
+    #[test]
+    fn test_display_non_empty() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "x");
+        let git_err = git2::Repository::open("/nonexistent/path/for/tix/test").err().unwrap();
+        let parse_err = toml::from_str::<toml::Value>("[[[").unwrap_err();
+
+        let variants: Vec<TixError> = vec![
+            TixError::GitError(git_err),
+            TixError::IoError(io_err),
+            TixError::ParseError(parse_err),
+            TixError::ConfigNotFound("path".into()),
+            TixError::RepoNotFound("path".into()),
+            TixError::Message("something went wrong".into()),
+        ];
+
+        for err in variants {
+            assert!(!err.to_string().is_empty(), "Display was empty for: {:?}", err);
+        }
+    }
+}

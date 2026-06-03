@@ -112,51 +112,52 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::repository::RepositoryConfig;
+    use tempfile::tempdir;
 
-    /// Tests that the `Config` can be loaded from a valid TOML file.
+    /// A valid TOML fixture loads without error.
     #[test]
     fn test_config_load() {
-        let config = Config::load_from(&PathBuf::from("test_artifacts/test_config_valid.toml"));
-        assert!(config.is_ok(), "config did not load successfully");
+        assert!(Config::load_from(&PathBuf::from("test_artifacts/test_config_valid.toml")).is_ok());
     }
 
-    /// Tests that the `Config` cannot be loaded from an invalid path.
+    /// A missing file returns `TixError::IoError`.
     #[test]
-    fn test_config_load_invalid_path() -> Result<(), TixError> {
+    fn test_config_load_invalid_path() {
         let result = Config::load_from(&PathBuf::from("/this/is/an/invalid/path"));
-        let err = result.unwrap_err(); // panics with the Ok value if it's not Err
-        assert!(matches!(err, TixError::IoError(_)), "got {:?}", err);
-        Ok(())
+        assert!(matches!(result, Err(TixError::IoError(_))));
     }
 
-    /// Tests that the `Config` cannot be loaded from an invalid TOML file.
+    /// Malformed TOML returns `TixError::ParseError`.
     #[test]
-    fn test_config_load_invalid_toml() -> Result<(), TixError> {
+    fn test_config_load_invalid_toml() {
         let result = Config::load_from(&PathBuf::from("test_artifacts/test_config_invalid.toml"));
-        let err = result.unwrap_err();
-        assert!(matches!(err, TixError::ParseError(_)), "got {:?}", err);
-        Ok(())
+        assert!(matches!(result, Err(TixError::ParseError(_))));
     }
 
-    /// Tests that the `Config` can be saved to a file and loaded back successfully.
+    /// Load → mutate → save → reload produces identical config.
     #[test]
-    fn test_config_save() {
-        let config = Config::empty();
-        let path = PathBuf::from("test_artifacts/test_config_save.toml");
+    fn test_config_save_round_trip() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+
+        let mut config =
+            Config::load_from(&PathBuf::from("test_artifacts/test_config_valid.toml")).unwrap();
+        config.configured_repositories.push(RepositoryConfig::new(
+            "https://github.com/owner/repo.git".into(),
+            "repo".into(),
+            PathBuf::from("/code/repo"),
+        ));
         config.save_to(&path).unwrap();
 
-        // load the saved config and verify it matches the original
-        let loaded_config = Config::load_from(&path).unwrap();
-        assert_eq!(loaded_config, config);
+        let reloaded = Config::load_from(&path).unwrap();
+        assert_eq!(reloaded, config);
     }
 
-    /// Tests that the `Config` default path is resolved correctly.
+    /// `default_path` ends with `tix/config.toml`.
     #[test]
     fn test_config_default_path() {
-        let path = Config::default_path().unwrap(); // unwrap is safe here; test should panic if the path is invalid
-        assert!(
-            path.ends_with("tix/config.toml"),
-            "default path is not correct"
-        );
+        let path = Config::default_path().unwrap();
+        assert!(path.ends_with("tix/config.toml"));
     }
 }

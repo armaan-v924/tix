@@ -112,7 +112,7 @@ impl Repository {
     ///
     /// Prefer constructing via [`RepositoryConfig::resolve`] or [`RepositoryConfig::clone_remote`]
     /// rather than calling this directly.
-    pub fn new(config: RepositoryConfig, repo: git2::Repository) -> Self {
+    pub(crate) fn new(config: RepositoryConfig, repo: git2::Repository) -> Self {
         // TODO: ensure worktree directory and code directory exist.
         // TODO: Register to config
         // TODO: validate remote url
@@ -440,7 +440,34 @@ impl Repository {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    // use test_helpers::*;
+
+    // --- RepositoryConfig ---
+
+    /// `new` populates all fields correctly.
+    #[test]
+    fn test_repository_config_new() {
+        let config = RepositoryConfig::new(
+            "https://github.com/owner/repo.git".into(),
+            "repo".into(),
+            PathBuf::from("/code/repo"),
+        );
+        assert_eq!(config.remote, "https://github.com/owner/repo.git");
+        assert_eq!(config.alias, "repo");
+        assert_eq!(config.code_path, PathBuf::from("/code/repo"));
+    }
+
+    /// Serializing to TOML and deserializing back produces an identical value.
+    #[test]
+    fn test_repository_config_toml_round_trip() {
+        let config = RepositoryConfig::new(
+            "https://github.com/owner/repo.git".into(),
+            "repo".into(),
+            PathBuf::from("/code/repo"),
+        );
+        let toml = toml::to_string(&config).unwrap();
+        let deserialized: RepositoryConfig = toml::from_str(&toml).unwrap();
+        assert_eq!(deserialized, config);
+    }
 
     // --- clone_remote / resolve ---
 
@@ -514,6 +541,7 @@ mod tests {
 
         assert_eq!(worktree.branch, "feature");
         assert_eq!(worktree.path, dir.path().join("worktrees/feature"));
+        assert!(dir.path().join("worktrees/feature").exists());
     }
 
     /// A ticket whose branch already exists locally reuses it and returns the correct `Worktree`.
@@ -634,6 +662,7 @@ mod tests {
 
         let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
         assert!(repo.remove_worktree(&ticket, "feature", false).is_ok());
+        assert!(!dir.path().join("worktrees/feature").exists());
     }
 
     // --- sync_base ---
