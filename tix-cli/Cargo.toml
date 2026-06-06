@@ -8,6 +8,8 @@ name = "tix"
 path = "src/main.rs"
 
 [dependencies]
+clap = "4.6.1"
 tix-engine = { path = "../tix-engine" }
+toml = "1.1.2"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
