@@ -1,6 +1,7 @@
 use crate::types::errors::TixError;
 use crate::types::repository::RepositoryConfig;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -9,7 +10,7 @@ use std::path::PathBuf;
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Config {
     /// Source Repositories configured by the user.
-    pub configured_repositories: Vec<RepositoryConfig>,
+    pub configured_repositories: HashMap<String, RepositoryConfig>,
 }
 
 impl Config {
@@ -20,9 +21,9 @@ impl Config {
     /// # use tix_engine::Config;
     /// let config = Config::new(Vec::new());
     /// ```
-    pub fn new(configured_repositories: Vec<RepositoryConfig>) -> Self {
+    pub fn new(configured_repositories: HashMap<String, RepositoryConfig>) -> Self {
         Self {
-            configured_repositories,
+            configured_repositories: configured_repositories,
         }
     }
 
@@ -35,7 +36,7 @@ impl Config {
     /// ```
     pub fn empty() -> Self {
         Self {
-            configured_repositories: Vec::new(),
+            configured_repositories: HashMap::new(),
         }
     }
 
