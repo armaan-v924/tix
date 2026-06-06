@@ -96,7 +96,10 @@ mod tests {
     /// `From<String>` wraps into `Message`.
     #[test]
     fn test_from_string() {
-        assert!(matches!(TixError::from("oops".to_string()), TixError::Message(_)));
+        assert!(matches!(
+            TixError::from("oops".to_string()),
+            TixError::Message(_)
+        ));
     }
 
     /// `From<toml::de::Error>` wraps into `ParseError`.
@@ -110,7 +113,9 @@ mod tests {
     #[test]
     fn test_display_non_empty() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "x");
-        let git_err = git2::Repository::open("/nonexistent/path/for/tix/test").err().unwrap();
+        let git_err = git2::Repository::open("/nonexistent/path/for/tix/test")
+            .err()
+            .unwrap();
         let parse_err = toml::from_str::<toml::Value>("[[[").unwrap_err();
 
         let variants: Vec<TixError> = vec![
@@ -123,7 +128,11 @@ mod tests {
         ];
 
         for err in variants {
-            assert!(!err.to_string().is_empty(), "Display was empty for: {:?}", err);
+            assert!(
+                !err.to_string().is_empty(),
+                "Display was empty for: {:?}",
+                err
+            );
         }
     }
 }
