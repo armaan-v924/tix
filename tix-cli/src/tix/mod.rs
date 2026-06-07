@@ -3,6 +3,7 @@ pub mod config;
 pub mod repo;
 pub mod ticket;
 
+pub mod plugin;
 pub mod utils;
 
 // ---
@@ -67,4 +68,7 @@ pub enum Commands {
     List(crate::tix::ticket::list::Args),
     Remove(crate::tix::ticket::remove::Args),
     Setup(crate::tix::ticket::setup::Args),
+
+    #[command(external_subcommand)]
+    External(Vec<String>),
 }

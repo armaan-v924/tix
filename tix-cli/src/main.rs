@@ -1,6 +1,6 @@
 mod tix;
 
-use crate::tix::{Commands, cli, config, repo, ticket};
+use crate::tix::{Commands, cli, config, plugin, repo, ticket};
 use clap::Parser;
 use tracing_subscriber::fmt;
 
@@ -42,5 +42,7 @@ fn main() {
         Commands::List(args) => ticket::list::run(args),
         Commands::Remove(args) => ticket::remove::run(args),
         Commands::Setup(args) => ticket::setup::run(args),
+
+        Commands::External(args) => plugin::run(args),
     }
 }
