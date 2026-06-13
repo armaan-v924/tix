@@ -49,16 +49,20 @@ impl RepositoryConfig {
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
     /// );
-    /// let repo = config.resolve("my-repo".to_string());
+    /// let repo = config.resolve("my-repo");
     /// ```
-    pub fn resolve(self, alias: String) -> Result<Repository, TixError> {
+    pub fn resolve(self, alias: &str) -> Result<Repository, TixError> {
         debug!(alias = %alias, path = %self.code_path.display(), "opening repository");
         let repo = git2::Repository::open(&self.code_path).map_err(|e| {
             error!(alias = %alias, error = %e, "failed to open repository");
             TixError::GitError(e)
         })?;
         debug!(alias = %alias, "repository opened");
-        Ok(Repository { alias, config: self, repo })
+        Ok(Repository {
+            alias: alias.to_string(),
+            config: self,
+            repo,
+        })
     }
 
     /// Clones [`Self::remote`] into [`Self::code_path`] and returns a live [`Repository`].
@@ -78,16 +82,49 @@ impl RepositoryConfig {
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
     /// );
-    /// let repo = config.clone_remote("my-repo".to_string());
+    /// let repo = config.clone_remote("my-repo");
     /// ```
-    pub fn clone_remote(self, alias: String) -> Result<Repository, TixError> {
+    pub fn clone_remote(self, alias: &str) -> Result<Repository, TixError> {
         info!(alias = %alias, remote = %self.remote, "cloning repository");
         let repo = git2::Repository::clone(&self.remote, &self.code_path).map_err(|e| {
             error!(alias = %alias, error = %e, "clone failed");
             TixError::GitError(e)
         })?;
         info!(alias = %alias, path = %self.code_path.display(), "clone complete");
-        Ok(Repository { alias, config: self, repo })
+        Ok(Repository {
+            alias: alias.to_string(),
+            config: self,
+            repo,
+        })
+    }
+
+    /// Opens the repository if already cloned, or clones it first if not.
+    ///
+    /// Tries [`Self::resolve`] first. If that fails with a [`TixError::GitError`], falls back to
+    /// [`Self::clone_remote`]. Other errors propagate without triggering a clone.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TixError::GitError`] if the clone fails.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use tix_engine::RepositoryConfig;
+    /// # use std::path::PathBuf;
+    /// let config = RepositoryConfig::new(
+    ///     "https://github.com/owner/repo.git".to_string(),
+    ///     PathBuf::from("/home/user/code/repo"),
+    /// );
+    /// let repo = config.ensure("my-repo");
+    /// ```
+    pub fn ensure(self, alias: &str) -> Result<Repository, TixError> {
+        let config = self.clone();
+        match self.resolve(alias) {
+            Ok(repo) => Ok(repo),
+            Err(TixError::GitError(_)) => config.clone_remote(alias),
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -106,7 +143,11 @@ impl Repository {
     /// Prefer constructing via [`RepositoryConfig::resolve`] or [`RepositoryConfig::clone_remote`]
     /// rather than calling this directly.
     pub(crate) fn new(alias: String, config: RepositoryConfig, repo: git2::Repository) -> Self {
-        Self { alias, config, repo }
+        Self {
+            alias,
+            config,
+            repo,
+        }
     }
 
     /// Creates a git worktree for the given ticket's branch at the ticket's path.
@@ -127,7 +168,7 @@ impl Repository {
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
-    /// ).resolve("my-repo".to_string()).unwrap();
+    /// ).resolve("my-repo").unwrap();
     /// let ticket = Ticket { key: "JIRA-123".into(), description: "Fix bug".into(), branch: "JIRA-123".into(), path: PathBuf::from("/home/user/tickets/JIRA-123"), worktrees: vec![] };
     /// let worktree = repo.create_worktree(&ticket, false);
     /// ```
@@ -181,7 +222,7 @@ impl Repository {
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
-    /// ).resolve("my-repo".to_string()).unwrap();
+    /// ).resolve("my-repo").unwrap();
     /// let ticket = Ticket { key: "JIRA-123".into(), description: "Fix bug".into(), branch: "JIRA-123".into(), path: PathBuf::from("/home/user/tickets/JIRA-123"), worktrees: vec![] };
     /// repo.remove_worktree(&ticket, "JIRA-123", false);
     /// ```
@@ -226,7 +267,7 @@ impl Repository {
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
-    /// ).resolve("my-repo".to_string()).unwrap();
+    /// ).resolve("my-repo").unwrap();
     /// repo.sync(false);
     /// ```
     pub fn sync(&self, force: bool) -> Result<(), TixError> {
@@ -252,7 +293,7 @@ impl Repository {
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
-    /// ).resolve("my-repo".to_string()).unwrap();
+    /// ).resolve("my-repo").unwrap();
     /// repo.sync_base("main", false);
     /// ```
     pub fn sync_base(&self, branch: &str, force: bool) -> Result<(), TixError> {
@@ -475,7 +516,10 @@ mod tests {
             "https://invalid.invalid/repo.git".into(),
             dir.path().join("local"),
         );
-        assert!(matches!(config.clone_remote("test".into()), Err(TixError::GitError(_))));
+        assert!(matches!(
+            config.clone_remote("test".into()),
+            Err(TixError::GitError(_))
+        ));
     }
 
     /// A valid path opens successfully and returns a `Repository`.
@@ -497,11 +541,8 @@ mod tests {
     fn test_resolve_invalid_path() {
         let remote = "this/is/an/invalid/repo/dir";
         let dir = tempdir().unwrap();
-        let config = RepositoryConfig::new(
-            remote.into(),
-            dir.path().join("local").into(),
-        );
-        assert!(matches!(config.resolve("test".into()), Err(TixError::GitError(_))));
+        let config = RepositoryConfig::new(remote.into(), dir.path().join("local").into());
+        assert!(matches!(config.resolve("test"), Err(TixError::GitError(_))));
     }
 
     // --- create_worktree ---
