@@ -9,4 +9,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 tix-engine = { path = "../tix-engine" }
-pyo3 = { version = "0.28.3", features = ["abi3-py311"] }
+pyo3 = { version = "0.29.1", features = ["abi3-py311"] }
