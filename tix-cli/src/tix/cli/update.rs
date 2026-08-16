@@ -275,6 +275,28 @@ fn install_destination(target: &Target) -> Result<PathBuf, SdkError> {
     Ok(parent.join(target.exe_name))
 }
 
+/// Replaces the binary: rename when possible (same filesystem — atomic),
+/// copy as the cross-device fallback; executable bit restored on unix.
+fn install_binary(src: &Path, dest: &Path) -> Result<(), SdkError> {
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(SdkError::from)?;
+    }
+    if dest.exists() {
+        warn!(dest = %dest.display(), "replacing existing binary");
+    }
+    std::fs::rename(src, dest).or_else(|_| {
+        std::fs::copy(src, dest).map(|_| ()).map_err(SdkError::from)
+    })?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dest, std::fs::Permissions::from_mode(0o755))
+            .map_err(SdkError::from)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -327,26 +349,4 @@ mod tests {
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
     }
-}
-
-/// Replaces the binary: rename when possible (same filesystem — atomic),
-/// copy as the cross-device fallback; executable bit restored on unix.
-fn install_binary(src: &Path, dest: &Path) -> Result<(), SdkError> {
-    if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent).map_err(SdkError::from)?;
-    }
-    if dest.exists() {
-        warn!(dest = %dest.display(), "replacing existing binary");
-    }
-    std::fs::rename(src, dest).or_else(|_| {
-        std::fs::copy(src, dest).map(|_| ()).map_err(SdkError::from)
-    })?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(dest, std::fs::Permissions::from_mode(0o755))
-            .map_err(SdkError::from)?;
-    }
-    Ok(())
 }

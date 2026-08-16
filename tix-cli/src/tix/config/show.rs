@@ -15,7 +15,7 @@ pub struct Args {
 /// comments, formatting, and plugin tables preserved, straight from the
 /// format-preserving DOM. JSON output converts the document's *values*
 /// (comments cannot survive a format that has none).
-pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+pub fn run(app: &crate::tix::utils::App, _args: Args) -> Result<(), SdkError> {
     let document = TixDocument::load(&app.context.config_path)?;
     match app.output {
         OutputType::Default | OutputType::Toml => print!("{document}"),
