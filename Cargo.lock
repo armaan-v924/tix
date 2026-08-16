@@ -1232,7 +1232,7 @@ dependencies = [
  "sha2",
  "tar",
  "tempfile",
- "tix-engine",
+ "tix-sdk",
  "toml",
  "toml_edit",
  "tracing",
@@ -1246,11 +1246,23 @@ dependencies = [
 name = "tix-engine"
 version = "3.0.0"
 dependencies = [
- "dirs",
  "git2",
  "serde",
  "tempfile",
  "toml",
+ "tracing",
+]
+
+[[package]]
+name = "tix-sdk"
+version = "3.0.0"
+dependencies = [
+ "dirs",
+ "serde",
+ "tempfile",
+ "tix-engine",
+ "toml",
+ "toml_edit",
  "tracing",
 ]
 

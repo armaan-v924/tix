@@ -4,11 +4,12 @@ version = "3.0.0"
 edition = "2024"
 
 [dependencies]
-dirs = "6.0.0"
 git2 = "0.21.0"
 serde = { version = "1.0.228", features = ["derive"] }
-toml = "1.1.2"
 tracing = "0.1.44"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+# dev-only: round-trip tests and doctests of the serde section shapes.
+# Document parsing is the SDK's job (design/spec.md §2.2).
+toml = "1.1.2"

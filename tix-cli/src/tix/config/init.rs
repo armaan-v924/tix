@@ -1,9 +1,9 @@
 //! `tix config init` — interactive first-time config creation.
 
-use crate::tix::context::Context;
-use crate::tix::document::TixDocument;
+use tix_sdk::context::Context;
+use tix_sdk::document::TixDocument;
 use crate::tix::utils::prompt;
-use tix_engine::TixError;
+use tix_sdk::SdkError;
 
 /// Arguments for `tix config init`.
 #[derive(clap::Args, Debug)]
@@ -20,10 +20,10 @@ pub struct Args {
 /// uses (`--config` > `TIX_CONFIG_PATH` > platform default), which is why
 /// this command is exempt from the config-must-exist check. Parent
 /// directories are created; an existing file is refused without `--force`.
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let path = &context.config_path;
     if path.exists() && !args.force {
-        return Err(TixError::Message(format!(
+        return Err(SdkError::Message(format!(
             "config already exists at {} — pass --force to overwrite",
             path.display()
         )));

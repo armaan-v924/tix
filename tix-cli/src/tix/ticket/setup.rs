@@ -1,13 +1,13 @@
 //! `tix ticket setup` — create a new ticket workspace with worktrees.
 
 use crate::tix::config::CliConfig;
-use crate::tix::context::Context;
-use crate::tix::document::TixDocument;
+use tix_sdk::context::Context;
+use tix_sdk::document::TixDocument;
 use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::derive_branch_name;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tix_engine::{Defaults, EngineConfig, TicketConfig, TixError, WorktreeConfig};
+use tix_sdk::{SdkError, Defaults, EngineConfig, TicketConfig, TixError, WorktreeConfig};
 use tracing::{error, info};
 
 /// Arguments for `tix ticket setup`.
@@ -42,9 +42,9 @@ pub struct Args {
 /// Partial failure leaves successfully created worktrees in place and
 /// records only them in `.tix/ticket.toml`; the command then errors naming
 /// the repos that failed.
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     if args.key.is_empty() || args.key.contains(['/', '\\']) {
-        return Err(TixError::Message(format!(
+        return Err(SdkError::Message(format!(
             "'{}' is not a valid ticket key — keys are names, not paths (path-form creation is #114)",
             args.key
         )));
@@ -52,7 +52,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
 
     let document = TixDocument::load(&context.config_path)?;
     let cli: CliConfig = document.section("cli")?.ok_or_else(|| {
-        TixError::Message("global config has no [cli] section — run `tix config init`".to_string())
+        SdkError::Message("global config has no [cli] section — run `tix config init`".to_string())
     })?;
     let engine: EngineConfig = document.section_or_default("engine")?;
     let defaults: Defaults = document.section_or_default("defaults")?;
@@ -75,10 +75,10 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
                 .map(String::as_str)
                 .collect();
             known.sort();
-            return Err(TixError::RepoNotFound(format!(
+            return Err(SdkError::Engine(TixError::RepoNotFound(format!(
                 "'{alias}' is not a registered repository (registered: {})",
                 if known.is_empty() { "none".to_string() } else { known.join(", ") }
-            )));
+            ))));
         }
     }
 
@@ -92,13 +92,13 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
 
     let ticket_root: PathBuf = cli.tickets_directory.join(&args.key);
     if ticket_root.exists() {
-        return Err(TixError::Message(format!(
+        return Err(SdkError::Message(format!(
             "ticket '{}' already exists at {}",
             args.key,
             ticket_root.display()
         )));
     }
-    std::fs::create_dir_all(&ticket_root).map_err(TixError::IoError)?;
+    std::fs::create_dir_all(&ticket_root).map_err(SdkError::from)?;
 
     // --- create worktrees; collect successes and failures ---
     let mut worktrees: HashMap<String, WorktreeConfig> = HashMap::new();
@@ -140,7 +140,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
 
     if !failures.is_empty() {
         let names: Vec<&str> = failures.iter().map(|(alias, _)| alias.as_str()).collect();
-        return Err(TixError::Message(format!(
+        return Err(SdkError::Message(format!(
             "ticket created, but {} of {} worktrees failed: {} — fix and `tix ticket add` them",
             failures.len(),
             selected.len(),

@@ -1,10 +1,10 @@
 //! `tix config get` — read value(s) from the `[cli]` section.
 
 use crate::tix::config::ConfigKey;
-use crate::tix::context::Context;
-use crate::tix::document::TixDocument;
+use tix_sdk::context::Context;
+use tix_sdk::document::TixDocument;
 use crate::tix::utils::OutputType;
-use tix_engine::TixError;
+use tix_sdk::SdkError;
 
 /// Arguments for `tix config get`.
 #[derive(clap::Args, Debug)]
@@ -24,7 +24,7 @@ pub struct Args {
 /// print `key = value` lines. Keys are validated at parse time by the
 /// [`ConfigKey`] value enum; a key that is valid but unset in the document
 /// errors here.
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let document = TixDocument::load(&context.config_path)?;
 
     let mut pairs = Vec::with_capacity(args.key.len());
@@ -34,7 +34,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
             .get("cli")
             .and_then(|cli| cli.get(key.toml_key()))
             .ok_or_else(|| {
-                TixError::Message(format!(
+                SdkError::Message(format!(
                     "'{}' is not set in [cli] (config: {})",
                     key.toml_key(),
                     context.config_path.display()
@@ -79,8 +79,8 @@ fn render_bare(item: &toml_edit::Item) -> String {
 
 /// Converts one TOML item to JSON by round-tripping it through a real TOML
 /// parse — handles every value shape without a hand-written mapping.
-fn item_to_json(key: &str, item: &toml_edit::Item) -> Result<serde_json::Value, TixError> {
+fn item_to_json(key: &str, item: &toml_edit::Item) -> Result<serde_json::Value, SdkError> {
     let table: toml::Table = toml::from_str(&format!("{key} = {}", item.to_string().trim()))?;
     let value = table.get(key).cloned().unwrap_or(toml::Value::String(String::new()));
-    serde_json::to_value(value).map_err(|e| TixError::Message(format!("json conversion failed: {e}")))
+    serde_json::to_value(value).map_err(|e| SdkError::Message(format!("json conversion failed: {e}")))
 }

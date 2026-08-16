@@ -3,15 +3,15 @@
 //!
 //! Config path resolution is stage 1 of the read path (`design/spec.md`
 //! §3.3) and belongs to the frontend/SDK — the engine never reads env vars
-//! or flags. Written in `tix-cli` first; promoted to `tix-sdk` (#96) so
-//! plugins resolve identically.
+//! or flags. Written in `tix-cli` first (#52); promoted here (#96) so plugins
+//! resolve identically.
 //!
 //! The default location is deliberately isolated in [`default_config_path`]
 //! so it can be revisited without touching resolution or call sites.
 
 use std::ffi::OsString;
 use std::path::PathBuf;
-use tix_engine::TixError;
+use crate::error::SdkError;
 use tracing::debug;
 
 /// The environment variable overriding the global config location, beaten
@@ -31,9 +31,9 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// [`TixError::ConfigNotFound`] if no flag or env var is set and the
+    /// [`SdkError::ConfigNotFound`] if no flag or env var is set and the
     /// platform config directory cannot be determined.
-    pub fn resolve(config_flag: Option<PathBuf>) -> Result<Self, TixError> {
+    pub fn resolve(config_flag: Option<PathBuf>) -> Result<Self, SdkError> {
         Ok(Self {
             config_path: resolve_config_path(config_flag)?,
         })
@@ -46,11 +46,11 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// [`TixError::ConfigNotFound`] with the resolved path and a pointer at
+    /// [`SdkError::ConfigNotFound`] with the resolved path and a pointer at
     /// `tix config init` when the file does not exist.
-    pub fn require_config_path(&self) -> Result<&PathBuf, TixError> {
+    pub fn require_config_path(&self) -> Result<&PathBuf, SdkError> {
         if !self.config_path.is_file() {
-            return Err(TixError::ConfigNotFound(format!(
+            return Err(SdkError::ConfigNotFound(format!(
                 "no config file at {} — run `tix config init` to create one",
                 self.config_path.display()
             )));
@@ -68,9 +68,9 @@ impl Context {
 ///
 /// # Errors
 ///
-/// [`TixError::ConfigNotFound`] if neither flag nor env var is set and the
+/// [`SdkError::ConfigNotFound`] if neither flag nor env var is set and the
 /// platform config directory cannot be determined.
-pub fn resolve_config_path(flag: Option<PathBuf>) -> Result<PathBuf, TixError> {
+pub fn resolve_config_path(flag: Option<PathBuf>) -> Result<PathBuf, SdkError> {
     resolve_from(
         flag,
         std::env::var_os(CONFIG_PATH_ENV),
@@ -95,7 +95,7 @@ fn resolve_from(
     flag: Option<PathBuf>,
     env: Option<OsString>,
     default: Option<PathBuf>,
-) -> Result<PathBuf, TixError> {
+) -> Result<PathBuf, SdkError> {
     if let Some(path) = flag {
         debug!(path = %path.display(), "config path from --config flag");
         return Ok(path);
@@ -108,7 +108,7 @@ fn resolve_from(
         return Ok(path);
     }
     default.ok_or_else(|| {
-        TixError::ConfigNotFound(
+        SdkError::ConfigNotFound(
             "cannot determine the platform config directory; \
              pass --config or set TIX_CONFIG_PATH"
                 .to_string(),
@@ -173,7 +173,7 @@ mod tests {
     fn test_no_source_errors() {
         assert!(matches!(
             resolve_from(None, None, None),
-            Err(TixError::ConfigNotFound(_))
+            Err(SdkError::ConfigNotFound(_))
         ));
     }
 
@@ -197,7 +197,7 @@ mod tests {
 
         assert!(matches!(
             ctx.require_config_path(),
-            Err(TixError::ConfigNotFound(_))
+            Err(SdkError::ConfigNotFound(_))
         ));
 
         std::fs::write(&path, "").unwrap();

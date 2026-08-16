@@ -22,26 +22,26 @@ pub enum OutputType {
 ///
 /// The prompt goes to stderr so interactive commands stay pipeable — stdout
 /// carries only results.
-pub fn prompt(label: &str, default: Option<&str>) -> Result<String, tix_engine::TixError> {
+pub fn prompt(label: &str, default: Option<&str>) -> Result<String, tix_sdk::SdkError> {
     use std::io::{BufRead, Write};
 
     match default {
         Some(default) => eprint!("{label} [{default}]: "),
         None => eprint!("{label}: "),
     }
-    std::io::stderr().flush().map_err(tix_engine::TixError::IoError)?;
+    std::io::stderr().flush().map_err(tix_sdk::SdkError::from)?;
 
     let mut answer = String::new();
     std::io::stdin()
         .lock()
         .read_line(&mut answer)
-        .map_err(tix_engine::TixError::IoError)?;
+        .map_err(tix_sdk::SdkError::from)?;
     let answer = answer.trim();
 
     match (answer.is_empty(), default) {
         (false, _) => Ok(answer.to_string()),
         (true, Some(default)) => Ok(default.to_string()),
-        (true, None) => Err(tix_engine::TixError::Message(format!(
+        (true, None) => Err(tix_sdk::SdkError::Message(format!(
             "{label} is required"
         ))),
     }

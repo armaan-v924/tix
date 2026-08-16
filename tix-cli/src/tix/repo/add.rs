@@ -2,11 +2,11 @@
 //! `tix repo clone` (#65).
 
 use crate::tix::config::CliConfig;
-use crate::tix::context::Context;
-use crate::tix::document::with_write;
+use tix_sdk::context::Context;
+use tix_sdk::document::with_write;
 use crate::tix::repo::{RepoAlias, RepoRef};
 use crate::tix::ticket::load_cli_config;
-use tix_engine::{Defaults, EngineConfig, TixError};
+use tix_sdk::{Defaults, EngineConfig, SdkError};
 
 /// Arguments for `tix repo add`.
 #[derive(clap::Args, Debug)]
@@ -37,7 +37,7 @@ pub struct Args {
 /// `code_path` derives as `<code_directory>/<alias>`. The write goes through
 /// the format-preserving layer and revalidates `EngineConfig` before landing;
 /// re-adding an existing alias errors.
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let cli: CliConfig = load_cli_config(context)?;
 
     // Alias may come from the flag; otherwise it falls out of the parse.
@@ -52,7 +52,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
     with_write(&context.config_path, |document| {
         let existing: EngineConfig = document.section_or_default("engine")?;
         if existing.configured_repositories.contains_key(&alias) {
-            return Err(TixError::Message(format!(
+            return Err(SdkError::Message(format!(
                 "alias '{alias}' is already registered (remote: {}) — pick another with --alias",
                 existing.configured_repositories[&alias].remote
             )));
@@ -78,7 +78,7 @@ fn resolve_remote(
     repo: &str,
     owner_flag: Option<&str>,
     context: &Context,
-) -> Result<(String, String), TixError> {
+) -> Result<(String, String), SdkError> {
     // Full URL forms pass through untouched.
     if repo.contains("://") || (repo.contains('@') && repo.contains(':')) {
         let name = repo
@@ -91,7 +91,7 @@ fn resolve_remote(
     }
 
     let defaults: Defaults =
-        crate::tix::document::TixDocument::load(&context.config_path)?.section_or_default("defaults")?;
+        tix_sdk::document::TixDocument::load(&context.config_path)?.section_or_default("defaults")?;
     let base = defaults
         .github_base_url
         .unwrap_or_else(|| "https://github.com".to_string());
@@ -104,14 +104,14 @@ fn resolve_remote(
                 .map(str::to_string)
                 .or(defaults.default_repository_owner)
                 .ok_or_else(|| {
-                    TixError::Message(format!(
+                    SdkError::Message(format!(
                         "'{name}' has no owner — pass --owner <owner> or set \
                          [defaults].default_repository_owner in config"
                     ))
                 })?;
             Ok((format!("{base}/{owner}/{name}.git"), (*name).to_string()))
         }
-        _ => Err(TixError::Message(format!(
+        _ => Err(SdkError::Message(format!(
             "'{repo}' is not a URL, owner/repo, or bare repo name"
         ))),
     }

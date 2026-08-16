@@ -1,11 +1,13 @@
 [workspace]
 members = [
     "tix-engine",
+    "tix-sdk",
     "tix-cli",
     "pytix",
 ]
 default-members = [
     "tix-engine",
+    "tix-sdk",
     "tix-cli",
 ]
 resolver = "2"

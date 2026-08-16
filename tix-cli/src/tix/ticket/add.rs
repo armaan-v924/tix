@@ -1,12 +1,12 @@
 //! `tix ticket add` — add repository worktrees to an existing ticket.
 
-use crate::tix::context::Context;
-use crate::tix::document::{TixDocument, with_write};
+use tix_sdk::context::Context;
+use tix_sdk::document::{TixDocument, with_write};
 use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::{
     TicketSharedArgs, derive_branch_name, load_ticket_config, require_ticket_root,
 };
-use tix_engine::{Defaults, EngineConfig, TixError};
+use tix_sdk::{SdkError, Defaults, EngineConfig, TixError};
 use tracing::{error, info};
 
 /// Arguments for `tix ticket add`.
@@ -38,7 +38,7 @@ pub struct Args {
 /// The ticket document is updated per successful worktree through the
 /// format-preserving layer, so plugin tables and comments in
 /// `.tix/ticket.toml` survive.
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let root = require_ticket_root(context, args.shared.ticket.as_ref())?;
     let ticket = load_ticket_config(&root)?;
 
@@ -56,14 +56,14 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
                 .map(String::as_str)
                 .collect();
             known.sort();
-            return Err(TixError::RepoNotFound(format!(
+            return Err(SdkError::Engine(TixError::RepoNotFound(format!(
                 "'{}' is not a registered repository (registered: {})",
                 alias.0,
                 if known.is_empty() { "none".to_string() } else { known.join(", ") }
-            )));
+            ))));
         }
         if ticket.worktrees.contains_key(&alias.0) {
-            return Err(TixError::Message(format!(
+            return Err(SdkError::Message(format!(
                 "ticket '{}' already has a worktree for '{}' — multiple worktrees of one repo is #85",
                 ticket.key, alias.0
             )));
@@ -111,7 +111,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
 
     if !failures.is_empty() {
         let names: Vec<&str> = failures.iter().map(|(alias, _)| alias.as_str()).collect();
-        return Err(TixError::Message(format!(
+        return Err(SdkError::Message(format!(
             "{} of {} worktrees failed: {}",
             failures.len(),
             args.repo_aliases.len(),

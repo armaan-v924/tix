@@ -14,7 +14,7 @@ use std::path::PathBuf;
 /// Owned by the frontend, not the engine (`design/spec.md` §3.2): directory
 /// layout is frontend policy, and the engine has no `tickets_directory`.
 /// Extracted from the parsed document via the section accessors
-/// ([`crate::tix::document::TixDocument::section`]).
+/// ([`tix_sdk::document::TixDocument::section`]).
 ///
 /// # Examples
 ///
