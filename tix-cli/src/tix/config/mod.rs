@@ -21,6 +21,7 @@ use std::path::PathBuf;
 /// ```text
 /// [cli]
 /// tickets_directory = "/home/user/tickets"
+/// code_directory = "/home/user/code"
 /// ```
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +29,9 @@ pub struct CliConfig {
     /// Where ticket workspaces are created, and where id-form `--ticket`
     /// arguments resolve (`tickets_directory.join(id)`).
     pub tickets_directory: PathBuf,
+    /// Where source repositories are cloned: `tix repo add` derives a new
+    /// repo's `code_path` as `code_directory/<alias>` (v2 parity).
+    pub code_directory: PathBuf,
 }
 
 /// A `[cli]` key addressable by `tix config get`/`set`.
@@ -40,6 +44,9 @@ pub enum ConfigKey {
     /// `tickets_directory` — where ticket workspaces live.
     #[value(alias = "tickets_directory")]
     TicketsDirectory,
+    /// `code_directory` — where source repositories are cloned.
+    #[value(alias = "code_directory")]
+    CodeDirectory,
 }
 
 impl ConfigKey {
@@ -47,6 +54,7 @@ impl ConfigKey {
     pub fn toml_key(&self) -> &'static str {
         match self {
             ConfigKey::TicketsDirectory => "tickets_directory",
+            ConfigKey::CodeDirectory => "code_directory",
         }
     }
 }
