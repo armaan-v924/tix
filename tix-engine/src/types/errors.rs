@@ -6,12 +6,6 @@ pub enum TixError {
     GitError(git2::Error),
     /// An I/O operation failed.
     IoError(std::io::Error),
-    /// A TOML document could not be parsed.
-    ParseError(toml::de::Error),
-    /// A value could not be serialized to TOML.
-    SerializationError(toml::ser::Error),
-    /// The config file was not found at the given path.
-    ConfigNotFound(String),
     /// The repository was not found at the given path.
     RepoNotFound(String),
     /// The ticket directory was not found at the given path.
@@ -27,9 +21,6 @@ impl fmt::Display for TixError {
         match self {
             TixError::GitError(e) => write!(f, "git error: {}", e),
             TixError::IoError(e) => write!(f, "io error: {}", e),
-            TixError::ParseError(e) => write!(f, "serde error: {}", e),
-            TixError::SerializationError(e) => write!(f, "serialization error: {}", e),
-            TixError::ConfigNotFound(s) => write!(f, "config not found: {}", s),
             TixError::RepoNotFound(s) => write!(f, "repo not found: {}", s),
             TixError::TicketNotFound(s) => write!(f, "ticket not found: {}", s),
             TixError::WorktreeNotFound(s) => write!(f, "worktree not found: {}", s),
@@ -49,18 +40,6 @@ impl std::error::Error for TixError {}
 impl From<std::io::Error> for TixError {
     fn from(e: std::io::Error) -> Self {
         TixError::IoError(e)
-    }
-}
-
-impl From<toml::de::Error> for TixError {
-    fn from(e: toml::de::Error) -> Self {
-        TixError::ParseError(e)
-    }
-}
-
-impl From<toml::ser::Error> for TixError {
-    fn from(e: toml::ser::Error) -> Self {
-        TixError::SerializationError(e)
     }
 }
 
@@ -108,13 +87,6 @@ mod tests {
         ));
     }
 
-    /// `From<toml::de::Error>` wraps into `ParseError`.
-    #[test]
-    fn test_from_toml_de_error() {
-        let de_err = toml::from_str::<toml::Value>("[[[not valid").unwrap_err();
-        assert!(matches!(TixError::from(de_err), TixError::ParseError(_)));
-    }
-
     /// `Display` produces a non-empty string for every variant.
     #[test]
     fn test_display_non_empty() {
@@ -122,13 +94,9 @@ mod tests {
         let git_err = git2::Repository::open("/nonexistent/path/for/tix/test")
             .err()
             .unwrap();
-        let parse_err = toml::from_str::<toml::Value>("[[[").unwrap_err();
-
         let variants: Vec<TixError> = vec![
             TixError::GitError(git_err),
             TixError::IoError(io_err),
-            TixError::ParseError(parse_err),
-            TixError::ConfigNotFound("path".into()),
             TixError::RepoNotFound("path".into()),
             TixError::TicketNotFound("path".into()),
             TixError::WorktreeNotFound("path".into()),

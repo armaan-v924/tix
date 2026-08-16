@@ -14,10 +14,44 @@
 //!   starting points — a near-miss (e.g. a subdirectory of a ticket) errors
 //!   rather than re-walking.
 
-use crate::tix::ticket::TicketRef;
 use std::path::{Path, PathBuf};
+use crate::error::SdkError;
 use tix_engine::TixError;
 use tracing::debug;
+
+
+/// A `--ticket` argument: one flag, two forms, disambiguated by shape
+/// (`design/spec.md` §4).
+///
+/// - **Path** — the argument contains a path separator, is absolute, or is
+///   `.`/`..`. Asserts *this path is the ticket root*.
+/// - **Id** — any bare name, resolved against the configured tickets
+///   directory.
+///
+/// A bare name is always an id; a ticket directory in cwd must be written
+/// `./NAME`. See [`resolve_override`] for the resolution semantics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TicketRef {
+    /// An asserted ticket-root path (`./NAME`, `some/dir`, `/abs/path`, `.`, `..`).
+    Path(PathBuf),
+    /// A bare ticket id, resolved as `tickets_directory.join(id)`.
+    Id(String),
+}
+
+impl std::str::FromStr for TicketRef {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let path = Path::new(s);
+        let is_path_shape =
+            s == "." || s == ".." || path.is_absolute() || s.contains(['/', '\\']);
+        if is_path_shape {
+            Ok(TicketRef::Path(path.to_path_buf()))
+        } else {
+            Ok(TicketRef::Id(s.to_string()))
+        }
+    }
+}
 
 /// Returns true if `path` is a ticket root: a directory containing the file
 /// `.tix/ticket.toml`.
@@ -38,8 +72,8 @@ pub fn is_ticket_root(path: &Path) -> bool {
 /// sees in their prompt, matching git's behavior. `$PWD` is trusted only when
 /// it is absolute and still names the same directory as the process cwd;
 /// otherwise the process cwd is the fallback.
-pub fn logical_cwd() -> Result<PathBuf, TixError> {
-    let process_cwd = std::env::current_dir().map_err(TixError::IoError)?;
+pub fn logical_cwd() -> Result<PathBuf, SdkError> {
+    let process_cwd = std::env::current_dir().map_err(|e| SdkError::Engine(TixError::IoError(e)))?;
     if let Some(pwd) = std::env::var_os("PWD") {
         let pwd = PathBuf::from(pwd);
         if pwd.is_absolute() && same_directory(&pwd, &process_cwd) {
@@ -55,7 +89,7 @@ pub fn logical_cwd() -> Result<PathBuf, TixError> {
 /// Returns `Ok(None)` when no ancestor is a ticket root — commands that
 /// require ticket context should turn that into a clear error; there is
 /// deliberately **no** fallback to the tickets directory.
-pub fn discover_ticket_root() -> Result<Option<PathBuf>, TixError> {
+pub fn discover_ticket_root() -> Result<Option<PathBuf>, SdkError> {
     Ok(discover_ticket_root_from(&logical_cwd()?))
 }
 
@@ -107,17 +141,17 @@ pub fn discover_ticket_root_from(start: &Path) -> Option<PathBuf> {
 /// # Errors
 ///
 /// [`TixError::TicketNotFound`] if the asserted path is not a ticket root.
-pub fn resolve_override(ticket: &TicketRef, tickets_directory: &Path) -> Result<PathBuf, TixError> {
+pub fn resolve_override(ticket: &TicketRef, tickets_directory: &Path) -> Result<PathBuf, SdkError> {
     let (root, described) = match ticket {
         TicketRef::Path(path) => (path.clone(), format!("path '{}'", path.display())),
         TicketRef::Id(id) => (tickets_directory.join(id), format!("ticket id '{id}'")),
     };
 
     if !is_ticket_root(&root) {
-        return Err(TixError::TicketNotFound(format!(
+        return Err(SdkError::Engine(TixError::TicketNotFound(format!(
             "{described} is not a ticket root (no .tix/ticket.toml at {})",
             root.display()
-        )));
+        ))));
     }
 
     if !root.starts_with(tickets_directory) {
@@ -140,7 +174,7 @@ pub fn resolve_override(ticket: &TicketRef, tickets_directory: &Path) -> Result<
 pub fn resolve_ticket_root(
     ticket: Option<&TicketRef>,
     tickets_directory: &Path,
-) -> Result<Option<PathBuf>, TixError> {
+) -> Result<Option<PathBuf>, SdkError> {
     match ticket {
         Some(ticket_ref) => resolve_override(ticket_ref, tickets_directory).map(Some),
         None => discover_ticket_root(),
@@ -294,7 +328,7 @@ mod tests {
 
         assert!(matches!(
             resolve_override(&TicketRef::Path(subdir), dir.path()),
-            Err(TixError::TicketNotFound(_))
+            Err(SdkError::Engine(TixError::TicketNotFound(_)))
         ));
     }
 
@@ -316,7 +350,7 @@ mod tests {
         let dir = tempdir().unwrap();
         assert!(matches!(
             resolve_override(&TicketRef::Id("NOPE-404".to_string()), dir.path()),
-            Err(TixError::TicketNotFound(_))
+            Err(SdkError::Engine(TixError::TicketNotFound(_)))
         ));
     }
 

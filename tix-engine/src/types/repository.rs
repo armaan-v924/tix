@@ -141,18 +141,6 @@ pub struct Repository {
 }
 
 impl Repository {
-    /// Creates a new `Repository` from an alias, config, and an already-open [`git2::Repository`].
-    ///
-    /// Prefer constructing via [`RepositoryConfig::resolve`] or [`RepositoryConfig::clone_remote`]
-    /// rather than calling this directly.
-    pub(crate) fn new(alias: String, config: RepositoryConfig, repo: git2::Repository) -> Self {
-        Self {
-            alias,
-            config,
-            repo,
-        }
-    }
-
     /// Creates a git worktree named `name` for `branch` at `path`.
     ///
     /// `name` is the worktree directory name under the ticket root — the key

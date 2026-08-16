@@ -1,9 +1,9 @@
 //! `tix repo clone` — clone registered repositories to their code paths.
 
-use crate::tix::context::Context;
-use crate::tix::document::TixDocument;
+use tix_sdk::context::Context;
+use tix_sdk::document::TixDocument;
 use crate::tix::repo::RepoAlias;
-use tix_engine::{EngineConfig, TixError};
+use tix_sdk::{SdkError, EngineConfig, TixError};
 use tracing::error;
 
 /// Arguments for `tix repo clone`.
@@ -25,7 +25,7 @@ pub struct Args {
 /// The batch never aborts on one failure: every target is attempted, each
 /// outcome is reported on its own line, and the exit is nonzero if anything
 /// failed. Unknown aliases error up front listing the registered set.
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let document = TixDocument::load(&context.config_path)?;
     let engine: EngineConfig = document.section_or_default("engine")?;
 
@@ -41,11 +41,11 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
     } else {
         for alias in &args.repo_aliases {
             if !engine.configured_repositories.contains_key(&alias.0) {
-                return Err(TixError::RepoNotFound(format!(
+                return Err(SdkError::Engine(TixError::RepoNotFound(format!(
                     "'{}' is not a registered repository (registered: {})",
                     alias.0,
                     if registered.is_empty() { "none".to_string() } else { registered.join(", ") }
-                )));
+                ))));
             }
         }
         args.repo_aliases.iter().map(|alias| alias.0.clone()).collect()
@@ -67,7 +67,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
     }
 
     if failed > 0 {
-        return Err(TixError::Message(format!(
+        return Err(SdkError::Message(format!(
             "{failed} of {} clones failed",
             targets.len()
         )));

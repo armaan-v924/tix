@@ -1,9 +1,9 @@
 //! `tix ticket destroy` — prune every worktree, then delete the ticket.
 
-use crate::tix::context::Context;
-use crate::tix::document::{TixDocument, with_write};
+use tix_sdk::context::Context;
+use tix_sdk::document::{TixDocument, with_write};
 use crate::tix::ticket::{TicketRef, TicketSharedArgs, load_ticket_config, require_ticket_root};
-use tix_engine::{EngineConfig, TixError, WorktreeConfig};
+use tix_sdk::{SdkError, EngineConfig, TixError, WorktreeConfig};
 use tracing::{info, warn};
 
 /// Arguments for `tix ticket destroy`.
@@ -37,7 +37,7 @@ pub struct Args {
 /// fails** — forced deletion means deleted. Whatever had to be left behind
 /// (e.g. stale registrations in the source repos) is warned about, with a
 /// pointer at `git worktree prune`.
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let selector = args.target.as_ref().or(args.shared.ticket.as_ref());
     let root = require_ticket_root(context, selector)?;
     let ticket = load_ticket_config(&root)?;
@@ -94,7 +94,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
             }
             // The default path aborts before deleting anything further.
             (Err(e), false) => {
-                return Err(TixError::Message(format!(
+                return Err(SdkError::Message(format!(
                     "could not prune worktree '{}': {e} — nothing further was deleted; \
                      fix it (or pass --force) and retry",
                     name
@@ -103,7 +103,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
         }
     }
 
-    std::fs::remove_dir_all(&root).map_err(TixError::IoError)?;
+    std::fs::remove_dir_all(&root).map_err(SdkError::from)?;
     println!("destroyed {} ({})", ticket.key, root.display());
 
     if !leftovers.is_empty() {

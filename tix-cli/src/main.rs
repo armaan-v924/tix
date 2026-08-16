@@ -1,15 +1,14 @@
 mod tix;
 
-use crate::tix::context::Context;
+use tix_sdk::context::Context;
 use crate::tix::{Commands, cli, config, plugin, repo, ticket};
-use clap::Parser;
 use tracing_subscriber::fmt;
 
 /// Prints a CLI error to stderr and exits nonzero.
 ///
 /// The frontend owns process control and user-facing output — the engine
 /// only ever returns errors.
-fn fail(error: tix_engine::TixError) -> ! {
+fn fail(error: tix_sdk::SdkError) -> ! {
     eprintln!("error: {error}");
     std::process::exit(1);
 }

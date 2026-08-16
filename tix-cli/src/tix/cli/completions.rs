@@ -3,9 +3,9 @@
 //! Third-party plugin completions are not tix's problem: plugins are external
 //! binaries with their own interfaces.
 
-use crate::tix::context::Context;
+use tix_sdk::context::Context;
 use clap::CommandFactory;
-use tix_engine::TixError;
+use tix_sdk::SdkError;
 
 /// Arguments for `tix completions`.
 #[derive(clap::Args, Debug)]
@@ -25,7 +25,7 @@ pub struct Args {
 
 /// Generates completions from the clap command definition onto stdout — the
 /// user pipes them into their shell's completion path (see `--help`).
-pub fn run(_context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(_context: &Context, args: Args) -> Result<(), SdkError> {
     let mut command = crate::tix::TixParser::command();
     clap_complete::generate(
         args.shell,

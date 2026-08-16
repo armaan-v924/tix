@@ -1,10 +1,10 @@
 //! `tix ticket remove` — remove single worktrees from a ticket without
 //! destroying it.
 
-use crate::tix::context::Context;
-use crate::tix::document::{TixDocument, with_write};
+use tix_sdk::context::Context;
+use tix_sdk::document::{TixDocument, with_write};
 use crate::tix::ticket::{TicketSharedArgs, load_ticket_config, require_ticket_root};
-use tix_engine::{EngineConfig, TixError};
+use tix_sdk::{SdkError, EngineConfig, TixError};
 use tracing::info;
 
 /// Arguments for `tix ticket remove`.
@@ -30,7 +30,7 @@ pub struct Args {
 /// The ticket directory and every other worktree are untouched; removing
 /// the last worktree leaves a valid, empty ticket. Each successful prune is
 /// written back immediately through the format-preserving layer.
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let root = require_ticket_root(context, args.shared.ticket.as_ref())?;
     let ticket = load_ticket_config(&root)?;
 
@@ -51,10 +51,10 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
             ))
         })?;
         if !engine.configured_repositories.contains_key(&entry.repo) {
-            return Err(TixError::RepoNotFound(format!(
+            return Err(SdkError::Engine(TixError::RepoNotFound(format!(
                 "worktree '{}' belongs to '{}', which is no longer a registered repository",
                 name, entry.repo
-            )));
+            ))));
         }
     }
 

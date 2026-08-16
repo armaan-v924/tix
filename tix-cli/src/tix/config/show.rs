@@ -1,9 +1,9 @@
 //! `tix config show` — print the whole global config document.
 
-use crate::tix::context::Context;
-use crate::tix::document::TixDocument;
+use tix_sdk::context::Context;
+use tix_sdk::document::TixDocument;
 use crate::tix::utils::OutputType;
-use tix_engine::TixError;
+use tix_sdk::SdkError;
 
 /// Arguments for `tix config show`.
 #[derive(clap::Args, Debug)]
@@ -19,14 +19,14 @@ pub struct Args {
 /// comments, formatting, and plugin tables preserved, straight from the
 /// format-preserving DOM. JSON output converts the document's *values*
 /// (comments cannot survive a format that has none).
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let document = TixDocument::load(&context.config_path)?;
     match args.output.unwrap_or(OutputType::Default) {
         OutputType::Default | OutputType::Toml => print!("{document}"),
         OutputType::Json => {
             let value: toml::Value = toml::from_str(&document.to_string())?;
             let json = serde_json::to_string_pretty(&value)
-                .map_err(|e| TixError::Message(format!("json conversion failed: {e}")))?;
+                .map_err(|e| SdkError::Message(format!("json conversion failed: {e}")))?;
             println!("{json}");
         }
     }

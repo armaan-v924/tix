@@ -1,10 +1,10 @@
 //! `tix ticket info` — display a ticket's metadata and worktree table.
 
-use crate::tix::context::Context;
+use tix_sdk::context::Context;
 use crate::tix::ticket::{TicketSharedArgs, load_ticket_config, require_ticket_root};
 use crate::tix::utils::OutputType;
 use std::path::{Path, PathBuf};
-use tix_engine::{TicketConfig, TixError};
+use tix_sdk::{SdkError, TicketConfig};
 
 /// Arguments for `tix ticket info`.
 #[derive(clap::Args, Debug)]
@@ -37,7 +37,7 @@ impl WorktreeStatus {
     fn of(path: &Path) -> Self {
         if !path.is_dir() {
             WorktreeStatus::MissingDirectory
-        } else if !tix_engine::opens_as_git_repository(path) {
+        } else if !tix_sdk::opens_as_git_repository(path) {
             WorktreeStatus::NotAGitRepository
         } else {
             WorktreeStatus::Ok
@@ -70,7 +70,7 @@ impl WorktreeStatus {
 ///
 /// There is deliberately no single ticket branch to print: branches are
 /// per-worktree (spec §3.2).
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let root = require_ticket_root(context, args.shared.ticket.as_ref())?;
     let ticket: TicketConfig = load_ticket_config(&root)?;
 

@@ -15,14 +15,14 @@
 //! silently dropping every `[<plugin>]` table plus all comments (spec §6.2).
 //! Every write in tix goes through this layer instead.
 //!
-//! Written in `tix-cli` first; promoted to `tix-sdk` (#96) so plugins parse
+//! Written in `tix-cli` first; promoted here (#96) so plugins parse
 //! documents identically.
 
 use serde::de::DeserializeOwned;
 use std::fmt;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use tix_engine::TixError;
+use crate::error::SdkError;
 use tracing::debug;
 
 /// A parsed tix config document: a format-preserving TOML DOM with typed
@@ -54,11 +54,11 @@ impl TixDocument {
     ///
     /// # Errors
     ///
-    /// [`TixError::Message`] with the parse diagnostic on invalid TOML.
-    pub fn parse(text: &str) -> Result<Self, TixError> {
+    /// [`SdkError::Message`] with the parse diagnostic on invalid TOML.
+    pub fn parse(text: &str) -> Result<Self, SdkError> {
         let doc = text
             .parse::<toml_edit::DocumentMut>()
-            .map_err(|e| TixError::Message(format!("invalid TOML: {e}")))?;
+            .map_err(|e| SdkError::Message(format!("invalid TOML: {e}")))?;
         Ok(Self { doc })
     }
 
@@ -68,11 +68,11 @@ impl TixDocument {
     ///
     /// # Errors
     ///
-    /// - [`TixError::IoError`] if the file cannot be read
-    /// - [`TixError::Message`] on invalid TOML
-    pub fn load(path: &Path) -> Result<Self, TixError> {
+    /// - [`SdkError::from`] if the file cannot be read
+    /// - [`SdkError::Message`] on invalid TOML
+    pub fn load(path: &Path) -> Result<Self, SdkError> {
         let _lock = SidecarLock::shared(path)?;
-        let text = std::fs::read_to_string(path).map_err(TixError::IoError)?;
+        let text = std::fs::read_to_string(path).map_err(SdkError::from)?;
         Self::parse(&text)
     }
 
@@ -85,10 +85,10 @@ impl TixDocument {
     ///
     /// # Errors
     ///
-    /// [`TixError::Message`] when the section exists but does not deserialize
+    /// [`SdkError::Message`] when the section exists but does not deserialize
     /// into `T` (including `deny_unknown_fields` violations, which apply to
     /// this section's subtree only).
-    pub fn section<T: DeserializeOwned>(&self, name: &str) -> Result<Option<T>, TixError> {
+    pub fn section<T: DeserializeOwned>(&self, name: &str) -> Result<Option<T>, SdkError> {
         let Some(item) = self.doc.get(name) else {
             return Ok(None);
         };
@@ -97,7 +97,7 @@ impl TixDocument {
         let mut section_doc = toml_edit::DocumentMut::new();
         *section_doc.as_item_mut() = item.clone();
         let value = toml_edit::de::from_document(section_doc)
-            .map_err(|e| TixError::Message(format!("invalid [{name}] section: {e}")))?;
+            .map_err(|e| SdkError::Message(format!("invalid [{name}] section: {e}")))?;
         Ok(Some(value))
     }
 
@@ -110,7 +110,7 @@ impl TixDocument {
     pub fn section_or_default<T: DeserializeOwned + Default>(
         &self,
         name: &str,
-    ) -> Result<T, TixError> {
+    ) -> Result<T, SdkError> {
         Ok(self.section(name)?.unwrap_or_default())
     }
 
@@ -135,17 +135,17 @@ impl TixDocument {
     ///
     /// # Errors
     ///
-    /// [`TixError::SerializationError`] if `value` does not serialize to a
+    /// [`SdkError::Serialization`] if `value` does not serialize to a
     /// TOML table.
     pub fn set_section<T: serde::Serialize>(
         &mut self,
         name: &str,
         value: &T,
-    ) -> Result<(), TixError> {
+    ) -> Result<(), SdkError> {
         let text = toml::to_string(value)?;
         let section: toml_edit::DocumentMut = text
             .parse()
-            .map_err(|e| TixError::Message(format!("serialized [{name}] is not a table: {e}")))?;
+            .map_err(|e| SdkError::Message(format!("serialized [{name}] is not a table: {e}")))?;
         self.doc.insert(name, section.as_item().clone());
         Ok(())
     }
@@ -160,11 +160,11 @@ impl TixDocument {
     ///
     /// # Errors
     ///
-    /// [`TixError::IoError`] if the temp write or rename fails.
-    pub fn save(&self, path: &Path) -> Result<(), TixError> {
+    /// [`SdkError::from`] if the temp write or rename fails.
+    pub fn save(&self, path: &Path) -> Result<(), SdkError> {
         // Parent dirs must exist before the sidecar lock can be opened there.
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(TixError::IoError)?;
+            std::fs::create_dir_all(parent).map_err(SdkError::from)?;
         }
         let _lock = SidecarLock::exclusive(path)?;
         self.save_unlocked(path)
@@ -174,13 +174,13 @@ impl TixDocument {
     /// its own exclusive lock across the full load → mutate → rename cycle.
     /// Parent directories must already exist (the lock lives in the same
     /// directory, so callers create them before locking).
-    fn save_unlocked(&self, path: &Path) -> Result<(), TixError> {
+    fn save_unlocked(&self, path: &Path) -> Result<(), SdkError> {
         let tmp = sibling_tmp_path(path);
-        std::fs::write(&tmp, self.doc.to_string()).map_err(TixError::IoError)?;
+        std::fs::write(&tmp, self.doc.to_string()).map_err(SdkError::from)?;
         std::fs::rename(&tmp, path).map_err(|e| {
             // Leave no droppings on a failed rename.
             let _ = std::fs::remove_file(&tmp);
-            TixError::IoError(e)
+            SdkError::from(e)
         })?;
         debug!(path = %path.display(), "document saved atomically");
         Ok(())
@@ -216,15 +216,15 @@ impl fmt::Display for TixDocument {
 /// ```
 pub fn with_write<T>(
     path: &Path,
-    mutate: impl FnOnce(&mut TixDocument) -> Result<T, TixError>,
-) -> Result<T, TixError> {
+    mutate: impl FnOnce(&mut TixDocument) -> Result<T, SdkError>,
+) -> Result<T, SdkError> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(TixError::IoError)?;
+        std::fs::create_dir_all(parent).map_err(SdkError::from)?;
     }
     let _lock = SidecarLock::exclusive(path)?;
     let mut document = if path.exists() {
         // Fresh parse under the lock, never a caller-held snapshot.
-        let text = std::fs::read_to_string(path).map_err(TixError::IoError)?;
+        let text = std::fs::read_to_string(path).map_err(SdkError::from)?;
         TixDocument::parse(&text)?
     } else {
         TixDocument::empty()
@@ -245,25 +245,25 @@ struct SidecarLock {
 }
 
 impl SidecarLock {
-    fn shared(document_path: &Path) -> Result<Self, TixError> {
+    fn shared(document_path: &Path) -> Result<Self, SdkError> {
         let file = Self::open(document_path)?;
-        file.lock_shared().map_err(TixError::IoError)?;
+        file.lock_shared().map_err(SdkError::from)?;
         Ok(Self { file })
     }
 
-    fn exclusive(document_path: &Path) -> Result<Self, TixError> {
+    fn exclusive(document_path: &Path) -> Result<Self, SdkError> {
         let file = Self::open(document_path)?;
-        file.lock().map_err(TixError::IoError)?;
+        file.lock().map_err(SdkError::from)?;
         Ok(Self { file })
     }
 
-    fn open(document_path: &Path) -> Result<File, TixError> {
+    fn open(document_path: &Path) -> Result<File, SdkError> {
         File::options()
             .create(true)
             .truncate(false)
             .write(true)
             .open(lock_path(document_path))
-            .map_err(TixError::IoError)
+            .map_err(SdkError::from)
     }
 }
 
@@ -435,8 +435,8 @@ retries = 3
         let path = dir.path().join("config.toml");
         std::fs::write(&path, DOCUMENT).unwrap();
 
-        let result: Result<(), TixError> =
-            with_write(&path, |_doc| Err(TixError::Message("nope".to_string())));
+        let result: Result<(), SdkError> =
+            with_write(&path, |_doc| Err(SdkError::Message("nope".to_string())));
         assert!(result.is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), DOCUMENT);
     }

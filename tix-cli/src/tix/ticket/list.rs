@@ -1,10 +1,10 @@
 //! `tix ticket list` — one line per ticket under the tickets directory.
 
-use crate::tix::context::Context;
-use crate::tix::document::TixDocument;
+use tix_sdk::context::Context;
+use tix_sdk::document::TixDocument;
 use crate::tix::ticket::load_cli_config;
 use crate::tix::utils::OutputType;
-use tix_engine::{TicketConfig, TixError};
+use tix_sdk::{SdkError, TicketConfig};
 use tracing::warn;
 
 /// Arguments for `tix ticket list`.
@@ -22,7 +22,7 @@ pub struct Args {
 /// layout is frontend policy; the engine is never involved). Directories
 /// without a `.tix/ticket.toml` are silently skipped; one with a malformed
 /// document warns and is skipped — a broken ticket never breaks the listing.
-pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
+pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     let cli = load_cli_config(context)?;
 
     let mut tickets: Vec<TicketConfig> = Vec::new();
@@ -39,7 +39,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
         if !ticket_path.is_file() {
             continue;
         }
-        let parsed: Result<Option<TicketConfig>, TixError> =
+        let parsed: Result<Option<TicketConfig>, SdkError> =
             TixDocument::load(&ticket_path).and_then(|doc| doc.section("ticket"));
         match parsed {
             Ok(Some(ticket)) => tickets.push(ticket),
@@ -54,7 +54,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
 }
 
 /// Renders the listing in the requested format.
-fn print_tickets(tickets: &[TicketConfig], output: OutputType) -> Result<(), TixError> {
+fn print_tickets(tickets: &[TicketConfig], output: OutputType) -> Result<(), SdkError> {
     match output {
         OutputType::Default => {
             let width = tickets.iter().map(|t| t.key.len()).max().unwrap_or(0);
