@@ -1,7 +1,6 @@
 //! `tix ticket setup` — create a new ticket workspace with worktrees.
 
 use crate::tix::config::CliConfig;
-use tix_sdk::context::Context;
 use tix_sdk::document::TixDocument;
 use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::derive_branch_name;
@@ -10,7 +9,7 @@ use std::path::PathBuf;
 use tix_sdk::{SdkError, Defaults, EngineConfig, TicketConfig, TixError, WorktreeConfig};
 use tracing::{error, info};
 
-/// Arguments for `tix ticket setup`.
+/// Create a new ticket workspace with worktrees
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// The ticket key, e.g. JIRA-123 (a name, not a path)
@@ -42,7 +41,7 @@ pub struct Args {
 /// Partial failure leaves successfully created worktrees in place and
 /// records only them in `.tix/ticket.toml`; the command then errors naming
 /// the repos that failed.
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     if args.key.is_empty() || args.key.contains(['/', '\\']) {
         return Err(SdkError::Message(format!(
             "'{}' is not a valid ticket key — keys are names, not paths (path-form creation is #114)",
@@ -50,7 +49,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
         )));
     }
 
-    let document = TixDocument::load(&context.config_path)?;
+    let document = TixDocument::load(&app.context.config_path)?;
     let cli: CliConfig = document.section("cli")?.ok_or_else(|| {
         SdkError::Message("global config has no [cli] section — run `tix config init`".to_string())
     })?;

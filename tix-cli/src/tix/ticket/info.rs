@@ -1,12 +1,11 @@
 //! `tix ticket info` — display a ticket's metadata and worktree table.
 
-use tix_sdk::context::Context;
 use crate::tix::ticket::{TicketSharedArgs, load_ticket_config, require_ticket_root};
 use crate::tix::utils::OutputType;
 use std::path::{Path, PathBuf};
 use tix_sdk::{SdkError, TicketConfig};
 
-/// Arguments for `tix ticket info`.
+/// Show a ticket's metadata and worktrees
 #[derive(clap::Args, Debug)]
 pub struct Args {
     #[command(flatten)]
@@ -70,8 +69,8 @@ impl WorktreeStatus {
 ///
 /// There is deliberately no single ticket branch to print: branches are
 /// per-worktree (spec §3.2).
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
-    let root = require_ticket_root(context, args.shared.ticket.as_ref())?;
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let root = require_ticket_root(&app.context, args.shared.ticket.as_ref())?;
     let ticket: TicketConfig = load_ticket_config(&root)?;
 
     // Grouped by repo, then by name within a repo.
@@ -91,7 +90,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
         .collect();
     rows.sort_by(|a, b| a.repo.cmp(&b.repo).then(a.name.cmp(&b.name)));
 
-    match args.output.unwrap_or(OutputType::Default) {
+    match app.output {
         OutputType::Default => {
             if ticket.description.is_empty() {
                 println!("{}", ticket.key);

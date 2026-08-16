@@ -212,6 +212,89 @@ impl HostContext {
     }
 }
 
+/// Tix's own global flags, pre-scanned out of raw forwarded args.
+///
+/// `external_subcommand` captures everything after a plugin name raw, so
+/// `tix foo --verbose` leaves the parsed globals untouched (spec §5.3). The
+/// host pre-scans the raw args with this — the same code that defines the
+/// SDK's view of the contract — resolves settled values, and forwards those;
+/// the matched flags are consumed (they are tix's, not the plugin's).
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct PrescannedGlobals {
+    /// `-v` / `--verbose` seen.
+    pub verbose: bool,
+    /// `-q` / `--quiet` seen.
+    pub quiet: bool,
+    /// `--log-level <level>` value.
+    pub log_level: Option<String>,
+    /// `-o` / `--output <format>` value.
+    pub output: Option<String>,
+    /// `--config <path>` value.
+    pub config: Option<PathBuf>,
+}
+
+/// Splits raw forwarded args into tix's own globals and everything else.
+///
+/// Everything unmatched — including unknown flags — passes through in order
+/// as the plugin's user args.
+pub fn prescan_globals(args: &[String]) -> (PrescannedGlobals, Vec<String>) {
+    let mut globals = PrescannedGlobals::default();
+    let mut user_args = Vec::with_capacity(args.len());
+    let mut iter = args.iter().peekable();
+    while let Some(arg) = iter.next() {
+        let mut take_value = |inline: Option<&str>| -> Option<String> {
+            inline
+                .map(str::to_string)
+                .or_else(|| iter.next().map(String::clone))
+        };
+        match arg.split_once('=') {
+            _ if arg == "-v" || arg == "--verbose" => globals.verbose = true,
+            _ if arg == "-q" || arg == "--quiet" => globals.quiet = true,
+            Some(("--log-level", value)) => globals.log_level = Some(value.to_string()),
+            Some(("--output", value)) | Some(("-o", value)) => {
+                globals.output = Some(value.to_string())
+            }
+            Some(("--config", value)) => globals.config = Some(PathBuf::from(value)),
+            None if arg == "--log-level" => globals.log_level = take_value(None),
+            None if arg == "--output" || arg == "-o" => globals.output = take_value(None),
+            None if arg == "--config" => globals.config = take_value(None).map(PathBuf::from),
+            _ => user_args.push(arg.clone()),
+        }
+    }
+    (globals, user_args)
+}
+
+#[cfg(test)]
+mod prescan_tests {
+    use super::*;
+
+    /// Globals are pulled out wherever they appear; the rest passes through
+    /// in order.
+    #[test]
+    fn test_prescan_extracts_globals() {
+        let args: Vec<String> = ["deploy", "--verbose", "--output", "json", "target", "--force"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let (globals, user_args) = prescan_globals(&args);
+        assert!(globals.verbose);
+        assert_eq!(globals.output.as_deref(), Some("json"));
+        assert_eq!(user_args, vec!["deploy", "target", "--force"]);
+    }
+
+    /// Unknown flags are the plugin's business.
+    #[test]
+    fn test_prescan_leaves_unknown_flags() {
+        let args: Vec<String> = ["--frobnicate", "--log-level=debug"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let (globals, user_args) = prescan_globals(&args);
+        assert_eq!(globals.log_level.as_deref(), Some("debug"));
+        assert_eq!(user_args, vec!["--frobnicate"]);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

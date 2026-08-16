@@ -1,16 +1,12 @@
 //! `tix config show` — print the whole global config document.
 
-use tix_sdk::context::Context;
 use tix_sdk::document::TixDocument;
 use crate::tix::utils::OutputType;
 use tix_sdk::SdkError;
 
-/// Arguments for `tix config show`.
+/// Print the global config document
 #[derive(clap::Args, Debug)]
 pub struct Args {
-    /// Output format (default preserves the file as-is)
-    #[arg(short, long)]
-    pub output: Option<OutputType>,
 }
 
 /// Prints the global config document.
@@ -19,9 +15,9 @@ pub struct Args {
 /// comments, formatting, and plugin tables preserved, straight from the
 /// format-preserving DOM. JSON output converts the document's *values*
 /// (comments cannot survive a format that has none).
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
-    let document = TixDocument::load(&context.config_path)?;
-    match args.output.unwrap_or(OutputType::Default) {
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let document = TixDocument::load(&app.context.config_path)?;
+    match app.output {
         OutputType::Default | OutputType::Toml => print!("{document}"),
         OutputType::Json => {
             let value: toml::Value = toml::from_str(&document.to_string())?;

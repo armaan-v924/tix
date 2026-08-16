@@ -2,11 +2,10 @@
 //! document layer.
 
 use crate::tix::config::{CliConfig, ConfigKey};
-use tix_sdk::context::Context;
 use tix_sdk::document::with_write;
 use tix_sdk::SdkError;
 
-/// Arguments for `tix config set`.
+/// Set a value in the [cli] section
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// The `[cli]` key to set
@@ -27,8 +26,8 @@ pub struct Args {
 ///
 /// The whole cycle runs under the exclusive advisory lock (#67), so
 /// concurrent `tix config set` invocations serialize rather than clobber.
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
-    with_write(&context.config_path, |document| {
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    with_write(&app.context.config_path, |document| {
         // `1` stays an integer, `true` a bool; anything that isn't valid
         // TOML (a bare path, say) is a string.
         let value: toml_edit::Value = args
@@ -53,7 +52,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
         "{} = {} ({})",
         args.key.toml_key(),
         args.value,
-        context.config_path.display()
+        app.context.config_path.display()
     );
     Ok(())
 }

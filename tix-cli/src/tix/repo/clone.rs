@@ -1,12 +1,11 @@
 //! `tix repo clone` — clone registered repositories to their code paths.
 
-use tix_sdk::context::Context;
 use tix_sdk::document::TixDocument;
 use crate::tix::repo::RepoAlias;
 use tix_sdk::{SdkError, EngineConfig, TixError};
 use tracing::error;
 
-/// Arguments for `tix repo clone`.
+/// Clone registered repositories to their code paths
 #[derive(clap::Args, Debug)]
 #[group(required = true, multiple = false)]
 pub struct Args {
@@ -25,8 +24,8 @@ pub struct Args {
 /// The batch never aborts on one failure: every target is attempted, each
 /// outcome is reported on its own line, and the exit is nonzero if anything
 /// failed. Unknown aliases error up front listing the registered set.
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
-    let document = TixDocument::load(&context.config_path)?;
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let document = TixDocument::load(&app.context.config_path)?;
     let engine: EngineConfig = document.section_or_default("engine")?;
 
     let mut registered: Vec<&str> = engine

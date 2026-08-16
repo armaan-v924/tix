@@ -2,13 +2,12 @@
 //! `tix repo clone` (#65).
 
 use crate::tix::config::CliConfig;
-use tix_sdk::context::Context;
 use tix_sdk::document::with_write;
 use crate::tix::repo::{RepoAlias, RepoRef};
 use crate::tix::ticket::load_cli_config;
 use tix_sdk::{Defaults, EngineConfig, SdkError};
 
-/// Arguments for `tix repo add`.
+/// Register a repository in config (without cloning)
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// Alias to register under (defaults to the repository name)
@@ -37,11 +36,11 @@ pub struct Args {
 /// `code_path` derives as `<code_directory>/<alias>`. The write goes through
 /// the format-preserving layer and revalidates `EngineConfig` before landing;
 /// re-adding an existing alias errors.
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
-    let cli: CliConfig = load_cli_config(context)?;
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let cli: CliConfig = load_cli_config(&app.context)?;
 
     // Alias may come from the flag; otherwise it falls out of the parse.
-    let (remote, repo_name) = resolve_remote(&args.repo.0, args.owner.as_deref(), context)?;
+    let (remote, repo_name) = resolve_remote(&args.repo.0, args.owner.as_deref(), app)?;
     let alias = args
         .alias
         .as_ref()
@@ -49,7 +48,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
         .unwrap_or_else(|| repo_name.clone());
     let code_path = cli.code_directory.join(&alias);
 
-    with_write(&context.config_path, |document| {
+    with_write(&app.context.config_path, |document| {
         let existing: EngineConfig = document.section_or_default("engine")?;
         if existing.configured_repositories.contains_key(&alias) {
             return Err(SdkError::Message(format!(
@@ -77,7 +76,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
 fn resolve_remote(
     repo: &str,
     owner_flag: Option<&str>,
-    context: &Context,
+    app: &crate::tix::utils::App,
 ) -> Result<(String, String), SdkError> {
     // Full URL forms pass through untouched.
     if repo.contains("://") || (repo.contains('@') && repo.contains(':')) {
@@ -91,7 +90,7 @@ fn resolve_remote(
     }
 
     let defaults: Defaults =
-        tix_sdk::document::TixDocument::load(&context.config_path)?.section_or_default("defaults")?;
+        tix_sdk::document::TixDocument::load(&app.context.config_path)?.section_or_default("defaults")?;
     let base = defaults
         .github_base_url
         .unwrap_or_else(|| "https://github.com".to_string());

@@ -1,13 +1,12 @@
 //! `tix ticket list` — one line per ticket under the tickets directory.
 
-use tix_sdk::context::Context;
 use tix_sdk::document::TixDocument;
 use crate::tix::ticket::load_cli_config;
 use crate::tix::utils::OutputType;
 use tix_sdk::{SdkError, TicketConfig};
 use tracing::warn;
 
-/// Arguments for `tix ticket list`.
+/// List all tickets in the tickets directory
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// Output format
@@ -22,15 +21,15 @@ pub struct Args {
 /// layout is frontend policy; the engine is never involved). Directories
 /// without a `.tix/ticket.toml` are silently skipped; one with a malformed
 /// document warns and is skipped — a broken ticket never breaks the listing.
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
-    let cli = load_cli_config(context)?;
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let cli = load_cli_config(&app.context)?;
 
     let mut tickets: Vec<TicketConfig> = Vec::new();
     let entries = match std::fs::read_dir(&cli.tickets_directory) {
         Ok(entries) => entries,
         Err(_) => {
             // No tickets directory yet simply means no tickets.
-            print_tickets(&tickets, args.output.unwrap_or(OutputType::Default))?;
+            print_tickets(&tickets, app.output)?;
             return Ok(());
         }
     };
@@ -49,7 +48,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
     }
     tickets.sort_by(|a, b| a.key.cmp(&b.key));
 
-    print_tickets(&tickets, args.output.unwrap_or(OutputType::Default))?;
+    print_tickets(&tickets, app.output)?;
     Ok(())
 }
 

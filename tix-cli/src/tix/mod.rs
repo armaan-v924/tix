@@ -22,6 +22,11 @@ pub struct TixParser {
     #[arg(long, global = true, value_hint = clap::ValueHint::FilePath)]
     pub config: Option<PathBuf>,
 
+    /// Output format for commands that support it (also forwarded to
+    /// plugins as --tix-output)
+    #[arg(short, long, global = true)]
+    pub output: Option<crate::tix::utils::OutputType>,
+
     /// Set the log level (trace, debug, info, warn, error)
     #[arg(long, global = true)]
     pub log_level: Option<tracing::Level>,
@@ -94,7 +99,7 @@ fn root_help_requested() -> bool {
             "help" => return args.peek().is_none(),
             // Global flags (and their values) may precede the subcommand.
             "-v" | "--verbose" | "-q" | "--quiet" => continue,
-            "--log-level" | "--config" => {
+            "--log-level" | "--config" | "-o" | "--output" => {
                 args.next();
             }
             _ => return false,
