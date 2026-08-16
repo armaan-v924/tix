@@ -18,9 +18,11 @@ fn main() {
     let parsed = tix::TixParser::parse();
     let log_level = parsed.resolve_log_level();
 
+    // Diagnostics go to stderr: stdout carries results only, so
+    // `tix ticket list --output json | jq` works even when warnings fire.
     fmt()
         .with_max_level(log_level)
-        .with_writer(std::io::stdout)
+        .with_writer(std::io::stderr)
         .init();
 
     // Resolve the config path once (--config > TIX_CONFIG_PATH > platform

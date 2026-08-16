@@ -173,6 +173,58 @@ mod branch_name_tests {
     }
 }
 
+/// Loads the required `[cli]` section from the resolved global config.
+///
+/// Shared by every ticket subcommand; the "no [cli] section" error points at
+/// `tix config init` rather than leaking a parse detail.
+pub fn load_cli_config(
+    context: &crate::tix::context::Context,
+) -> Result<crate::tix::config::CliConfig, tix_engine::TixError> {
+    let document = crate::tix::document::TixDocument::load(&context.config_path)?;
+    document.section("cli")?.ok_or_else(|| {
+        tix_engine::TixError::Message(
+            "global config has no [cli] section — run `tix config init`".to_string(),
+        )
+    })
+}
+
+/// Reads the `[ticket]` section of the ticket document at `ticket_root`.
+///
+/// # Errors
+///
+/// [`tix_engine::TixError::TicketNotFound`] when the document has no
+/// `[ticket]` section; parse errors propagate from the document layer.
+pub fn load_ticket_config(
+    ticket_root: &std::path::Path,
+) -> Result<tix_engine::TicketConfig, tix_engine::TixError> {
+    let document =
+        crate::tix::document::TixDocument::load(&ticket_root.join(".tix").join("ticket.toml"))?;
+    document.section("ticket")?.ok_or_else(|| {
+        tix_engine::TixError::TicketNotFound(format!(
+            "{} has no [ticket] section",
+            ticket_root.join(".tix/ticket.toml").display()
+        ))
+    })
+}
+
+/// Resolves the ticket a command operates on — `--ticket` override or the
+/// discovery walk — and errors clearly when neither yields one.
+///
+/// The error is the "requires ticket context" message every ticket-scoped
+/// command shares; commands that merely prefer context call the discovery
+/// layer directly.
+pub fn require_ticket_root(
+    context: &crate::tix::context::Context,
+    ticket: Option<&TicketRef>,
+) -> Result<std::path::PathBuf, tix_engine::TixError> {
+    let cli = load_cli_config(context)?;
+    crate::tix::discovery::resolve_ticket_root(ticket, &cli.tickets_directory)?.ok_or_else(|| {
+        tix_engine::TixError::TicketNotFound(
+            "not inside a ticket — cd into one or pass --ticket <path|id>".to_string(),
+        )
+    })
+}
+
 #[derive(Args)]
 pub struct TicketArgs {
     #[command(subcommand)]
