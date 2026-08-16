@@ -5,6 +5,7 @@ pub mod ticket;
 
 pub mod context;
 pub mod discovery;
+pub mod document;
 pub mod plugin;
 pub mod utils;
 
