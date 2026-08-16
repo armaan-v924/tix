@@ -126,6 +126,30 @@ impl TixDocument {
         &mut self.doc
     }
 
+    /// Replaces the section `name` with the serialization of `value`.
+    ///
+    /// This rewrites *that section only* — the owner of a type replacing its
+    /// own table. Every other section (plugin tables, comments outside this
+    /// subtree) is untouched, which is what makes this safe where a typed
+    /// whole-document round-trip is not.
+    ///
+    /// # Errors
+    ///
+    /// [`TixError::SerializationError`] if `value` does not serialize to a
+    /// TOML table.
+    pub fn set_section<T: serde::Serialize>(
+        &mut self,
+        name: &str,
+        value: &T,
+    ) -> Result<(), TixError> {
+        let text = toml::to_string(value)?;
+        let section: toml_edit::DocumentMut = text
+            .parse()
+            .map_err(|e| TixError::Message(format!("serialized [{name}] is not a table: {e}")))?;
+        self.doc.insert(name, section.as_item().clone());
+        Ok(())
+    }
+
     /// Serializes and atomically replaces the file at `path`: write to a
     /// sibling temp file, then rename into place (atomic on POSIX,
     /// near-atomic on NTFS). Creates parent directories as needed.
