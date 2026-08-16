@@ -3,6 +3,7 @@ pub mod config;
 pub mod repo;
 pub mod ticket;
 
+pub mod discovery;
 pub mod plugin;
 pub mod utils;
 
