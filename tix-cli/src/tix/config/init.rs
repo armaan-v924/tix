@@ -29,10 +29,16 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
         )));
     }
 
-    let default_tickets = dirs::home_dir().map(|home| home.join("tickets"));
+    let home = dirs::home_dir();
+    let default_tickets = home.as_ref().map(|h| h.join("tickets"));
     let tickets_directory = prompt(
         "Tickets directory",
         default_tickets.as_deref().and_then(|p| p.to_str()),
+    )?;
+    let default_code = home.as_ref().map(|h| h.join("code"));
+    let code_directory = prompt(
+        "Code directory (where repos are cloned)",
+        default_code.as_deref().and_then(|p| p.to_str()),
     )?;
 
     let mut document = TixDocument::empty();
@@ -40,6 +46,7 @@ pub fn run(context: &Context, args: Args) -> Result<(), TixError> {
     // auto-creation would produce.
     let mut cli = toml_edit::Table::new();
     cli["tickets_directory"] = toml_edit::value(tickets_directory);
+    cli["code_directory"] = toml_edit::value(code_directory);
     document.doc_mut()["cli"] = toml_edit::Item::Table(cli);
     document.save(path)?;
 
