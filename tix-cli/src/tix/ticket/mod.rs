@@ -73,6 +73,106 @@ mod ticket_ref_tests {
     }
 }
 
+/// Derives the branch name seeded into a new worktree:
+/// `<prefix>/<key>-<sanitized-description>` (v2 parity, spec §3.4).
+///
+/// The prefix and the description are each optional and drop out cleanly:
+/// no prefix means no `<prefix>/`, no (or fully unsanitizable) description
+/// means the key alone. Derivation happens **once** — at `tix ticket setup`
+/// or `tix ticket add` — and the result is written into the ticket document;
+/// later changes to `[defaults]` never rename an existing branch.
+///
+/// # Examples
+///
+/// ```text
+/// derive_branch_name(Some("feature"), "JIRA-123", Some("Fix the Login Bug!"))
+///     == "feature/JIRA-123-fix-the-login-bug"
+/// derive_branch_name(None, "JIRA-123", None) == "JIRA-123"
+/// ```
+pub fn derive_branch_name(prefix: Option<&str>, key: &str, description: Option<&str>) -> String {
+    let sanitized = description.map(sanitize_description).unwrap_or_default();
+    let stem = if sanitized.is_empty() {
+        key.to_string()
+    } else {
+        format!("{key}-{sanitized}")
+    };
+    match prefix {
+        Some(prefix) if !prefix.is_empty() => format!("{prefix}/{stem}"),
+        _ => stem,
+    }
+}
+
+/// Lowercases, maps every non-alphanumeric run to a single `-`, trims the
+/// ends, and caps the result at 40 characters (without splitting a word run
+/// mid-hyphen cleanup).
+fn sanitize_description(description: &str) -> String {
+    const MAX_LENGTH: usize = 40;
+    let mut out = String::with_capacity(description.len());
+    for c in description.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+        } else if !out.is_empty() && !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    let trimmed = out.trim_end_matches('-');
+    let capped = trimmed.chars().take(MAX_LENGTH).collect::<String>();
+    capped.trim_end_matches('-').to_string()
+}
+
+#[cfg(test)]
+mod branch_name_tests {
+    use super::*;
+
+    /// Full derivation: prefix, key, sanitized description.
+    #[test]
+    fn test_full_derivation() {
+        assert_eq!(
+            derive_branch_name(Some("feature"), "JIRA-123", Some("Fix the Login Bug!")),
+            "feature/JIRA-123-fix-the-login-bug"
+        );
+    }
+
+    /// Prefix and description each drop out cleanly when absent.
+    #[test]
+    fn test_optional_parts_drop_out() {
+        assert_eq!(
+            derive_branch_name(None, "JIRA-123", Some("desc")),
+            "JIRA-123-desc"
+        );
+        assert_eq!(
+            derive_branch_name(Some("feature"), "JIRA-123", None),
+            "feature/JIRA-123"
+        );
+        assert_eq!(derive_branch_name(None, "JIRA-123", None), "JIRA-123");
+        assert_eq!(derive_branch_name(Some(""), "JIRA-123", None), "JIRA-123");
+    }
+
+    /// Sanitization collapses punctuation runs, trims, and caps length.
+    #[test]
+    fn test_sanitization() {
+        assert_eq!(sanitize_description("Fix: the (login) bug!!"), "fix-the-login-bug");
+        assert_eq!(sanitize_description("---"), "");
+        assert_eq!(
+            sanitize_description(
+                "a very long description that goes on and on and on far past the cap"
+            )
+            .len()
+                <= 40,
+            true
+        );
+    }
+
+    /// A description that sanitizes to nothing behaves like no description.
+    #[test]
+    fn test_unsanitizable_description() {
+        assert_eq!(
+            derive_branch_name(Some("feature"), "JIRA-123", Some("!!!")),
+            "feature/JIRA-123"
+        );
+    }
+}
+
 #[derive(Args)]
 pub struct TicketArgs {
     #[command(subcommand)]

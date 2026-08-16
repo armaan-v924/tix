@@ -54,7 +54,10 @@ impl RepositoryConfig {
     pub fn resolve(self, alias: &str) -> Result<Repository, TixError> {
         debug!(alias = %alias, path = %self.code_path.display(), "opening repository");
         let repo = git2::Repository::open(&self.code_path).map_err(|e| {
-            error!(alias = %alias, error = %e, "failed to open repository");
+            // debug, not error: failing to open is an expected probe on the
+            // ensure() path (resolve-then-clone); the Err carries the story
+            // for callers that treat it as fatal.
+            debug!(alias = %alias, error = %e, "failed to open repository");
             TixError::GitError(e)
         })?;
         debug!(alias = %alias, "repository opened");
@@ -161,8 +164,9 @@ impl Repository {
     ///
     /// Syncs the repository first (fetches and fast-forwards). Pass `force: true` to discard
     /// local changes before syncing. If `branch` exists locally the worktree
-    /// checks it out; otherwise git2 falls back to creating a fresh branch
-    /// named `name` from HEAD.
+    /// checks it out; otherwise the branch is created at the synced HEAD and
+    /// the worktree opens on it — the branch name is always `branch`, never
+    /// the worktree name.
     ///
     /// # Errors
     ///
@@ -194,8 +198,25 @@ impl Repository {
         info!(alias = %self.alias, name, branch, "creating worktree");
         self.sync(force)?;
 
-        let local_branch = self.repo.find_branch(branch, git2::BranchType::Local).ok();
-        let reference = local_branch.map(|b| b.into_reference());
+        // The worktree must open on `branch` by that exact name. Without an
+        // explicit reference, git2 would create a branch named after the
+        // *worktree* — wrong the moment name and branch differ (per-worktree
+        // branches, spec §3.2).
+        let local_branch = match self.repo.find_branch(branch, git2::BranchType::Local) {
+            Ok(existing) => existing,
+            Err(_) => {
+                debug!(alias = %self.alias, branch, "branch not found locally, creating at synced HEAD");
+                let head = self
+                    .repo
+                    .head()
+                    .and_then(|h| h.peel_to_commit())
+                    .map_err(TixError::GitError)?;
+                self.repo
+                    .branch(branch, &head, false)
+                    .map_err(TixError::GitError)?
+            }
+        };
+        let reference = Some(local_branch.into_reference());
 
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(TixError::IoError)?;
@@ -204,9 +225,15 @@ impl Repository {
         let mut options = WorktreeAddOptions::new();
         options.reference(reference.as_ref());
 
+        // Git registers worktrees under a repo-unique name. The config-level
+        // `name` (directory under the ticket root) collides the moment two
+        // tickets include the same repo, so registration uses the sanitized
+        // branch instead — branches are unique per repo by git's own rules
+        // (v2 parity: repo_worktrees held sanitized names).
+        let registration = registration_name(branch);
         let worktree = self
             .repo
-            .worktree(name, path, Some(&options))
+            .worktree(&registration, path, Some(&options))
             .map(|_| Worktree {
                 name: name.to_string(),
                 branch: branch.to_string(),
@@ -221,18 +248,37 @@ impl Repository {
         Ok(worktree)
     }
 
-    /// Prunes the git worktree registered as `name` from this repository.
+    /// Finds the registered worktree whose recorded path is `path`, if any.
     ///
-    /// `name` is the worktree directory name — the same name the worktree was
-    /// created under via [`Self::create_worktree`], and the key of its entry
-    /// in [`TicketConfig::worktrees`](crate::TicketConfig::worktrees).
+    /// Paths are normalized before comparison — git records canonicalized
+    /// paths (on macOS, `/var/...` becomes `/private/var/...`), so a raw
+    /// equality check would miss legitimate matches.
+    fn find_worktree_by_path(&self, path: &Path) -> Result<Option<git2::Worktree>, TixError> {
+        let target = normalize_path(path);
+        let names = self.repo.worktrees().map_err(TixError::GitError)?;
+        for name in names.iter().filter_map(|n| n.ok().flatten()) {
+            let worktree = self.repo.find_worktree(name).map_err(TixError::GitError)?;
+            if normalize_path(worktree.path()) == target {
+                return Ok(Some(worktree));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Prunes the git worktree living at `path` from this repository.
+    ///
+    /// Lookup is by the worktree's recorded path rather than its registration
+    /// name — the path is what the ticket document knows
+    /// (`<ticket_root>/<name>`), and it stays unambiguous even for orphaned
+    /// worktrees whose directory is already gone.
     ///
     /// Pass `force: true` to remove even if the worktree is in a dirty state. Without `force`,
     /// returns an error if the worktree fails validation (e.g. has uncommitted changes).
     ///
     /// # Errors
     ///
-    /// - [`TixError::Message`] if the worktree does not exist or is dirty without `force`
+    /// - [`TixError::WorktreeNotFound`] if no registered worktree records `path`
+    /// - [`TixError::Message`] if the worktree is dirty without `force`
     /// - [`TixError::GitError`] if pruning fails
     ///
     /// # Examples
@@ -244,18 +290,17 @@ impl Repository {
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
     /// ).resolve("my-repo").unwrap();
-    /// repo.remove_worktree("my-repo", false);
+    /// repo.remove_worktree(&PathBuf::from("/home/user/tickets/JIRA-123/my-repo"), false);
     /// ```
-    pub fn remove_worktree(&self, name: &str, force: bool) -> Result<(), TixError> {
-        info!(alias = %self.alias, name, "removing worktree");
+    pub fn remove_worktree(&self, path: &Path, force: bool) -> Result<(), TixError> {
+        info!(alias = %self.alias, path = %path.display(), "removing worktree");
 
         let worktree = self
-            .repo
-            .find_worktree(name)
-            .map_err(|_| TixError::from("worktree does not exist"))?;
+            .find_worktree_by_path(path)?
+            .ok_or_else(|| TixError::WorktreeNotFound(path.display().to_string()))?;
 
         if !force && worktree.validate().is_err() {
-            error!(alias = %self.alias, name, "worktree is dirty, use force to remove");
+            error!(alias = %self.alias, path = %path.display(), "worktree is dirty, use force to remove");
             return Err(TixError::from(
                 "worktree is not in a clean state, use force to remove",
             ));
@@ -265,10 +310,10 @@ impl Repository {
         opts.working_tree(true).valid(true);
 
         worktree.prune(Some(&mut opts)).map_err(|e| {
-            error!(alias = %self.alias, name, error = %e, "failed to remove worktree");
+            error!(alias = %self.alias, path = %path.display(), "failed to remove worktree: {e}");
             TixError::GitError(e)
         })?;
-        info!(alias = %self.alias, name, "worktree removed");
+        info!(alias = %self.alias, path = %path.display(), "worktree removed");
         Ok(())
     }
 
@@ -478,6 +523,31 @@ impl Repository {
     }
 }
 
+
+/// The repo-unique name a worktree is registered under: the branch with path
+/// separators flattened. Branch uniqueness per repo (enforced by git) makes
+/// this collision-free in practice; a rare sanitization collision surfaces as
+/// a clear git error at creation.
+fn registration_name(branch: &str) -> String {
+    branch.replace(['/', '\\'], "-")
+}
+
+/// Canonicalizes `path` for comparison, tolerating paths that no longer
+/// exist (an orphaned worktree's directory) by canonicalizing the parent and
+/// re-joining the final component.
+fn normalize_path(path: &Path) -> PathBuf {
+    if let Ok(canonical) = path.canonicalize() {
+        return canonical;
+    }
+    match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) => parent
+            .canonicalize()
+            .map(|parent| parent.join(name))
+            .unwrap_or_else(|_| path.to_path_buf()),
+        _ => path.to_path_buf(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -620,6 +690,31 @@ mod tests {
         ));
     }
 
+    /// A worktree whose name differs from its branch opens on the requested
+    /// branch — created fresh when absent — never on a branch named after
+    /// the worktree.
+    #[test]
+    fn test_create_worktree_name_differs_from_branch() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        let path = dir.path().join("worktrees/my-repo");
+        let worktree = repo
+            .create_worktree("my-repo", "feature/JIRA-1-fix", &path, false)
+            .unwrap();
+
+        assert_eq!(worktree.name, "my-repo");
+        assert_eq!(worktree.branch, "feature/JIRA-1-fix");
+        let opened = git2::Repository::open(&path).unwrap();
+        assert_eq!(
+            opened.head().unwrap().shorthand(),
+            Ok("feature/JIRA-1-fix")
+        );
+    }
+
     /// A sync failure propagates as an error before the worktree is created.
     #[test]
     fn test_create_worktree_sync_error() {
@@ -648,8 +743,8 @@ mod tests {
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
         assert!(matches!(
-            repo.remove_worktree("nonexistent", false),
-            Err(TixError::Message(_))
+            repo.remove_worktree(&dir.path().join("worktrees/nonexistent"), false),
+            Err(TixError::WorktreeNotFound(_))
         ));
     }
 
@@ -664,7 +759,7 @@ mod tests {
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
         assert!(matches!(
-            repo.remove_worktree("feature", false),
+            repo.remove_worktree(&dir.path().join("worktrees/feature"), false),
             Err(TixError::Message(_))
         ));
     }
@@ -679,7 +774,7 @@ mod tests {
         test_helpers::orphan_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        assert!(repo.remove_worktree("feature", true).is_ok());
+        assert!(repo.remove_worktree(&dir.path().join("worktrees/feature"), true).is_ok());
     }
 
     /// Removing a valid worktree succeeds and returns `Ok(())`.
@@ -692,7 +787,7 @@ mod tests {
         test_helpers::add_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        assert!(repo.remove_worktree("feature", false).is_ok());
+        assert!(repo.remove_worktree(&dir.path().join("worktrees/feature"), false).is_ok());
         assert!(!dir.path().join("worktrees/feature").exists());
     }
 
