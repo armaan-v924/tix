@@ -15,7 +15,7 @@ fn fail(error: tix_engine::TixError) -> ! {
 }
 
 fn main() {
-    let parsed = tix::TixParser::parse();
+    let parsed = tix::TixParser::parse_with_plugin_help();
     let log_level = parsed.resolve_log_level();
 
     // Diagnostics go to stderr: stdout carries results only, so

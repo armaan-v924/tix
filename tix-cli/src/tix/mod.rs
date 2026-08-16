@@ -7,11 +7,12 @@ pub mod context;
 pub mod discovery;
 pub mod document;
 pub mod plugin;
+pub mod plugin_listing;
 pub mod utils;
 
 // ---
 
-use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, error::ErrorKind};
 use std::path::PathBuf;
 
 use crate::tix::utils::styles;
@@ -41,6 +42,27 @@ pub struct TixParser {
 }
 
 impl TixParser {
+    /// Parses argv, appending the "Plugins" section to **root** help.
+    ///
+    /// The section is built only when root help is about to render
+    /// (`tix -h`, `tix --help`, bare `tix help`) — plugin discovery execs
+    /// `print-cli-help` handshakes, which must not run on every invocation.
+    /// Subcommand help (`tix repo --help`) is untouched: plugins are
+    /// top-level commands only.
+    pub fn parse_with_plugin_help() -> Self {
+        let mut command = TixParser::command();
+        if root_help_requested() {
+            if let Some(section) = plugin_listing::plugins_help_section() {
+                command = command.after_help(section);
+            }
+        }
+        let mut matches = command.get_matches();
+        match TixParser::from_arg_matches_mut(&mut matches) {
+            Ok(parsed) => parsed,
+            Err(e) => e.format(&mut TixParser::command()).exit(),
+        }
+    }
+
     pub fn resolve_log_level(&self) -> tracing::Level {
         let flags = [self.log_level.is_some(), self.verbose, self.quiet];
 
@@ -62,6 +84,26 @@ impl TixParser {
         }
         self.log_level.unwrap_or(tracing::Level::INFO)
     }
+}
+
+/// True when this invocation renders the **root** help: the first
+/// non-global-flag token is `-h`/`--help`, or it is a bare `help` with no
+/// subcommand after it.
+fn root_help_requested() -> bool {
+    let mut args = std::env::args().skip(1).peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "-h" | "--help" => return true,
+            "help" => return args.peek().is_none(),
+            // Global flags (and their values) may precede the subcommand.
+            "-v" | "--verbose" | "-q" | "--quiet" => continue,
+            "--log-level" | "--config" => {
+                args.next();
+            }
+            _ => return false,
+        }
+    }
+    false
 }
 
 #[derive(Subcommand)]
