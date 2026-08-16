@@ -1,4 +1,5 @@
 use crate::tix::context::Context;
+use tix_engine::TixError;
 use crate::tix::repo::{RepoAlias, RepoRef};
 
 use clap;
@@ -11,6 +12,7 @@ pub struct Args {
     pub repo: RepoRef,
 }
 
-pub fn run(_context: &Context, args: Args) {
+pub fn run(_context: &Context, args: Args) -> Result<(), TixError> {
     println!("{:#?}", args);
+    Ok(())
 }
