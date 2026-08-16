@@ -12,6 +12,10 @@
 //!   where ticket directories are stored, and which repositories are registered.
 //! - A [`RepositoryConfig`] is a registered source repository.
 //!   Resolving one produces a [`Repository`] backed by a local git clone.
+//! - A [`TicketConfig`] is the `[ticket]` section of a ticket document
+//!   (`.tix/ticket.toml`): the ticket's identity plus a map of worktree
+//!   directory name → [`WorktreeConfig`] recording each worktree's repository
+//!   and branch.
 //! - A [`Ticket`] is a unit of work. Each ticket owns one or more
 //!   git [`Worktree`]s that share a common branch prefix, keeping
 //!   related changes grouped across repositories.
@@ -29,4 +33,6 @@ pub use types::errors::TixError;
 pub use types::repository::Repository;
 pub use types::repository::RepositoryConfig;
 pub use types::ticket::Ticket;
+pub use types::ticket::TicketConfig;
 pub use types::worktree::Worktree;
+pub use types::worktree::WorktreeConfig;
