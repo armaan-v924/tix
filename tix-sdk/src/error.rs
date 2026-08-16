@@ -22,6 +22,10 @@ pub enum SdkError {
     /// Migrated from the engine: config location is an SDK concern, and the
     /// engine never touches config paths.
     ConfigNotFound(String),
+    /// A plugin misused the invocation contract (malformed delta, broken
+    /// revalidation) — a bug in the plugin, not a tix failure, and nothing
+    /// was written.
+    PluginImplementation(String),
     /// A freeform SDK-level error message.
     Message(String),
 }
@@ -33,6 +37,11 @@ impl fmt::Display for SdkError {
             SdkError::Parse(e) => write!(f, "parse error: {}", e),
             SdkError::Serialization(e) => write!(f, "serialization error: {}", e),
             SdkError::ConfigNotFound(s) => write!(f, "config not found: {}", s),
+            SdkError::PluginImplementation(s) => write!(
+                f,
+                "plugin implementation error: {} — this is a bug in the plugin; nothing was written",
+                s
+            ),
             SdkError::Message(s) => write!(f, "{}", s),
         }
     }

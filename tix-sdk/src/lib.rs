@@ -14,6 +14,8 @@
 //! - [`discovery`] — the ticket walk and `--ticket` override semantics.
 //! - [`document`] — the format-preserving TOML document layer: generic
 //!   parse, typed section extraction, atomic locked writes.
+//! - [`delta`] — diff-back config deltas: the plugin write helper and the
+//!   host's JSON→TOML apply mechanics.
 //! - [`host`] — the plugin side of the invocation contract: `--tix-*` flag
 //!   parsing and the protocol check ([`host::PROTOCOL`]; version → change
 //!   table in `tix-sdk/PROTOCOL.md`).
@@ -28,6 +30,7 @@
 //! layout policy may still depend on `tix-engine` directly.
 
 pub mod context;
+pub mod delta;
 pub mod discovery;
 pub mod document;
 /// The SDK's error type.
