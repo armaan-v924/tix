@@ -34,7 +34,7 @@ fn main() {
         fail(e);
     }
 
-    match parsed.command {
+    let result = match parsed.command {
         Commands::Cli(args) => match args.command {
             cli::CliCommands::Completions(args) => cli::completions::run(&context, args),
             cli::CliCommands::Update(args) => cli::update::run(&context, args),
@@ -65,5 +65,9 @@ fn main() {
         Commands::Setup(args) => ticket::setup::run(&context, args),
 
         Commands::External(args) => plugin::run(&context, args),
+    };
+
+    if let Err(e) = result {
+        fail(e);
     }
 }
