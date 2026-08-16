@@ -12,6 +12,8 @@
 //!   where ticket directories are stored, and which repositories are registered.
 //! - A [`RepositoryConfig`] is a registered source repository.
 //!   Resolving one produces a [`Repository`] backed by a local git clone.
+//! - A [`Defaults`] is the `[defaults]` section of the global config: seed
+//!   values read once at ticket creation, never resolved at runtime.
 //! - A [`TicketConfig`] is the `[ticket]` section of a ticket document
 //!   (`.tix/ticket.toml`): the ticket's identity plus a map of worktree
 //!   directory name → [`WorktreeConfig`] recording each worktree's repository
@@ -29,6 +31,7 @@ mod types;
 mod utils;
 
 pub use types::config::Config;
+pub use types::defaults::Defaults;
 pub use types::errors::TixError;
 pub use types::repository::Repository;
 pub use types::repository::RepositoryConfig;
