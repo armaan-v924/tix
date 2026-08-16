@@ -119,9 +119,11 @@ impl TicketConfig {
     /// .unwrap();
     ///
     /// let ticket = config.resolve(PathBuf::from("/home/user/tickets/JIRA-123"))?;
-    /// for worktree in ticket.worktrees() {
-    ///     println!("{} → {}", worktree.name, worktree.branch);
-    /// }
+    /// let branches: Vec<&str> = ticket
+    ///     .worktrees()
+    ///     .iter()
+    ///     .map(|worktree| worktree.branch.as_str())
+    ///     .collect();
     /// # Ok(())
     /// # }
     /// ```
@@ -205,9 +207,7 @@ impl Ticket {
     /// # description = "Fix the login bug"
     /// # "#).unwrap();
     /// let ticket = config.resolve(PathBuf::from("/home/user/tickets/JIRA-123"))?;
-    /// for worktree in ticket.worktrees() {
-    ///     println!("{}", worktree.path.display());
-    /// }
+    /// let paths: Vec<_> = ticket.worktrees().iter().map(|w| &w.path).collect();
     /// # Ok(())
     /// # }
     /// ```

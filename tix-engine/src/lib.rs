@@ -6,6 +6,24 @@
 //! free of any UI concerns — all output, prompting, and formatting live in the
 //! frontends.
 //!
+//! # The engine contract
+//!
+//! This crate performs **domain operations over already-resolved paths** and
+//! nothing else (`design/spec.md` §2.2):
+//!
+//! - **Resolved paths in.** No discovery, no path resolution, no layout
+//!   policy — where config, tickets, and code live is frontend/SDK business
+//!   and must not leak in here.
+//! - **No ambient IO.** No env vars, no stdout/stderr, no process control.
+//!   Tracing macros (`info!`, `debug!`, …) are fine — they emit to whatever
+//!   subscriber the frontend wired up. Enforced by audit:
+//!   `grep -r "process::exit\|println!\|eprintln!\|env::var\|tracing_subscriber" src/`
+//!   must return nothing.
+//! - **Runtime dependencies are `git2`, `serde`, and `tracing` — only.**
+//!   No `clap` (arg parsing), no `dirs` (config location), no `toml`
+//!   (document parsing): those concerns are all SDK-side. `toml` appears as
+//!   a dev-dependency solely to round-trip test the serde section shapes.
+//!
 //! # Domain model
 //!
 //! - An [`EngineConfig`] is the `[engine]` section of the global config:
