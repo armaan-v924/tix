@@ -59,6 +59,7 @@ impl ConfigKey {
     }
 }
 
+/// Manage the global tix config
 #[derive(Args)]
 pub struct ConfigArgs {
     #[command(subcommand)]

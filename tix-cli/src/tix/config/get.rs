@@ -1,18 +1,13 @@
 //! `tix config get` — read value(s) from the `[cli]` section.
 
 use crate::tix::config::ConfigKey;
-use tix_sdk::context::Context;
 use tix_sdk::document::TixDocument;
 use crate::tix::utils::OutputType;
 use tix_sdk::SdkError;
 
-/// Arguments for `tix config get`.
+/// Read a value from the [cli] section
 #[derive(clap::Args, Debug)]
 pub struct Args {
-    /// Output format
-    #[arg(short, long)]
-    pub output: Option<OutputType>,
-
     /// The `[cli]` key(s) to read
     #[arg(required = true)]
     pub key: Vec<ConfigKey>,
@@ -24,8 +19,8 @@ pub struct Args {
 /// print `key = value` lines. Keys are validated at parse time by the
 /// [`ConfigKey`] value enum; a key that is valid but unset in the document
 /// errors here.
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
-    let document = TixDocument::load(&context.config_path)?;
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let document = TixDocument::load(&app.context.config_path)?;
 
     let mut pairs = Vec::with_capacity(args.key.len());
     for key in &args.key {
@@ -37,13 +32,13 @@ pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
                 SdkError::Message(format!(
                     "'{}' is not set in [cli] (config: {})",
                     key.toml_key(),
-                    context.config_path.display()
+                    app.context.config_path.display()
                 ))
             })?;
         pairs.push((key.toml_key(), item.clone()));
     }
 
-    match args.output.unwrap_or(OutputType::Default) {
+    match app.output {
         OutputType::Default => {
             if let [(_, item)] = pairs.as_slice() {
                 println!("{}", render_bare(item));

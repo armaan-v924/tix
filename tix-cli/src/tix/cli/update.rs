@@ -5,7 +5,6 @@
 //! v2's self-updater, adjusted for the workspace and given `--dry-run` and
 //! checksum verification.
 
-use tix_sdk::context::Context;
 use semver::Version;
 use serde::Deserialize;
 use sha2::Digest;
@@ -19,7 +18,7 @@ const DEFAULT_OWNER: &str = "armaan-v924";
 const DEFAULT_REPO: &str = "tix";
 const USER_AGENT: &str = concat!("tix-updater/", env!("CARGO_PKG_VERSION"));
 
-/// Arguments for `tix update`.
+/// Update tix to the latest release
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// Print what would happen without downloading or writing anything
@@ -53,7 +52,7 @@ struct Target {
 /// `<asset>.sha256` sibling, the download is verified against it; releases
 /// without checksums skip verification. The binary is replaced via temp
 /// file + rename in its own directory.
-pub fn run(_context: &Context, args: Args) -> Result<(), SdkError> {
+pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let target = detect_target()?;
     let owner = std::env::var("TIX_UPDATE_OWNER").unwrap_or_else(|_| DEFAULT_OWNER.into());
     let repo = std::env::var("TIX_UPDATE_REPO").unwrap_or_else(|_| DEFAULT_REPO.into());

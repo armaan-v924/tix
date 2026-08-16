@@ -1,6 +1,5 @@
 //! `tix ticket add` — add repository worktrees to an existing ticket.
 
-use tix_sdk::context::Context;
 use tix_sdk::document::{TixDocument, with_write};
 use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::{
@@ -9,7 +8,7 @@ use crate::tix::ticket::{
 use tix_sdk::{SdkError, Defaults, EngineConfig, TixError};
 use tracing::{error, info};
 
-/// Arguments for `tix ticket add`.
+/// Add repository worktrees to a ticket
 #[derive(clap::Args, Debug)]
 pub struct Args {
     #[command(flatten)]
@@ -38,11 +37,11 @@ pub struct Args {
 /// The ticket document is updated per successful worktree through the
 /// format-preserving layer, so plugin tables and comments in
 /// `.tix/ticket.toml` survive.
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
-    let root = require_ticket_root(context, args.shared.ticket.as_ref())?;
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let root = require_ticket_root(&app.context, args.shared.ticket.as_ref())?;
     let ticket = load_ticket_config(&root)?;
 
-    let document = TixDocument::load(&context.config_path)?;
+    let document = TixDocument::load(&app.context.config_path)?;
     let engine: EngineConfig = document.section_or_default("engine")?;
     let defaults: Defaults = document.section_or_default("defaults")?;
 

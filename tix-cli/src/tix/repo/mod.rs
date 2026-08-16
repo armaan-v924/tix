@@ -27,6 +27,7 @@ impl FromStr for RepoRef {
     }
 }
 
+/// Register and clone source repositories
 #[derive(Args)]
 pub struct RepoArgs {
     #[command(subcommand)]

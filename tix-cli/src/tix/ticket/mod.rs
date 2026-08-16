@@ -162,6 +162,7 @@ pub fn require_ticket_root(
     })
 }
 
+/// Create, inspect, and manage ticket workspaces
 #[derive(Args)]
 pub struct TicketArgs {
     #[command(subcommand)]

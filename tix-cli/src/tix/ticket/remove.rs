@@ -1,13 +1,12 @@
 //! `tix ticket remove` — remove single worktrees from a ticket without
 //! destroying it.
 
-use tix_sdk::context::Context;
 use tix_sdk::document::{TixDocument, with_write};
 use crate::tix::ticket::{TicketSharedArgs, load_ticket_config, require_ticket_root};
 use tix_sdk::{SdkError, EngineConfig, TixError};
 use tracing::info;
 
-/// Arguments for `tix ticket remove`.
+/// Remove a worktree from a ticket without destroying it
 #[derive(clap::Args, Debug)]
 pub struct Args {
     #[command(flatten)]
@@ -30,11 +29,11 @@ pub struct Args {
 /// The ticket directory and every other worktree are untouched; removing
 /// the last worktree leaves a valid, empty ticket. Each successful prune is
 /// written back immediately through the format-preserving layer.
-pub fn run(context: &Context, args: Args) -> Result<(), SdkError> {
-    let root = require_ticket_root(context, args.shared.ticket.as_ref())?;
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let root = require_ticket_root(&app.context, args.shared.ticket.as_ref())?;
     let ticket = load_ticket_config(&root)?;
 
-    let document = TixDocument::load(&context.config_path)?;
+    let document = TixDocument::load(&app.context.config_path)?;
     let engine: EngineConfig = document.section_or_default("engine")?;
 
     // Validate the batch up front: every name must be tracked, and every

@@ -5,6 +5,7 @@ pub mod update;
 
 use clap::{Args, Subcommand};
 
+/// Manage the tix CLI itself (update, completions)
 #[derive(Args)]
 pub struct CliArgs {
     #[command(subcommand)]
