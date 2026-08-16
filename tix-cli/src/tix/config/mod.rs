@@ -30,8 +30,26 @@ pub struct CliConfig {
     pub tickets_directory: PathBuf,
 }
 
+/// A `[cli]` key addressable by `tix config get`/`set`.
+///
+/// Being a value enum, unknown keys are rejected at argument-parse time with
+/// clap's own diagnostics. New `[cli]` fields grow a variant here alongside
+/// their [`CliConfig`] field.
 #[derive(Debug, Clone, PartialEq, Eq, clap::ValueEnum)]
-pub enum ConfigKey {}
+pub enum ConfigKey {
+    /// `tickets_directory` — where ticket workspaces live.
+    #[value(alias = "tickets_directory")]
+    TicketsDirectory,
+}
+
+impl ConfigKey {
+    /// The key's name in the `[cli]` table.
+    pub fn toml_key(&self) -> &'static str {
+        match self {
+            ConfigKey::TicketsDirectory => "tickets_directory",
+        }
+    }
+}
 
 #[derive(Args)]
 pub struct ConfigArgs {
