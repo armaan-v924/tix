@@ -14,6 +14,10 @@ pub enum TixError {
     ConfigNotFound(String),
     /// The repository was not found at the given path.
     RepoNotFound(String),
+    /// The ticket directory was not found at the given path.
+    TicketNotFound(String),
+    /// A worktree recorded in the ticket document was not found on disk.
+    WorktreeNotFound(String),
     /// A freeform error message.
     Message(String),
 }
@@ -27,6 +31,8 @@ impl fmt::Display for TixError {
             TixError::SerializationError(e) => write!(f, "serialization error: {}", e),
             TixError::ConfigNotFound(s) => write!(f, "config not found: {}", s),
             TixError::RepoNotFound(s) => write!(f, "repo not found: {}", s),
+            TixError::TicketNotFound(s) => write!(f, "ticket not found: {}", s),
+            TixError::WorktreeNotFound(s) => write!(f, "worktree not found: {}", s),
             TixError::Message(s) => write!(f, "{}", s),
         }
     }
@@ -124,6 +130,8 @@ mod tests {
             TixError::ParseError(parse_err),
             TixError::ConfigNotFound("path".into()),
             TixError::RepoNotFound("path".into()),
+            TixError::TicketNotFound("path".into()),
+            TixError::WorktreeNotFound("path".into()),
             TixError::Message("something went wrong".into()),
         ];
 

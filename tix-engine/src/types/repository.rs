@@ -1,7 +1,7 @@
-use crate::types::{errors::TixError, ticket::Ticket, worktree::Worktree};
+use crate::types::{errors::TixError, worktree::Worktree};
 use git2::{RepositoryState, WorktreeAddOptions};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::{debug, error, info, warn};
 
 /// The configuration for a repository.
@@ -150,10 +150,19 @@ impl Repository {
         }
     }
 
-    /// Creates a git worktree for the given ticket's branch at the ticket's path.
+    /// Creates a git worktree named `name` for `branch` at `path`.
+    ///
+    /// `name` is the worktree directory name under the ticket root — the key
+    /// of the worktree's entry in
+    /// [`TicketConfig::worktrees`](crate::TicketConfig::worktrees) — and
+    /// `path` is the full, already-resolved directory the worktree should
+    /// appear at. The engine takes both as given; deriving them from a ticket
+    /// is the frontend's job.
     ///
     /// Syncs the repository first (fetches and fast-forwards). Pass `force: true` to discard
-    /// local changes before syncing.
+    /// local changes before syncing. If `branch` exists locally the worktree
+    /// checks it out; otherwise git2 falls back to creating a fresh branch
+    /// named `name` from HEAD.
     ///
     /// # Errors
     ///
@@ -163,47 +172,60 @@ impl Repository {
     ///
     /// ```no_run
     /// # use tix_engine::RepositoryConfig;
-    /// # use tix_engine::Ticket;
     /// # use std::path::PathBuf;
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
     /// ).resolve("my-repo").unwrap();
-    /// let ticket = Ticket { key: "JIRA-123".into(), description: "Fix bug".into(), branch: "JIRA-123".into(), path: PathBuf::from("/home/user/tickets/JIRA-123"), worktrees: vec![] };
-    /// let worktree = repo.create_worktree(&ticket, false);
+    /// let worktree = repo.create_worktree(
+    ///     "my-repo",
+    ///     "feature/JIRA-123-fix-login",
+    ///     &PathBuf::from("/home/user/tickets/JIRA-123/my-repo"),
+    ///     false,
+    /// );
     /// ```
-    pub fn create_worktree(&self, ticket: &Ticket, force: bool) -> Result<Worktree, TixError> {
-        info!(alias = %self.alias, ticket = %ticket.key, branch = %ticket.branch, "creating worktree");
+    pub fn create_worktree(
+        &self,
+        name: &str,
+        branch: &str,
+        path: &Path,
+        force: bool,
+    ) -> Result<Worktree, TixError> {
+        info!(alias = %self.alias, name, branch, "creating worktree");
         self.sync(force)?;
 
-        let branch = self
-            .repo
-            .find_branch(&ticket.branch, git2::BranchType::Local)
-            .ok();
-        let reference = branch.map(|b| b.into_reference());
+        let local_branch = self.repo.find_branch(branch, git2::BranchType::Local).ok();
+        let reference = local_branch.map(|b| b.into_reference());
 
-        if let Some(parent) = ticket.path.parent() {
+        if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(TixError::IoError)?;
         }
 
         let mut options = WorktreeAddOptions::new();
         options.reference(reference.as_ref());
 
-        let worktree = self.repo.worktree(&ticket.branch, &ticket.path, Some(&options))
+        let worktree = self
+            .repo
+            .worktree(name, path, Some(&options))
             .map(|_| Worktree {
-                branch: ticket.branch.clone(),
+                name: name.to_string(),
+                branch: branch.to_string(),
                 repo_alias: self.alias.clone(),
-                path: ticket.path.clone(),
+                path: path.to_path_buf(),
             })
             .map_err(|e| {
-                error!(alias = %self.alias, ticket = %ticket.key, error = %e, "failed to create worktree");
+                error!(alias = %self.alias, name, error = %e, "failed to create worktree");
                 TixError::GitError(e)
             })?;
-        info!(alias = %self.alias, ticket = %ticket.key, path = %ticket.path.display(), "worktree created");
+        info!(alias = %self.alias, name, path = %path.display(), "worktree created");
         Ok(worktree)
     }
 
-    /// Prunes the git worktree for the given `branch` from this repository.
+    /// Prunes the git worktree registered as `name` from this repository.
+    ///
+    /// `name` is the worktree directory name — the same name the worktree was
+    /// created under via [`Self::create_worktree`], and the key of its entry
+    /// in [`TicketConfig::worktrees`](crate::TicketConfig::worktrees).
     ///
     /// Pass `force: true` to remove even if the worktree is in a dirty state. Without `force`,
     /// returns an error if the worktree fails validation (e.g. has uncommitted changes).
@@ -217,30 +239,23 @@ impl Repository {
     ///
     /// ```no_run
     /// # use tix_engine::RepositoryConfig;
-    /// # use tix_engine::Ticket;
     /// # use std::path::PathBuf;
     /// let repo = RepositoryConfig::new(
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
     /// ).resolve("my-repo").unwrap();
-    /// let ticket = Ticket { key: "JIRA-123".into(), description: "Fix bug".into(), branch: "JIRA-123".into(), path: PathBuf::from("/home/user/tickets/JIRA-123"), worktrees: vec![] };
-    /// repo.remove_worktree(&ticket, "JIRA-123", false);
+    /// repo.remove_worktree("my-repo", false);
     /// ```
-    pub fn remove_worktree(
-        &self,
-        ticket: &Ticket,
-        branch: &str,
-        force: bool,
-    ) -> Result<(), TixError> {
-        info!(alias = %self.alias, ticket = %ticket.key, branch = %ticket.branch, "removing worktree");
+    pub fn remove_worktree(&self, name: &str, force: bool) -> Result<(), TixError> {
+        info!(alias = %self.alias, name, "removing worktree");
 
         let worktree = self
             .repo
-            .find_worktree(branch)
+            .find_worktree(name)
             .map_err(|_| TixError::from("worktree does not exist"))?;
 
         if !force && worktree.validate().is_err() {
-            error!(alias = %self.alias, ticket = %ticket.key, "worktree is dirty, use force to remove");
+            error!(alias = %self.alias, name, "worktree is dirty, use force to remove");
             return Err(TixError::from(
                 "worktree is not in a clean state, use force to remove",
             ));
@@ -250,10 +265,10 @@ impl Repository {
         opts.working_tree(true).valid(true);
 
         worktree.prune(Some(&mut opts)).map_err(|e| {
-            error!(alias = %self.alias, ticket = %ticket.key, error = %e, "failed to remove worktree");
+            error!(alias = %self.alias, name, error = %e, "failed to remove worktree");
             TixError::GitError(e)
         })?;
-        info!(alias = %self.alias, ticket = %ticket.key, "worktree removed");
+        info!(alias = %self.alias, name, "worktree removed");
         Ok(())
     }
 
@@ -556,12 +571,13 @@ mod tests {
         let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
-        let worktree = repo.create_worktree(&ticket, false).unwrap();
+        let path = dir.path().join("worktrees/feature");
+        let worktree = repo.create_worktree("feature", "feature", &path, false).unwrap();
 
+        assert_eq!(worktree.name, "feature");
         assert_eq!(worktree.branch, "feature");
-        assert_eq!(worktree.path, dir.path().join("worktrees/feature"));
-        assert!(dir.path().join("worktrees/feature").exists());
+        assert_eq!(worktree.path, path);
+        assert!(path.exists());
     }
 
     /// A ticket whose branch already exists locally reuses it and returns the correct `Worktree`.
@@ -578,11 +594,12 @@ mod tests {
         }
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
-        let worktree = repo.create_worktree(&ticket, false).unwrap();
+        let path = dir.path().join("worktrees/feature");
+        let worktree = repo.create_worktree("feature", "feature", &path, false).unwrap();
 
+        assert_eq!(worktree.name, "feature");
         assert_eq!(worktree.branch, "feature");
-        assert_eq!(worktree.path, dir.path().join("worktrees/feature"));
+        assert_eq!(worktree.path, path);
     }
 
     /// Creating a worktree with a name that already exists returns `TixError::GitError`.
@@ -594,11 +611,11 @@ mod tests {
         let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
-        repo.create_worktree(&ticket, false).unwrap();
+        let path = dir.path().join("worktrees/feature");
+        repo.create_worktree("feature", "feature", &path, false).unwrap();
 
         assert!(matches!(
-            repo.create_worktree(&ticket, false),
+            repo.create_worktree("feature", "feature", &path, false),
             Err(TixError::GitError(_))
         ));
     }
@@ -613,9 +630,8 @@ mod tests {
         test_helpers::make_mid_operation(&local);
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
         assert!(matches!(
-            repo.create_worktree(&ticket, false),
+            repo.create_worktree("feature", "feature", &dir.path().join("worktrees/feature"), false),
             Err(TixError::Message(_))
         ));
     }
@@ -631,10 +647,8 @@ mod tests {
         let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        let ticket =
-            test_helpers::make_ticket("nonexistent", &dir.path().join("worktrees/nonexistent"));
         assert!(matches!(
-            repo.remove_worktree(&ticket, "nonexistent", false),
+            repo.remove_worktree("nonexistent", false),
             Err(TixError::Message(_))
         ));
     }
@@ -649,9 +663,8 @@ mod tests {
         test_helpers::orphan_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
         assert!(matches!(
-            repo.remove_worktree(&ticket, "feature", false),
+            repo.remove_worktree("feature", false),
             Err(TixError::Message(_))
         ));
     }
@@ -666,8 +679,7 @@ mod tests {
         test_helpers::orphan_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
-        assert!(repo.remove_worktree(&ticket, "feature", true).is_ok());
+        assert!(repo.remove_worktree("feature", true).is_ok());
     }
 
     /// Removing a valid worktree succeeds and returns `Ok(())`.
@@ -680,8 +692,7 @@ mod tests {
         test_helpers::add_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        let ticket = test_helpers::make_ticket("feature", &dir.path().join("worktrees/feature"));
-        assert!(repo.remove_worktree(&ticket, "feature", false).is_ok());
+        assert!(repo.remove_worktree("feature", false).is_ok());
         assert!(!dir.path().join("worktrees/feature").exists());
     }
 
@@ -859,7 +870,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod test_helpers {
+pub(crate) mod test_helpers {
     use super::*;
     use git2;
     use std::path::Path;
@@ -966,17 +977,6 @@ mod test_helpers {
 
         std::fs::remove_dir_all(path).unwrap();
         worktree
-    }
-
-    /// Constructs a minimal [`Ticket`] with the given `branch` and `path`.
-    pub fn make_ticket(branch: &str, path: &Path) -> Ticket {
-        Ticket {
-            key: branch.to_string(),
-            description: "".to_string(),
-            branch: branch.to_string(),
-            path: path.to_path_buf(),
-            worktrees: Vec::new(),
-        }
     }
 
     /// Creates `branch` on the bare remote without creating it locally,
