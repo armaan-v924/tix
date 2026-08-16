@@ -8,8 +8,10 @@
 //!
 //! # Domain model
 //!
-//! - A [`Config`] describes the user's environment: where code lives,
-//!   where ticket directories are stored, and which repositories are registered.
+//! - An [`EngineConfig`] is the `[engine]` section of the global config:
+//!   the repositories registered by the user. There is no whole-document
+//!   type — documents are parsed generically by the frontend/SDK, and typed
+//!   sections are extracted on demand.
 //! - A [`RepositoryConfig`] is a registered source repository.
 //!   Resolving one produces a [`Repository`] backed by a local git clone.
 //! - A [`Defaults`] is the `[defaults]` section of the global config: seed
@@ -30,7 +32,7 @@ mod types;
 /// Shared utilities for the Tix engine.
 mod utils;
 
-pub use types::config::Config;
+pub use types::config::EngineConfig;
 pub use types::defaults::Defaults;
 pub use types::errors::TixError;
 pub use types::repository::Repository;
