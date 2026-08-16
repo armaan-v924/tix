@@ -36,9 +36,18 @@ pub struct WorktreeConfig {
     pub branch: String,
 }
 
-/// A git worktree associated with a repository and ticket branch.
+/// A live git worktree associated with a repository and ticket branch.
+///
+/// Produced by [`TicketConfig::resolve`](crate::TicketConfig::resolve) (from
+/// recorded state verified against disk) or by
+/// [`Repository::create_worktree`](crate::Repository::create_worktree) (from a
+/// worktree it just created). Holding one means the worktree existed at the
+/// time it was produced.
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct Worktree {
+    /// The worktree directory name under the ticket root — the key of this
+    /// worktree's entry in [`TicketConfig::worktrees`](crate::TicketConfig::worktrees).
+    pub name: String,
     /// The alias of the repository.
     pub repo_alias: String,
     /// The path to the worktree directory.
