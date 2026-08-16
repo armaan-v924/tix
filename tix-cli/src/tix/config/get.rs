@@ -1,3 +1,4 @@
+use crate::tix::context::Context;
 use crate::tix::config::ConfigKey;
 use crate::tix::utils::OutputType;
 
@@ -11,6 +12,6 @@ pub struct Args {
     pub key: Vec<ConfigKey>,
 }
 
-pub fn run(args: Args) {
+pub fn run(_context: &Context, args: Args) {
     println!("{:#?}", args);
 }

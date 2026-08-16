@@ -1,3 +1,4 @@
+use crate::tix::context::Context;
 use crate::tix::repo::{RepoAlias, RepoRef};
 
 use clap;
@@ -10,6 +11,6 @@ pub struct Args {
     pub repo: RepoRef,
 }
 
-pub fn run(args: Args) {
+pub fn run(_context: &Context, args: Args) {
     println!("{:#?}", args);
 }

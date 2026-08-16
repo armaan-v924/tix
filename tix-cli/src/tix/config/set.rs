@@ -1,3 +1,4 @@
+use crate::tix::context::Context;
 use super::ConfigKey;
 
 use clap;
@@ -8,6 +9,6 @@ pub struct Args {
     pub value: String,
 }
 
-pub fn run(args: Args) {
+pub fn run(_context: &Context, args: Args) {
     println!("{:#?}", args);
 }

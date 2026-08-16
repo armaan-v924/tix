@@ -1,3 +1,4 @@
+use crate::tix::context::Context;
 use crate::tix::utils::OutputType;
 
 use clap;
@@ -11,6 +12,6 @@ pub struct Args {
     pub path: bool,
 }
 
-pub fn run(args: Args) {
+pub fn run(_context: &Context, args: Args) {
     println!("{:#?}", args);
 }
