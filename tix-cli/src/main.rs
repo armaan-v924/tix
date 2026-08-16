@@ -65,6 +65,7 @@ fn main() {
         Commands::List(args) => ticket::list::run(&context, args),
         Commands::Remove(args) => ticket::remove::run(&context, args),
         Commands::Setup(args) => ticket::setup::run(&context, args),
+        Commands::Completions(args) => cli::completions::run(&context, args),
 
         Commands::External(args) => plugin::run(&context, args),
     };

@@ -78,6 +78,9 @@ pub enum Commands {
     Remove(crate::tix::ticket::remove::Args),
     Setup(crate::tix::ticket::setup::Args),
 
+    /// Generate shell completions (top-level alias for `tix cli completions`)
+    Completions(crate::tix::cli::completions::Args),
+
     #[command(external_subcommand)]
     External(Vec<String>),
 }
@@ -95,7 +98,7 @@ impl Commands {
                 command: config::ConfigCommands::Init(_),
             }) | Commands::Cli(cli::CliArgs {
                 command: cli::CliCommands::Completions(_),
-            })
+            }) | Commands::Completions(_)
         )
     }
 }
