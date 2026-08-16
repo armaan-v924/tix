@@ -11,14 +11,21 @@ path = "src/main.rs"
 clap = { version = "4.6.1", features = ["color", "derive"] }
 clap_complete = "4.6.9"
 dirs = "6.0.0"
+flate2 = "1.1.9"
+semver = "1.0.28"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
+sha2 = "0.11.0"
+tar = "0.4.46"
+tempfile = "3.27.0"
 tix-engine = { path = "../tix-engine" }
 toml = "1.1.2"
 toml_edit = { version = "0.25.13", features = ["serde"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+ureq = { version = "3.4.0", features = ["json"] }
 url = { version = "2.5.8", features = ["serde"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
