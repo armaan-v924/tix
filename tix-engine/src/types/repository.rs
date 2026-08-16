@@ -592,7 +592,7 @@ mod tests {
             dir.path().join("remote").to_str().unwrap().into(),
             dir.path().join("local"),
         );
-        assert!(config.clone_remote("test".into()).is_ok());
+        assert!(config.clone_remote("test").is_ok());
     }
 
     /// An invalid/nonexistent remote URL returns `TixError::GitError`.
@@ -604,7 +604,7 @@ mod tests {
             dir.path().join("local"),
         );
         assert!(matches!(
-            config.clone_remote("test".into()),
+            config.clone_remote("test"),
             Err(TixError::GitError(_))
         ));
     }
@@ -620,7 +620,7 @@ mod tests {
             dir.path().join("remote").to_str().unwrap().into(),
             dir.path().join("local"),
         );
-        assert!(config.resolve("test".into()).is_ok());
+        assert!(config.resolve("test").is_ok());
     }
 
     /// A path that is not a git repository returns `TixError::GitError`.
@@ -628,7 +628,7 @@ mod tests {
     fn test_resolve_invalid_path() {
         let remote = "this/is/an/invalid/repo/dir";
         let dir = tempdir().unwrap();
-        let config = RepositoryConfig::new(remote.into(), dir.path().join("local").into());
+        let config = RepositoryConfig::new(remote.into(), dir.path().join("local"));
         assert!(matches!(config.resolve("test"), Err(TixError::GitError(_))));
     }
 

@@ -21,7 +21,7 @@ pub struct Args {
 /// layout is frontend policy; the engine is never involved). Directories
 /// without a `.tix/ticket.toml` are silently skipped; one with a malformed
 /// document warns and is skipped — a broken ticket never breaks the listing.
-pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+pub fn run(app: &crate::tix::utils::App, _args: Args) -> Result<(), SdkError> {
     let cli = load_cli_config(&app.context)?;
 
     let mut tickets: Vec<TicketConfig> = Vec::new();

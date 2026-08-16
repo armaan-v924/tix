@@ -245,7 +245,7 @@ pub fn prescan_globals(args: &[String]) -> (PrescannedGlobals, Vec<String>) {
         let mut take_value = |inline: Option<&str>| -> Option<String> {
             inline
                 .map(str::to_string)
-                .or_else(|| iter.next().map(String::clone))
+                .or_else(|| iter.next().cloned())
         };
         match arg.split_once('=') {
             _ if arg == "-v" || arg == "--verbose" => globals.verbose = true,

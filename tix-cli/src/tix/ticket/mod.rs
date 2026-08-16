@@ -90,13 +90,11 @@ mod branch_name_tests {
     fn test_sanitization() {
         assert_eq!(sanitize_description("Fix: the (login) bug!!"), "fix-the-login-bug");
         assert_eq!(sanitize_description("---"), "");
-        assert_eq!(
+        assert!(
             sanitize_description(
                 "a very long description that goes on and on and on far past the cap"
             )
-            .len()
-                <= 40,
-            true
+            .len() <= 40
         );
     }
 
