@@ -299,11 +299,25 @@ impl Repository {
             .find_worktree_by_path(path)?
             .ok_or_else(|| TixError::WorktreeNotFound(path.display().to_string()))?;
 
-        if !force && worktree.validate().is_err() {
-            error!(alias = %self.alias, path = %path.display(), "worktree is dirty, use force to remove");
-            return Err(TixError::from(
-                "worktree is not in a clean state, use force to remove",
-            ));
+        if !force {
+            // validate() catches structural breakage (e.g. the directory is
+            // gone). It says nothing about cleanliness — that takes opening
+            // the worktree and asking for its status.
+            if worktree.validate().is_err() {
+                error!(alias = %self.alias, path = %path.display(), "worktree failed validation, use force to remove");
+                return Err(TixError::from(
+                    "worktree is not in a clean state, use force to remove",
+                ));
+            }
+            let worktree_repo =
+                git2::Repository::open(worktree.path()).map_err(TixError::GitError)?;
+            let statuses = worktree_repo.statuses(None).map_err(TixError::GitError)?;
+            if !statuses.is_empty() {
+                error!(alias = %self.alias, path = %path.display(), count = statuses.len(), "worktree has uncommitted changes, use force to remove");
+                return Err(TixError::from(
+                    "worktree has uncommitted changes, use force to remove",
+                ));
+            }
         }
 
         let mut opts = git2::WorktreePruneOptions::new();
@@ -774,6 +788,26 @@ mod tests {
         test_helpers::orphan_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
+        assert!(repo.remove_worktree(&dir.path().join("worktrees/feature"), true).is_ok());
+    }
+
+    /// A worktree with uncommitted changes refuses removal without `force` —
+    /// git2's `validate()` alone would pass it.
+    #[test]
+    fn test_remove_worktree_dirty_no_force() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::add_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
+        std::fs::write(dir.path().join("worktrees/feature/dirty.txt"), "wip").unwrap();
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(matches!(
+            repo.remove_worktree(&dir.path().join("worktrees/feature"), false),
+            Err(TixError::Message(_))
+        ));
+        // Force discards it.
         assert!(repo.remove_worktree(&dir.path().join("worktrees/feature"), true).is_ok());
     }
 
