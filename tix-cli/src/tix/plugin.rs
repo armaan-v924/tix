@@ -5,12 +5,15 @@
 //! win, so dispatch is only ever reached for non-builtin names. There is no
 //! plugin registry: `PATH` is the registry.
 
+use crate::tix::config::CliConfig;
 use crate::tix::utils::App;
 use std::io::IsTerminal;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use tix_sdk::delta::{Delta, DeltaTarget};
+use tix_sdk::document::with_write;
 use tix_sdk::host::{PROTOCOL, PROTOCOL_MISMATCH_EXIT, prescan_globals};
-use tix_sdk::{SdkError, TicketConfig};
-use tracing::{debug, warn};
+use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig};
+use tracing::debug;
 
 /// Recursion guard: `tix-foo` shelling `tix foo` forever is the one failure
 /// mode that damages more than tix (spec §5.5).
@@ -109,17 +112,9 @@ pub fn run(app: &App, args: Vec<String>) -> Result<(), SdkError> {
     })?;
 
     match status.code() {
-        Some(0) => {
-            // Delta application is #98; the file's presence is detected here
-            // so the wiring is exercised.
-            let delta_bytes = std::fs::metadata(delta_file.path())
-                .map(|m| m.len())
-                .unwrap_or(0);
-            if delta_bytes > 0 {
-                debug!(bytes = delta_bytes, "plugin wrote a config delta; application lands with #98");
-            }
-            Ok(())
-        }
+        // The delta is applied only on exit 0; a failed plugin's
+        // half-intended writes are discarded with the temp file.
+        Some(0) => apply_delta_if_present(app, delta_file.path(), ticket_root.as_deref()),
         Some(PROTOCOL_MISMATCH_EXIT) => {
             // Reserved: report a versioning problem, not a plugin crash, and
             // keep 125 out of the propagated range.
@@ -186,8 +181,61 @@ fn is_executable(path: &std::path::Path) -> bool {
     path.is_file()
 }
 
-// Silence the unused warning until #98 wires the delta path in earnest.
-#[allow(dead_code)]
-fn _delta_placeholder() {
-    let _ = warn!("");
+/// Applies the plugin's outbound delta, if it wrote one (spec §6).
+///
+/// The apply happens against a **fresh parse at apply time** under the
+/// exclusive lock — never the host's startup snapshot — so it merges with
+/// whatever a nested `tix` or a second terminal wrote meanwhile. After the
+/// ops land, the host re-deserializes the sections it has types for:
+/// a delta that breaks a host-owned section ([engine]/[cli]/[defaults] or
+/// [ticket]) is rejected wholesale and nothing is written. Plugin sections
+/// pass unvalidated — the host has no schema for them, and the plugin
+/// validated its own on the way in. Writes outside the plugin's own section
+/// are allowed, unsupported: applied if revalidation passes.
+fn apply_delta_if_present(
+    app: &App,
+    delta_path: &Path,
+    ticket_root: Option<&Path>,
+) -> Result<(), SdkError> {
+    // No file written (or nothing in it) means no changes.
+    let bytes = std::fs::read(delta_path).unwrap_or_default();
+    if bytes.is_empty() {
+        return Ok(());
+    }
+
+    let delta = Delta::parse(&bytes)?;
+    let target_path = match delta.target {
+        DeltaTarget::Global => app.context.config_path.clone(),
+        DeltaTarget::Ticket => ticket_root
+            .ok_or_else(|| {
+                SdkError::PluginImplementation(
+                    "delta targets the ticket document, but the plugin ran outside a ticket"
+                        .to_string(),
+                )
+            })?
+            .join(".tix")
+            .join("ticket.toml"),
+    };
+
+    debug!(target = ?delta.target, ops = delta.ops.len(), "applying plugin delta");
+    with_write(&target_path, |document| {
+        delta.apply_ops(document)?;
+
+        // Revalidate host-owned sections; reject the whole delta if any no
+        // longer parse. with_write discards on Err, so nothing is written.
+        let reject = |e: SdkError| {
+            SdkError::PluginImplementation(format!("delta breaks a host-owned section: {e}"))
+        };
+        match delta.target {
+            DeltaTarget::Global => {
+                document.section::<EngineConfig>("engine").map_err(reject)?;
+                document.section::<CliConfig>("cli").map_err(reject)?;
+                document.section::<Defaults>("defaults").map_err(reject)?;
+            }
+            DeltaTarget::Ticket => {
+                document.section::<TicketConfig>("ticket").map_err(reject)?;
+            }
+        }
+        Ok(())
+    })
 }
