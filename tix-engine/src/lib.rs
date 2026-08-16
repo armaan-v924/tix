@@ -33,6 +33,7 @@ mod types;
 mod utils;
 
 pub use types::config::EngineConfig;
+pub use utils::opens_as_git_repository;
 pub use types::defaults::Defaults;
 pub use types::errors::TixError;
 pub use types::repository::Repository;
