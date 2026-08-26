@@ -839,7 +839,7 @@ dependencies = [
 
 [[package]]
 name = "pytix"
-version = "3.0.2"
+version = "3.0.3"
 dependencies = [
  "pyo3",
  "tix-engine",
@@ -1198,7 +1198,7 @@ dependencies = [
 
 [[package]]
 name = "tix-cli"
-version = "3.0.2"
+version = "3.0.3"
 dependencies = [
  "clap",
  "clap_complete",
@@ -1222,7 +1222,7 @@ dependencies = [
 
 [[package]]
 name = "tix-engine"
-version = "3.0.2"
+version = "3.0.3"
 dependencies = [
  "git2",
  "serde",
@@ -1233,7 +1233,7 @@ dependencies = [
 
 [[package]]
 name = "tix-sdk"
-version = "3.0.2"
+version = "3.0.3"
 dependencies = [
  "dirs",
  "serde",
