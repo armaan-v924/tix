@@ -16,7 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Deploy key: tag pushes authenticate over SSH and bypass the
+          # tag ruleset (github-actions itself has no bypass).
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       - uses: extractions/setup-just@v2
 
