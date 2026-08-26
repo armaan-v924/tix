@@ -57,7 +57,10 @@ jobs:
 
       - name: Commit and push main
         run: |
-          git add tix-engine/Cargo.toml tix-cli/Cargo.toml pytix/Cargo.toml pytix/pyproject.toml Cargo.lock
+          # Stage the files just bump actually touched — a hardcoded list
+          # here silently drops any crate it predates (see cut-patch.yml).
+          git add $(just _version_files) Cargo.lock
+          just check-versions
           git commit -m "chore(release): cut ${{ env.RELEASE_BRANCH }}, advance main to v${{ env.NEW_VERSION }}"
           git push origin main
 
