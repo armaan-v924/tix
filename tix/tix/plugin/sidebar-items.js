@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEPTH_CAP","DEPTH_ENV"],"fn":["apply_delta_if_present","detect_current_repo","find_plugin","is_executable","run"]};

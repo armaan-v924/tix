@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_OWNER","DEFAULT_REPO","USER_AGENT"],"fn":["detect_target","download","extract_archive","extract_tar_gz","extract_zip","fetch_latest_release","hex","install_binary","install_destination","parse_tag","run","verify_checksum"],"struct":["Args","Release","ReleaseAsset","Target"]};

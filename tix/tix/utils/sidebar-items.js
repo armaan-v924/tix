@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["OutputType"],"fn":["prompt","styles"],"struct":["App"]};

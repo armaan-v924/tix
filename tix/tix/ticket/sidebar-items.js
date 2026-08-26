@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["TicketCommands","TicketRef"],"fn":["derive_branch_name","load_cli_config","load_ticket_config","require_ticket_root","sanitize_description"],"mod":["add","destroy","info","list","remove","setup"],"struct":["TicketArgs","TicketSharedArgs"]};
