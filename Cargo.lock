@@ -842,7 +842,10 @@ name = "pytix"
 version = "3.1.0"
 dependencies = [
  "pyo3",
+ "serde_json",
  "tix-engine",
+ "tix-sdk",
+ "toml_edit",
 ]
 
 [[package]]
