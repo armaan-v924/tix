@@ -3,6 +3,7 @@ pub mod config;
 pub mod repo;
 pub mod ticket;
 
+pub mod context;
 pub mod discovery;
 pub mod plugin;
 pub mod utils;
@@ -10,12 +11,18 @@ pub mod utils;
 // ---
 
 use clap::{CommandFactory, Parser, Subcommand, error::ErrorKind};
+use std::path::PathBuf;
 
 use crate::tix::utils::styles;
 
 #[derive(Parser)]
 #[command(name = "tix", version, styles = styles())]
 pub struct TixParser {
+    /// Path to the global config file (overrides TIX_CONFIG_PATH and the
+    /// platform default)
+    #[arg(long, global = true, value_hint = clap::ValueHint::FilePath)]
+    pub config: Option<PathBuf>,
+
     /// Set the log level (trace, debug, info, warn, error)
     #[arg(long, global = true)]
     pub log_level: Option<tracing::Level>,
@@ -72,4 +79,22 @@ pub enum Commands {
 
     #[command(external_subcommand)]
     External(Vec<String>),
+}
+
+impl Commands {
+    /// Whether this subcommand requires the global config file to exist.
+    ///
+    /// Everything does, except the two commands that must be able to run
+    /// before a config exists: `tix config init` (creates it) and
+    /// `tix cli completions` (touches no config at all).
+    pub fn requires_config(&self) -> bool {
+        !matches!(
+            self,
+            Commands::Config(config::ConfigArgs {
+                command: config::ConfigCommands::Init(_),
+            }) | Commands::Cli(cli::CliArgs {
+                command: cli::CliCommands::Completions(_),
+            })
+        )
+    }
 }

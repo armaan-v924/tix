@@ -1,3 +1,4 @@
+use crate::tix::context::Context;
 use super::TicketSharedArgs;
 use clap;
 
@@ -7,6 +8,6 @@ pub struct Args {
     pub shared: TicketSharedArgs,
 }
 
-pub fn run(args: Args) {
+pub fn run(_context: &Context, args: Args) {
     println!("{:#?}", args);
 }

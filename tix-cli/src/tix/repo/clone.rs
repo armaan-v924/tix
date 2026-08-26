@@ -1,3 +1,4 @@
+use crate::tix::context::Context;
 use crate::tix::repo::RepoAlias;
 
 use clap;
@@ -7,6 +8,6 @@ pub struct Args {
     pub repo_aliases: Vec<RepoAlias>,
 }
 
-pub fn run(args: Args) {
+pub fn run(_context: &Context, args: Args) {
     println!("{:#?}", args);
 }
