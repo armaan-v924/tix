@@ -86,23 +86,34 @@ check-license:
 check-versions:
     #!/usr/bin/env bash
     set -euo pipefail
-    engine=$(grep '^version' tix-engine/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-    cli=$(grep '^version' tix-cli/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-    pytix_cargo=$(grep '^version' pytix/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-    pytix_py=$(grep '^version' pytix/pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-    for v in "$cli" "$pytix_cargo" "$pytix_py"; do
-        if [[ "$v" != "$engine" ]]; then
-            echo "version mismatch: tix-engine=$engine but found $v in one of the packages"
-            exit 1
+    expected=$(just _current)
+    status=0
+    for f in $(just _version_files); do
+        found=$(grep -m1 '^version' "$f" | sed 's/version = "\(.*\)"/\1/')
+        if [[ "$found" != "$expected" ]]; then
+            echo "version mismatch: $f is $found, expected $expected"
+            status=1
         fi
     done
-    echo "all packages at $engine (ok)"
+    if [[ $status -ne 0 ]]; then
+        exit 1
+    fi
+    echo "all packages at $expected (ok)"
 
 # ── versioning ────────────────────────────────────────────────────────────────
 
 # print the current version
 _current:
     @grep '^version' tix-engine/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'
+
+# every file carrying the workspace version, derived from the workspace
+# members so a newly added crate is covered without editing this file
+_version_files:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    awk '/^members = \[/,/^\]/' Cargo.toml | grep -oE '"[^"]+"' | tr -d '"' \
+        | while read -r member; do echo "$member/Cargo.toml"; done
+    echo pytix/pyproject.toml
 
 # bump major, minor, or patch across all crates and pyproject.toml
 bump type:
@@ -125,9 +136,11 @@ set-version version:
 _bump old new:
     #!/usr/bin/env bash
     set -euo pipefail
-    files=(tix-engine/Cargo.toml tix-cli/Cargo.toml pytix/Cargo.toml pytix/pyproject.toml)
-    for f in "${files[@]}"; do
-        perl -pi -e "s/^version = \"{{ old }}\"/version = \"{{ new }}\"/" "$f"
+    # Rewrites each file's first version line whatever it currently says,
+    # rather than matching the old value — a crate that has drifted out of
+    # lockstep is pulled back in instead of being silently skipped.
+    for f in $(just _version_files); do
+        perl -pi -e 'if (!$done && s/^version = ".*"/version = "{{ new }}"/) { $done = 1 }' "$f"
     done
     echo "bumped {{ old }} → {{ new }}"
 
