@@ -1,8 +1,10 @@
 name: Cut Release
 
-# Trigger manually from main. Creates a release/X.Y branch at the current
-# HEAD, then bumps main to the next minor (or major) version so development
-# can continue independently of the stable line.
+# Entry point for a minor/major release. Trigger manually from main:
+# creates a release/X.Y branch at the current HEAD, bumps main to the next
+# minor (or major) version so development continues independently, then
+# dispatches Create Release Tag on the new branch, which tags vX.Y.0 and
+# fires Build Release. Everything after this dispatch is automatic.
 on:
   workflow_dispatch:
     inputs:
@@ -14,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   cut:
@@ -49,10 +52,16 @@ jobs:
         run: |
           just bump ${{ inputs.bump_type }}
           NEW_VERSION=$(just _current)
+          cargo update --workspace
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       - name: Commit and push main
         run: |
-          git add tix-engine/Cargo.toml tix-cli/Cargo.toml pytix/Cargo.toml pytix/pyproject.toml
+          git add tix-engine/Cargo.toml tix-cli/Cargo.toml pytix/Cargo.toml pytix/pyproject.toml Cargo.lock
           git commit -m "chore(release): cut ${{ env.RELEASE_BRANCH }}, advance main to v${{ env.NEW_VERSION }}"
           git push origin main
+
+      - name: Dispatch Create Release Tag on the release branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run create-release-tag.yml --ref "${{ env.RELEASE_BRANCH }}"

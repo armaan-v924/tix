@@ -1,7 +1,11 @@
 name: Cut Patch
 
-# Trigger manually from a release/X.Y branch. Bumps the patch version on that
-# branch so it's ready to tag. Run tag-release.yml afterwards to cut the release.
+# Entry point for a patch release. Trigger manually with the release/X.Y
+# branch as input: bumps the patch version on that branch (skipped when the
+# branch's current version is still untagged, e.g. after a previous
+# half-completed run), then dispatches Create Release Tag, which tags the
+# branch's declared version and fires Build Release. Everything after this
+# dispatch is automatic.
 on:
   workflow_dispatch:
     inputs:
@@ -12,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   cut-patch:
@@ -42,14 +47,19 @@ jobs:
 
       - name: Bump patch version
         run: |
-          OLD=$(just _current)
+          CURRENT=$(just _current)
+          if ! git ls-remote --exit-code origin "refs/tags/v$CURRENT" >/dev/null; then
+            echo "v$CURRENT is not tagged yet — releasing it as-is, no bump"
+            exit 0
+          fi
           just bump patch
           NEW=$(just _current)
-          echo "OLD_VERSION=$OLD" >> $GITHUB_ENV
-          echo "NEW_VERSION=$NEW" >> $GITHUB_ENV
-
-      - name: Commit and push
-        run: |
-          git add tix-engine/Cargo.toml tix-cli/Cargo.toml pytix/Cargo.toml pytix/pyproject.toml
-          git commit -m "chore(release): bump patch v${{ env.OLD_VERSION }} → v${{ env.NEW_VERSION }}"
+          cargo update --workspace
+          git add tix-engine/Cargo.toml tix-cli/Cargo.toml pytix/Cargo.toml pytix/pyproject.toml Cargo.lock
+          git commit -m "chore(release): bump patch v$CURRENT → v$NEW"
           git push origin ${{ inputs.release_branch }}
+
+      - name: Dispatch Create Release Tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run create-release-tag.yml --ref "${{ inputs.release_branch }}"

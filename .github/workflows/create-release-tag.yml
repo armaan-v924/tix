@@ -1,8 +1,10 @@
 name: Create Release Tag
 
-# Trigger manually from a release/X.Y branch. Tags the current version and
-# pushes the tag, which fires the Release workflow and produces a GitHub release.
-# Running this from any other branch is a no-op (the job is skipped).
+# Tags a release/X.Y branch's declared version and pushes the tag, which
+# fires Build Release and produces a GitHub release. Normally dispatched
+# automatically by Cut Release and Cut Patch; manual dispatch from a
+# release branch works too. Running from any other branch is a no-op
+# (the job is skipped).
 on:
   workflow_dispatch:
 
