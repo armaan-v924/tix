@@ -23,6 +23,15 @@ upgrade:
 build-cli target:
     cargo build --release -p tix-cli --target {{ target }}
 
+# abi3-py311 makes this one wheel per *platform*, not per Python version:
+# `pytix-<version>-cp311-abi3-<platform>.whl` installs on any Python >= 3.11.
+# uvx rather than the pytix dev group, so the wheel build does not first
+# install the extension it is about to build.
+
+# build the pytix wheel for a given target triple
+build-wheel target:
+    uvx --from 'maturin>=1.13.3,<2' maturin build --release --strip --target {{ target }} --out dist -m pytix/Cargo.toml
+
 # build rustdoc
 build-docs:
     cargo doc --no-deps
