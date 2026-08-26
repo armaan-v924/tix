@@ -9,6 +9,27 @@ permissions:
   contents: read
 
 jobs:
+  # The single source of truth for what tix supports. The CLI binaries and the
+  # pytix wheels must cover the same platforms — a plugin author who can run
+  # `tix` must be able to `pip install pytix` on the same machine — and two
+  # hand-maintained matrices drift. Both read this one.
+  platforms:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - id: list
+        run: |
+          cat >> "$GITHUB_OUTPUT" <<'OUTPUT'
+          matrix<<JSON
+          {"include": [
+            {"os": "ubuntu-latest",  "target": "x86_64-unknown-linux-gnu", "suffix": "linux-x86_64.tar.gz",   "binary": "tix",     "format": "tar"},
+            {"os": "macos-14",       "target": "aarch64-apple-darwin",     "suffix": "macos-aarch64.tar.gz",  "binary": "tix",     "format": "tar"},
+            {"os": "windows-latest", "target": "x86_64-pc-windows-msvc",   "suffix": "windows-x86_64.zip",    "binary": "tix.exe", "format": "zip"}
+          ]}
+          JSON
+          OUTPUT
+
   docs:
     runs-on: ubuntu-latest
     permissions:
@@ -85,24 +106,9 @@ jobs:
           path: dist/docs-${{ github.ref_name }}.tar.gz
 
   build:
+    needs: platforms
     strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            suffix: linux-x86_64.tar.gz
-            binary: tix
-            format: tar
-          - os: macos-14
-            target: aarch64-apple-darwin
-            suffix: macos-aarch64.tar.gz
-            binary: tix
-            format: tar
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            suffix: windows-x86_64.zip
-            binary: tix.exe
-            format: zip
+      matrix: ${{ fromJSON(needs.platforms.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -217,11 +223,48 @@ jobs:
           name: ${{ env.ARCHIVE_NAME }}
           path: dist/${{ env.ARCHIVE_NAME }}
 
+  # Its own job rather than a leg of `build`: different tooling (maturin, not
+  # cargo) and different per-leg steps. Folded into this workflow rather than a
+  # second one, because `release` below is the only thing that may create the
+  # release object — two `v*`-triggered workflows would race to create-or-update
+  # it and regenerate its notes, leaving a window where the release exists with
+  # half its assets.
+  wheels:
+    needs: platforms
+    strategy:
+      matrix: ${{ fromJSON(needs.platforms.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          target: ${{ matrix.target }}
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      # abi3-py311 means one wheel per platform serves every Python >= 3.11,
+      # so there is no Python version leg here — only a platform one.
+      - name: Build wheel
+        shell: bash
+        run: just build-wheel ${{ matrix.target }}
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wheel-${{ matrix.target }}
+          path: dist/*.whl
+
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    needs: [docs, build]
+    needs: [docs, build, wheels]
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

@@ -74,6 +74,35 @@ ship a `console_scripts` entry point with the same name. See
 [PLUGIN_SPEC.md](PLUGIN_SPEC.md) for the full contract, and the crate docs
 for `tix-sdk` if you're writing one in Rust.
 
+## Python bindings
+
+`pytix` exposes tix to Python: `pytix.*` binds the engine (repositories,
+tickets, worktrees), `pytix.host` binds the SDK (the plugin's handle on the
+invoking host). Both ship in every wheel — there are no extras to pick.
+
+Wheels are attached to each [release](https://github.com/armaan-v924/tix/releases/latest),
+one per platform. They are `abi3` for CPython 3.11, so a single wheel per
+platform installs on any Python 3.11 or newer:
+
+```bash
+# Substitute the version and your platform tag; see the release page for the
+# exact filenames (macosx_11_0_arm64, manylinux_2_34_x86_64, win_amd64).
+pip install https://github.com/armaan-v924/tix/releases/download/v3.1.0/pytix-3.1.0-cp311-abi3-macosx_11_0_arm64.whl
+```
+
+Not on PyPI yet. To build one from a checkout:
+
+```bash
+just build-wheel aarch64-apple-darwin    # lands in ./dist
+```
+
+```python
+import pytix
+
+repo = pytix.RepositoryConfig("https://github.com/my-org/api", "/home/me/code/api").ensure("api")
+repo.create_worktree("api", "feature/JIRA-123", "/home/me/tickets/JIRA-123/api")
+```
+
 ## Workspace layout
 
 | Crate | Role |
