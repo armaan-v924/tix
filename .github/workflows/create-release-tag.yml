@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/heads/release/')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Deploy key: tag pushes authenticate over SSH and bypass the
           # tag ruleset (github-actions itself has no bypass).
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
-      - uses: extractions/setup-just@v2
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
 
       - name: Configure git
         run: |
