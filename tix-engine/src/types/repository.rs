@@ -89,10 +89,13 @@ impl RepositoryConfig {
     /// ```
     pub fn clone_remote(self, alias: &str) -> Result<Repository, TixError> {
         info!(alias = %alias, remote = %self.remote, "cloning repository");
-        let repo = git2::Repository::clone(&self.remote, &self.code_path).map_err(|e| {
-            error!(alias = %alias, error = %e, "clone failed");
-            TixError::GitError(e)
-        })?;
+        let repo = git2::build::RepoBuilder::new()
+            .fetch_options(crate::auth::fetch_options())
+            .clone(&self.remote, &self.code_path)
+            .map_err(|e| {
+                error!(alias = %alias, error = %e, "clone failed");
+                TixError::GitError(e)
+            })?;
         info!(alias = %alias, path = %self.code_path.display(), "clone complete");
         Ok(Repository {
             alias: alias.to_string(),
@@ -391,7 +394,7 @@ impl Repository {
             .find_remote("origin")
             .map_err(TixError::GitError)?;
         remote
-            .fetch(&[branch], None, None)
+            .fetch(&[branch], Some(&mut crate::auth::fetch_options()), None)
             .map_err(TixError::GitError)?;
 
         // check if the branch exists locally. if not, try to create it from
