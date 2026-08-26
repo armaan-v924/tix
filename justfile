@@ -9,13 +9,23 @@ ci: check test
     @echo "all good"
 
 # upgrade all lockfiles and commit
-upgrade:
+upgrade: upgrade-rust upgrade-python
     #!/usr/bin/env bash
     set -euo pipefail
-    uv sync --upgrade
-    cargo update --workspace
-    git add uv.lock Cargo.lock
+    git add Cargo.lock pytix/uv.lock
     git commit -m "chore: upgrade lockfiles"
+
+# upgrade the rust lockfile
+upgrade-rust:
+    cargo update --workspace
+
+# The uv project is pytix, not the repo root — there is no root
+# pyproject.toml, so uv run from the root fails outright.
+
+# upgrade the python lockfile
+[working-directory("pytix")]
+upgrade-python:
+    uv sync --upgrade
 
 # ── build ─────────────────────────────────────────────────────────────────────
 
@@ -151,6 +161,16 @@ _bump old new:
     for f in $(just _version_files); do
         perl -pi -e 'if (!$done && s/^version = ".*"/version = "{{ new }}"/) { $done = 1 }' "$f"
     done
+    # Both lockfiles record the packages' own versions, so a bump that skips
+    # them leaves them stale until the next unrelated `cargo build` or
+    # `uv sync` quietly rewrites them into somebody else's diff — which is
+    # how pytix/uv.lock sat at 3.0.0 through the whole 3.1.0 cycle.
+    #
+    # Deliberately not the `upgrade-*` recipes: a re-lock at the current
+    # dependency versions, never an upgrade. Bumping tix's own version must
+    # not quietly move everything it depends on.
+    cargo update --workspace --quiet
+    (cd pytix && uv sync --quiet)
     echo "bumped {{ old }} → {{ new }}"
 
 # ── release ───────────────────────────────────────────────────────────────────
