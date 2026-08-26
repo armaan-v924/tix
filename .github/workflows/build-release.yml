@@ -149,6 +149,14 @@ jobs:
           echo "$APPLE_CERTIFICATE_P12" | base64 -d > "$RUNNER_TEMP/cert.p12"
           security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERTIFICATE_PASSWORD" \
             -A -t cert -f pkcs12 -k "$KEYCHAIN"
+
+          # Apple's Developer ID intermediate. Without it the chain cannot
+          # be built and the identity is CSSMERR_TP_NOT_TRUSTED, so
+          # find-identity returns nothing even with a valid cert + key.
+          curl -fsSL https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer \
+            -o "$RUNNER_TEMP/DeveloperIDG2CA.cer"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN" \
+            -T /usr/bin/codesign || true
           security set-key-partition-list -S apple-tool:,apple: \
             -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" login.keychain
