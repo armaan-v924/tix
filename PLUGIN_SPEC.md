@@ -10,6 +10,10 @@ git/cargo-style. Builtins always win — a `tix-add` binary never shadows
 under existing subcommand trees). A Python plugin ships a `console_scripts`
 entry point named `tix-<name>` and lands on `PATH` like any Rust plugin.
 
+Both languages have an SDK that implements this document for you: `tix-sdk`
+in Rust, the `pytix.host` namespace of the `pytix` wheel in Python. Every
+snippet below is given in both.
+
 **Safety policy:** tix makes no safety guarantees about third-party plugins.
 A plugin is an arbitrary program running as you; install at your own risk.
 
@@ -95,8 +99,18 @@ let doc = tix_sdk::document::TixDocument::load(&host.config_path)?;
 let mine: MyConfig = doc.section_or_default("myplugin")?;
 ```
 
+```python
+context = pytix.host.HostContext.from_env_or_exit("what my plugin does")
+mine = context.config_section("myplugin") or {}
+```
+
 A missing section is normal (your first run has no table yet) — that is why
-`section()` returns an `Option` and `section_or_default()` exists.
+`section()` returns an `Option` in Rust and `None` in Python, and why
+`section_or_default()` exists.
+
+Python gets plain `dict`s, typed exactly as `tomllib` would have typed them:
+tables are `dict`, arrays are `list`, and TOML datetimes are `datetime`
+objects.
 
 **Writes** never touch the files directly. The host is the single writer;
 you emit a *delta* into the `--tix-delta` file and the host applies it after
@@ -112,11 +126,18 @@ tix_sdk::delta::Delta::new(DeltaTarget::Ticket)
     .write_to(host.delta_path.as_deref().unwrap())?;
 ```
 
+```python
+delta = pytix.host.Delta("ticket")
+delta.set("myplugin.branch", "main")
+context.write_delta(delta)
+```
+
 - `target` is `"global"` or `"ticket"`; ops are ordered, overlapping keys
   last-writer-wins.
 - The delta is JSON; values map to TOML by their JSON text form (`1` is an
   integer, `1.0` a float). Datetime — the one type JSON lacks — uses the
-  tagged form `{"$datetime": "2026-07-19T09:00:00Z"}`.
+  tagged form `{"$datetime": "2026-07-19T09:00:00Z"}`. `pytix` applies the
+  tag for you: pass a `datetime`, `date`, or `time` and it goes out tagged.
 - The host applies against a **fresh parse** of the document, so your delta
   merges with anything written while you ran. It then revalidates the
   sections it owns (`[engine]`, `[cli]`, `[defaults]`, `[ticket]`): a delta
@@ -145,6 +166,11 @@ let dir = tix_sdk::state::ticket_state_dir(host.require_ticket()?, "myplugin")?;
 let cache = tix_sdk::state::cache_dir("myplugin")?;
 ```
 
+```python
+directory = context.state_dir("myplugin")
+cache = pytix.host.cache_dir("myplugin")
+```
+
 Directories are created lazily, on first use. Per-ticket state lives at
 `<ticket>/.tix/plugins/<name>/`; the global cache location is a convenience
 wrapper over the platform cache dir.
@@ -159,6 +185,13 @@ You may shell out to `tix`. Know the hazards:
   ```rust
   let mut cmd = tix_sdk::spawn::tix_command(host.require_ticket()?);
   cmd.args(["ticket", "info"]);
+  ```
+
+  There is no Python wrapper for this — the pin is just an argument, and
+  spelling it out is clearer than a binding that hides it:
+
+  ```python
+  subprocess.run(["tix", "--ticket", context.require_ticket(), "ticket", "info"])
   ```
 
 - `TIX_DEPTH` caps recursion at 10 (§1).

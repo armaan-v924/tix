@@ -1,7 +1,9 @@
 /target
+/dist
 /tickets
 .venv/
 *.pyc
 *.so
 .claude
 test_temp/
+.pytest_cache/
