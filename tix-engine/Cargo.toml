@@ -4,7 +4,12 @@ version = "3.1.0"
 edition = "2024"
 
 [dependencies]
-git2 = "0.21.0"
+# git2 0.21 ships `default = []` — a bare dependency compiles out HTTPS and
+# SSH entirely, and any clone fails with "there is no TLS stream available".
+# vendored-openssl statically links OpenSSL on Linux so the released binary
+# does not depend on the build machine's libssl; it is inert on macOS and
+# Windows, which use SecureTransport and WinHTTP.
+git2 = { version = "0.21.0", features = ["https", "ssh", "vendored-openssl"] }
 serde = { version = "1.0.228", features = ["derive"] }
 tracing = "0.1.44"
 
