@@ -1,12 +1,12 @@
 //! `tix ticket setup` — create a new ticket workspace with worktrees.
 
 use crate::tix::config::CliConfig;
-use tix_sdk::document::TixDocument;
 use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::derive_branch_name;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tix_sdk::{SdkError, Defaults, EngineConfig, TicketConfig, TixError, WorktreeConfig};
+use tix_sdk::document::TixDocument;
+use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig, TixError, WorktreeConfig};
 use tracing::{error, info};
 
 /// Create a new ticket workspace with worktrees
@@ -62,7 +62,10 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         aliases.sort();
         aliases
     } else if !args.repo_aliases.is_empty() {
-        args.repo_aliases.iter().map(|alias| alias.0.clone()).collect()
+        args.repo_aliases
+            .iter()
+            .map(|alias| alias.0.clone())
+            .collect()
     } else {
         defaults.repositories.clone()
     };
@@ -76,7 +79,11 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             known.sort();
             return Err(SdkError::Engine(TixError::RepoNotFound(format!(
                 "'{alias}' is not a registered repository (registered: {})",
-                if known.is_empty() { "none".to_string() } else { known.join(", ") }
+                if known.is_empty() {
+                    "none".to_string()
+                } else {
+                    known.join(", ")
+                }
             ))));
         }
     }

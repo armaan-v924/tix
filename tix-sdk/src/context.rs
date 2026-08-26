@@ -9,9 +9,9 @@
 //! The default location is deliberately isolated in [`default_config_path`]
 //! so it can be revisited without touching resolution or call sites.
 
+use crate::error::SdkError;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use crate::error::SdkError;
 use tracing::debug;
 
 /// The environment variable overriding the global config location, beaten
@@ -163,8 +163,7 @@ mod tests {
     /// With neither flag nor env var, the platform default applies.
     #[test]
     fn test_default_applies() {
-        let resolved =
-            resolve_from(None, None, Some(PathBuf::from("/from/default.toml"))).unwrap();
+        let resolved = resolve_from(None, None, Some(PathBuf::from("/from/default.toml"))).unwrap();
         assert_eq!(resolved, PathBuf::from("/from/default.toml"));
     }
 

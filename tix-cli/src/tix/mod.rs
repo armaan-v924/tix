@@ -54,9 +54,10 @@ impl TixParser {
     pub fn parse_with_plugin_help() -> Self {
         let mut command = TixParser::command();
         if root_help_requested()
-            && let Some(section) = plugin_listing::plugins_help_section() {
-                command = command.after_help(section);
-            }
+            && let Some(section) = plugin_listing::plugins_help_section()
+        {
+            command = command.after_help(section);
+        }
         let mut matches = command.get_matches();
         match TixParser::from_arg_matches_mut(&mut matches) {
             Ok(parsed) => parsed,

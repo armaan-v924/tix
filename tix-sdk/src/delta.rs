@@ -121,9 +121,8 @@ impl Delta {
     /// [`SdkError::PluginImplementation`] — a malformed delta is a bug in
     /// the plugin, reported as such, and nothing gets written.
     pub fn parse(bytes: &[u8]) -> Result<Self, SdkError> {
-        serde_json::from_slice(bytes).map_err(|e| {
-            SdkError::PluginImplementation(format!("malformed config delta: {e}"))
-        })
+        serde_json::from_slice(bytes)
+            .map_err(|e| SdkError::PluginImplementation(format!("malformed config delta: {e}")))
     }
 
     /// Applies every op to `document` as path traversals over the
@@ -178,10 +177,7 @@ impl Delta {
 /// Maps a JSON value to a TOML value by its text form: `1` → integer,
 /// `1.0` → float, string/bool direct, arrays and objects recurse, and the
 /// tagged `{"$datetime": "…"}` form becomes a native TOML datetime.
-fn json_to_toml_value(
-    value: &serde_json::Value,
-    path: &str,
-) -> Result<toml_edit::Value, SdkError> {
+fn json_to_toml_value(value: &serde_json::Value, path: &str) -> Result<toml_edit::Value, SdkError> {
     use serde_json::Value as Json;
     Ok(match value {
         Json::String(s) => toml_edit::Value::from(s.as_str()),
@@ -296,7 +292,8 @@ mod tests {
     /// keys — comments and foreign tables survive.
     #[test]
     fn test_apply_preserves_untouched_content() {
-        let source = "# keep this comment\n[engine]\n\n[myplugin]\nbranch = \"old\" # inline\nkeep = 1\n";
+        let source =
+            "# keep this comment\n[engine]\n\n[myplugin]\nbranch = \"old\" # inline\nkeep = 1\n";
         let mut document = TixDocument::parse(source).unwrap();
         let delta = Delta::new(DeltaTarget::Global)
             .set("myplugin.branch", "new")
@@ -346,8 +343,8 @@ mod tests {
             Delta::parse(b"{not json"),
             Err(SdkError::PluginImplementation(_))
         ));
-        let delta = Delta::parse(br#"{"target":"global","ops":[{"set":"p.x","value":null}]}"#)
-            .unwrap();
+        let delta =
+            Delta::parse(br#"{"target":"global","ops":[{"set":"p.x","value":null}]}"#).unwrap();
         assert!(matches!(
             delta.apply_ops(&mut TixDocument::empty()),
             Err(SdkError::PluginImplementation(_))

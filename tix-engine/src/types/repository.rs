@@ -525,7 +525,6 @@ impl Repository {
     }
 }
 
-
 /// The repo-unique name a worktree is registered under: the branch with path
 /// separators flattened. Branch uniqueness per repo (enforced by git) makes
 /// this collision-free in practice; a rare sanitization collision surfaces as
@@ -644,7 +643,9 @@ mod tests {
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
         let path = dir.path().join("worktrees/feature");
-        let worktree = repo.create_worktree("feature", "feature", &path, false).unwrap();
+        let worktree = repo
+            .create_worktree("feature", "feature", &path, false)
+            .unwrap();
 
         assert_eq!(worktree.name, "feature");
         assert_eq!(worktree.branch, "feature");
@@ -667,7 +668,9 @@ mod tests {
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
         let path = dir.path().join("worktrees/feature");
-        let worktree = repo.create_worktree("feature", "feature", &path, false).unwrap();
+        let worktree = repo
+            .create_worktree("feature", "feature", &path, false)
+            .unwrap();
 
         assert_eq!(worktree.name, "feature");
         assert_eq!(worktree.branch, "feature");
@@ -684,7 +687,8 @@ mod tests {
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
         let path = dir.path().join("worktrees/feature");
-        repo.create_worktree("feature", "feature", &path, false).unwrap();
+        repo.create_worktree("feature", "feature", &path, false)
+            .unwrap();
 
         assert!(matches!(
             repo.create_worktree("feature", "feature", &path, false),
@@ -711,10 +715,7 @@ mod tests {
         assert_eq!(worktree.name, "my-repo");
         assert_eq!(worktree.branch, "feature/JIRA-1-fix");
         let opened = git2::Repository::open(&path).unwrap();
-        assert_eq!(
-            opened.head().unwrap().shorthand(),
-            Ok("feature/JIRA-1-fix")
-        );
+        assert_eq!(opened.head().unwrap().shorthand(), Ok("feature/JIRA-1-fix"));
     }
 
     /// A sync failure propagates as an error before the worktree is created.
@@ -728,7 +729,12 @@ mod tests {
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
         assert!(matches!(
-            repo.create_worktree("feature", "feature", &dir.path().join("worktrees/feature"), false),
+            repo.create_worktree(
+                "feature",
+                "feature",
+                &dir.path().join("worktrees/feature"),
+                false
+            ),
             Err(TixError::Message(_))
         ));
     }
@@ -776,7 +782,10 @@ mod tests {
         test_helpers::orphan_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        assert!(repo.remove_worktree(&dir.path().join("worktrees/feature"), true).is_ok());
+        assert!(
+            repo.remove_worktree(&dir.path().join("worktrees/feature"), true)
+                .is_ok()
+        );
     }
 
     /// A worktree with uncommitted changes refuses removal without `force` —
@@ -796,7 +805,10 @@ mod tests {
             Err(TixError::Message(_))
         ));
         // Force discards it.
-        assert!(repo.remove_worktree(&dir.path().join("worktrees/feature"), true).is_ok());
+        assert!(
+            repo.remove_worktree(&dir.path().join("worktrees/feature"), true)
+                .is_ok()
+        );
     }
 
     /// Removing a valid worktree succeeds and returns `Ok(())`.
@@ -809,7 +821,10 @@ mod tests {
         test_helpers::add_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
-        assert!(repo.remove_worktree(&dir.path().join("worktrees/feature"), false).is_ok());
+        assert!(
+            repo.remove_worktree(&dir.path().join("worktrees/feature"), false)
+                .is_ok()
+        );
         assert!(!dir.path().join("worktrees/feature").exists());
     }
 

@@ -1,11 +1,11 @@
 //! `tix ticket add` — add repository worktrees to an existing ticket.
 
-use tix_sdk::document::{TixDocument, with_write};
 use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::{
     TicketSharedArgs, derive_branch_name, load_ticket_config, require_ticket_root,
 };
-use tix_sdk::{SdkError, Defaults, EngineConfig, TixError};
+use tix_sdk::document::{TixDocument, with_write};
+use tix_sdk::{Defaults, EngineConfig, SdkError, TixError};
 use tracing::{error, info};
 
 /// Add repository worktrees to a ticket
@@ -58,7 +58,11 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             return Err(SdkError::Engine(TixError::RepoNotFound(format!(
                 "'{}' is not a registered repository (registered: {})",
                 alias.0,
-                if known.is_empty() { "none".to_string() } else { known.join(", ") }
+                if known.is_empty() {
+                    "none".to_string()
+                } else {
+                    known.join(", ")
+                }
             ))));
         }
         if ticket.worktrees.contains_key(&alias.0) {
@@ -95,8 +99,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                     let mut entry = toml_edit::Table::new();
                     entry["repo"] = toml_edit::value(alias.0.as_str());
                     entry["branch"] = toml_edit::value(worktree.branch.as_str());
-                    doc.doc_mut()["ticket"]["worktrees"][&alias.0] =
-                        toml_edit::Item::Table(entry);
+                    doc.doc_mut()["ticket"]["worktrees"][&alias.0] = toml_edit::Item::Table(entry);
                     Ok(())
                 })?;
                 println!("{}", root.join(&alias.0).display());

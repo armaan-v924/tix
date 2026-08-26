@@ -14,11 +14,10 @@
 //!   starting points — a near-miss (e.g. a subdirectory of a ticket) errors
 //!   rather than re-walking.
 
-use std::path::{Path, PathBuf};
 use crate::error::SdkError;
+use std::path::{Path, PathBuf};
 use tix_engine::TixError;
 use tracing::debug;
-
 
 /// A `--ticket` argument: one flag, two forms, disambiguated by shape
 /// (`design/spec.md` §4).
@@ -43,8 +42,7 @@ impl std::str::FromStr for TicketRef {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let path = Path::new(s);
-        let is_path_shape =
-            s == "." || s == ".." || path.is_absolute() || s.contains(['/', '\\']);
+        let is_path_shape = s == "." || s == ".." || path.is_absolute() || s.contains(['/', '\\']);
         if is_path_shape {
             Ok(TicketRef::Path(path.to_path_buf()))
         } else {
@@ -73,7 +71,8 @@ pub fn is_ticket_root(path: &Path) -> bool {
 /// it is absolute and still names the same directory as the process cwd;
 /// otherwise the process cwd is the fallback.
 pub fn logical_cwd() -> Result<PathBuf, SdkError> {
-    let process_cwd = std::env::current_dir().map_err(|e| SdkError::Engine(TixError::IoError(e)))?;
+    let process_cwd =
+        std::env::current_dir().map_err(|e| SdkError::Engine(TixError::IoError(e)))?;
     if let Some(pwd) = std::env::var_os("PWD") {
         let pwd = PathBuf::from(pwd);
         if pwd.is_absolute() && same_directory(&pwd, &process_cwd) {
@@ -339,8 +338,7 @@ mod tests {
         let ticket = dir.path().join("JIRA-1");
         make_ticket_root(&ticket);
 
-        let resolved =
-            resolve_override(&TicketRef::Id("JIRA-1".to_string()), dir.path()).unwrap();
+        let resolved = resolve_override(&TicketRef::Id("JIRA-1".to_string()), dir.path()).unwrap();
         assert_eq!(resolved, ticket);
     }
 

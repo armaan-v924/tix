@@ -40,7 +40,10 @@ mod tests {
     #[test]
     fn test_pins_ticket() {
         let command = tix_command(Path::new("/tickets/JIRA-1"));
-        let args: Vec<_> = command.get_args().map(|a| a.to_string_lossy().to_string()).collect();
+        let args: Vec<_> = command
+            .get_args()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
         assert_eq!(args, vec!["--ticket", "/tickets/JIRA-1"]);
         assert_eq!(command.get_program(), "tix");
     }

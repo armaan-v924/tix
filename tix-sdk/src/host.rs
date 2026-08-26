@@ -243,9 +243,7 @@ pub fn prescan_globals(args: &[String]) -> (PrescannedGlobals, Vec<String>) {
     let mut iter = args.iter().peekable();
     while let Some(arg) = iter.next() {
         let mut take_value = |inline: Option<&str>| -> Option<String> {
-            inline
-                .map(str::to_string)
-                .or_else(|| iter.next().cloned())
+            inline.map(str::to_string).or_else(|| iter.next().cloned())
         };
         match arg.split_once('=') {
             _ if arg == "-v" || arg == "--verbose" => globals.verbose = true,
@@ -272,10 +270,17 @@ mod prescan_tests {
     /// in order.
     #[test]
     fn test_prescan_extracts_globals() {
-        let args: Vec<String> = ["deploy", "--verbose", "--output", "json", "target", "--force"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let args: Vec<String> = [
+            "deploy",
+            "--verbose",
+            "--output",
+            "json",
+            "target",
+            "--force",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
         let (globals, user_args) = prescan_globals(&args);
         assert!(globals.verbose);
         assert_eq!(globals.output.as_deref(), Some("json"));
@@ -358,8 +363,7 @@ mod tests {
     /// Ticket context is optional and its absence is load-bearing.
     #[test]
     fn test_ticket_optional() {
-        let context =
-            HostContext::from_args(args(&["--tix-config", "/cfg.toml"])).unwrap();
+        let context = HostContext::from_args(args(&["--tix-config", "/cfg.toml"])).unwrap();
         assert!(context.ticket_root.is_none());
         assert!(context.require_ticket().is_err());
 

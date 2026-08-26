@@ -1,8 +1,8 @@
 //! `tix repo clone` — clone registered repositories to their code paths.
 
-use tix_sdk::document::TixDocument;
 use crate::tix::repo::RepoAlias;
-use tix_sdk::{SdkError, EngineConfig, TixError};
+use tix_sdk::document::TixDocument;
+use tix_sdk::{EngineConfig, SdkError, TixError};
 use tracing::error;
 
 /// Clone registered repositories to their code paths
@@ -43,11 +43,18 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 return Err(SdkError::Engine(TixError::RepoNotFound(format!(
                     "'{}' is not a registered repository (registered: {})",
                     alias.0,
-                    if registered.is_empty() { "none".to_string() } else { registered.join(", ") }
+                    if registered.is_empty() {
+                        "none".to_string()
+                    } else {
+                        registered.join(", ")
+                    }
                 ))));
             }
         }
-        args.repo_aliases.iter().map(|alias| alias.0.clone()).collect()
+        args.repo_aliases
+            .iter()
+            .map(|alias| alias.0.clone())
+            .collect()
     };
 
     let mut failed = 0usize;

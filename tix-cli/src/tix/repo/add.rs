@@ -2,9 +2,9 @@
 //! `tix repo clone` (#65).
 
 use crate::tix::config::CliConfig;
-use tix_sdk::document::with_write;
 use crate::tix::repo::{RepoAlias, RepoRef};
 use crate::tix::ticket::load_cli_config;
+use tix_sdk::document::with_write;
 use tix_sdk::{Defaults, EngineConfig, SdkError};
 
 /// Register a repository in config (without cloning)
@@ -89,8 +89,8 @@ fn resolve_remote(
         return Ok((repo.to_string(), name));
     }
 
-    let defaults: Defaults =
-        tix_sdk::document::TixDocument::load(&app.context.config_path)?.section_or_default("defaults")?;
+    let defaults: Defaults = tix_sdk::document::TixDocument::load(&app.context.config_path)?
+        .section_or_default("defaults")?;
     let base = defaults
         .github_base_url
         .unwrap_or_else(|| "https://github.com".to_string());

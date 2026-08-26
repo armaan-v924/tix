@@ -1,13 +1,12 @@
 //! `tix config show` — print the whole global config document.
 
-use tix_sdk::document::TixDocument;
 use crate::tix::utils::OutputType;
 use tix_sdk::SdkError;
+use tix_sdk::document::TixDocument;
 
 /// Print the global config document
 #[derive(clap::Args, Debug)]
-pub struct Args {
-}
+pub struct Args {}
 
 /// Prints the global config document.
 ///

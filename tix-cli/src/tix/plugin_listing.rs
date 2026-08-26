@@ -109,12 +109,7 @@ fn handshake_description(plugin: &Path) -> Option<String> {
 
     // Bounded read: output is untrusted, so never slurp unbounded bytes.
     let mut raw = Vec::with_capacity(512);
-    child
-        .stdout
-        .take()?
-        .take(4096)
-        .read_to_end(&mut raw)
-        .ok()?;
+    child.stdout.take()?.take(4096).read_to_end(&mut raw).ok()?;
     sanitize(&raw)
 }
 
