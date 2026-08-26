@@ -20,7 +20,7 @@ jobs:
     # A new release branch is cut from main's HEAD; nothing to cascade.
     if: "!github.event.created"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           # PRs created with GITHUB_TOKEN never trigger the PR-check
