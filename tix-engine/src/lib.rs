@@ -44,6 +44,9 @@
 //! - [`TixError`] is the single error type returned by all fallible
 //!   operations in this crate.
 
+/// Credential wiring for authenticated remotes.
+mod auth;
+
 /// Shared types for the Tix engine.
 mod types;
 
