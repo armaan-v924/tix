@@ -1,8 +1,8 @@
 //! `tix ticket destroy` — prune every worktree, then delete the ticket.
 
-use tix_sdk::document::{TixDocument, with_write};
 use crate::tix::ticket::{TicketRef, TicketSharedArgs, load_ticket_config, require_ticket_root};
-use tix_sdk::{SdkError, EngineConfig, TixError, WorktreeConfig};
+use tix_sdk::document::{TixDocument, with_write};
+use tix_sdk::{EngineConfig, SdkError, TixError, WorktreeConfig};
 use tracing::{info, warn};
 
 /// Destroy a ticket: prune its worktrees, delete its directory
@@ -46,7 +46,11 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
 
     if !args.force {
         let answer = crate::tix::utils::prompt(
-            &format!("Destroy ticket '{}' at {}? [y/N]", ticket.key, root.display()),
+            &format!(
+                "Destroy ticket '{}' at {}? [y/N]",
+                ticket.key,
+                root.display()
+            ),
             Some("n"),
         )?;
         if !matches!(answer.to_lowercase().as_str(), "y" | "yes") {

@@ -1,9 +1,9 @@
 //! `tix ticket remove` — remove single worktrees from a ticket without
 //! destroying it.
 
-use tix_sdk::document::{TixDocument, with_write};
 use crate::tix::ticket::{TicketSharedArgs, load_ticket_config, require_ticket_root};
-use tix_sdk::{SdkError, EngineConfig, TixError};
+use tix_sdk::document::{TixDocument, with_write};
+use tix_sdk::{EngineConfig, SdkError, TixError};
 use tracing::info;
 
 /// Remove a worktree from a ticket without destroying it
@@ -46,7 +46,11 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 "'{}' is not a tracked worktree of ticket '{}' (tracked: {})",
                 name,
                 ticket.key,
-                if tracked.is_empty() { "none".to_string() } else { tracked.join(", ") }
+                if tracked.is_empty() {
+                    "none".to_string()
+                } else {
+                    tracked.join(", ")
+                }
             ))
         })?;
         if !engine.configured_repositories.contains_key(&entry.repo) {

@@ -112,7 +112,10 @@ pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let extracted = extract_archive(&archive_path, &target)?;
     install_binary(&extracted, &destination)?;
 
-    println!("updated tix {current} -> {latest} ({})", destination.display());
+    println!(
+        "updated tix {current} -> {latest} ({})",
+        destination.display()
+    );
     Ok(())
 }
 
@@ -284,9 +287,8 @@ fn install_binary(src: &Path, dest: &Path) -> Result<(), SdkError> {
     if dest.exists() {
         warn!(dest = %dest.display(), "replacing existing binary");
     }
-    std::fs::rename(src, dest).or_else(|_| {
-        std::fs::copy(src, dest).map(|_| ()).map_err(SdkError::from)
-    })?;
+    std::fs::rename(src, dest)
+        .or_else(|_| std::fs::copy(src, dest).map(|_| ()).map_err(SdkError::from))?;
 
     #[cfg(unix)]
     {
@@ -332,7 +334,10 @@ mod tests {
 
         let dest = dir.path().join("bin/tix");
         install_binary(&extracted, &dest).unwrap();
-        assert_eq!(std::fs::read_to_string(&dest).unwrap(), "#!/bin/sh\necho new\n");
+        assert_eq!(
+            std::fs::read_to_string(&dest).unwrap(),
+            "#!/bin/sh\necho new\n"
+        );
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

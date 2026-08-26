@@ -1,8 +1,8 @@
 //! `tix config init` — interactive first-time config creation.
 
-use tix_sdk::document::TixDocument;
 use crate::tix::utils::prompt;
 use tix_sdk::SdkError;
+use tix_sdk::document::TixDocument;
 
 /// Create the global config interactively
 #[derive(clap::Args, Debug)]

@@ -1,9 +1,9 @@
 //! `tix config get` — read value(s) from the `[cli]` section.
 
 use crate::tix::config::ConfigKey;
-use tix_sdk::document::TixDocument;
 use crate::tix::utils::OutputType;
 use tix_sdk::SdkError;
+use tix_sdk::document::TixDocument;
 
 /// Read a value from the [cli] section
 #[derive(clap::Args, Debug)]
@@ -76,6 +76,10 @@ fn render_bare(item: &toml_edit::Item) -> String {
 /// parse — handles every value shape without a hand-written mapping.
 fn item_to_json(key: &str, item: &toml_edit::Item) -> Result<serde_json::Value, SdkError> {
     let table: toml::Table = toml::from_str(&format!("{key} = {}", item.to_string().trim()))?;
-    let value = table.get(key).cloned().unwrap_or(toml::Value::String(String::new()));
-    serde_json::to_value(value).map_err(|e| SdkError::Message(format!("json conversion failed: {e}")))
+    let value = table
+        .get(key)
+        .cloned()
+        .unwrap_or(toml::Value::String(String::new()));
+    serde_json::to_value(value)
+        .map_err(|e| SdkError::Message(format!("json conversion failed: {e}")))
 }

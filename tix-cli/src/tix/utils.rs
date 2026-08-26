@@ -65,8 +65,6 @@ pub fn prompt(label: &str, default: Option<&str>) -> Result<String, tix_sdk::Sdk
     match (answer.is_empty(), default) {
         (false, _) => Ok(answer.to_string()),
         (true, Some(default)) => Ok(default.to_string()),
-        (true, None) => Err(tix_sdk::SdkError::Message(format!(
-            "{label} is required"
-        ))),
+        (true, None) => Err(tix_sdk::SdkError::Message(format!("{label} is required"))),
     }
 }

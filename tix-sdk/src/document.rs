@@ -18,11 +18,11 @@
 //! Written in `tix-cli` first; promoted here (#96) so plugins parse
 //! documents identically.
 
+use crate::error::SdkError;
 use serde::de::DeserializeOwned;
 use std::fmt;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use crate::error::SdkError;
 use tracing::debug;
 
 /// A parsed tix config document: a format-preserving TOML DOM with typed
@@ -453,8 +453,7 @@ retries = 3
                 let path = path.clone();
                 std::thread::spawn(move || {
                     with_write(&path, |doc| {
-                        doc.doc_mut()["section"][format!("key{i}")] =
-                            toml_edit::value(i as i64);
+                        doc.doc_mut()["section"][format!("key{i}")] = toml_edit::value(i as i64);
                         Ok(())
                     })
                     .unwrap();
@@ -467,7 +466,10 @@ retries = 3
 
         let text = std::fs::read_to_string(&path).unwrap();
         for i in 0..8 {
-            assert!(text.contains(&format!("key{i} = {i}")), "missing key{i} in:\n{text}");
+            assert!(
+                text.contains(&format!("key{i} = {i}")),
+                "missing key{i} in:\n{text}"
+            );
         }
     }
 }

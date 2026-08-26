@@ -1,8 +1,8 @@
 //! `tix ticket list` — one line per ticket under the tickets directory.
 
-use tix_sdk::document::TixDocument;
 use crate::tix::ticket::load_cli_config;
 use crate::tix::utils::OutputType;
+use tix_sdk::document::TixDocument;
 use tix_sdk::{SdkError, TicketConfig};
 use tracing::warn;
 
@@ -43,7 +43,9 @@ pub fn run(app: &crate::tix::utils::App, _args: Args) -> Result<(), SdkError> {
         match parsed {
             Ok(Some(ticket)) => tickets.push(ticket),
             Ok(None) => warn!(path = %ticket_path.display(), "no [ticket] section — skipping"),
-            Err(e) => warn!(path = %ticket_path.display(), error = %e, "malformed ticket document — skipping"),
+            Err(e) => {
+                warn!(path = %ticket_path.display(), error = %e, "malformed ticket document — skipping")
+            }
         }
     }
     tickets.sort_by(|a, b| a.key.cmp(&b.key));

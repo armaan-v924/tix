@@ -107,9 +107,9 @@ pub fn run(app: &App, args: Vec<String>) -> Result<(), SdkError> {
     command.args(&user_args);
 
     debug!(plugin = %binary.display(), "dispatching");
-    let status = command.status().map_err(|e| {
-        SdkError::Message(format!("could not exec '{}': {e}", binary.display()))
-    })?;
+    let status = command
+        .status()
+        .map_err(|e| SdkError::Message(format!("could not exec '{}': {e}", binary.display())))?;
 
     match status.code() {
         // The delta is applied only on exit 0; a failed plugin's
@@ -158,9 +158,9 @@ fn detect_current_repo(
     for name in ticket.worktrees.keys() {
         let worktree_path = ticket_root.join(name);
         let is_better = cwd.starts_with(&worktree_path)
-            && best
-                .as_ref()
-                .is_none_or(|(_, current)| worktree_path.components().count() > current.components().count());
+            && best.as_ref().is_none_or(|(_, current)| {
+                worktree_path.components().count() > current.components().count()
+            });
         if is_better {
             best = Some((ticket.worktrees[name].repo.clone(), worktree_path));
         }

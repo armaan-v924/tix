@@ -1,8 +1,8 @@
 mod tix;
 
 use crate::tix::utils::App;
-use tix_sdk::context::Context;
 use crate::tix::{Commands, cli, config, plugin, repo, ticket};
+use tix_sdk::context::Context;
 use tracing_subscriber::fmt;
 
 /// Prints a CLI error to stderr and exits nonzero.
