@@ -60,3 +60,20 @@ pub use types::ticket::TicketConfig;
 pub use types::worktree::Worktree;
 pub use types::worktree::WorktreeConfig;
 pub use utils::opens_as_git_repository;
+
+#[cfg(test)]
+mod build_config {
+    /// libgit2 must be compiled with TLS and SSH transports.
+    ///
+    /// Not a test of git2 itself but of *our* feature selection: git2 0.21
+    /// ships `default = []`, so a bare dependency declaration silently
+    /// yields a binary whose every remote operation fails at runtime with
+    /// "there is no TLS stream available". Nothing else in the suite
+    /// notices, because the failure needs a real network clone to surface.
+    #[test]
+    fn test_transports_compiled_in() {
+        let version = git2::Version::get();
+        assert!(version.https(), "libgit2 built without HTTPS support");
+        assert!(version.ssh(), "libgit2 built without SSH support");
+    }
+}
