@@ -121,6 +121,67 @@ jobs:
         shell: bash
         run: just build-cli ${{ matrix.target }}
 
+      # Developer ID signing + notarization. Without it, Gatekeeper treats
+      # the ad-hoc-signed binary as malware on quarantined (browser)
+      # downloads. Skipped with a warning when the secrets are absent so a
+      # missing cert degrades to an unsigned build instead of a red run.
+      - name: Sign and notarize macOS binary
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          if [[ -z "$APPLE_CERTIFICATE_P12" ]]; then
+            echo "::warning::APPLE_CERTIFICATE_P12 not set — shipping unsigned macOS binary"
+            exit 0
+          fi
+          BINARY="target/${{ matrix.target }}/release/${{ matrix.binary }}"
+
+          # Import the Developer ID cert into a throwaway keychain.
+          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$APPLE_CERTIFICATE_P12" | base64 -d > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" \
+            | grep "Developer ID Application" | head -1 | awk '{print $2}')
+          codesign --force --timestamp --options runtime --sign "$IDENTITY" "$BINARY"
+
+          # Notarize: bare executables are submitted zipped. Stapling is
+          # not possible for a bare binary (bundles/dmg/pkg only), so
+          # Gatekeeper verifies the ticket online on first run.
+          echo "$APPLE_NOTARY_KEY_P8" > "$RUNNER_TEMP/notary.p8"
+          ditto -c -k "$BINARY" "$RUNNER_TEMP/notarize.zip"
+          SUBMIT=$(xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$RUNNER_TEMP/notary.p8" \
+            --key-id "$APPLE_NOTARY_KEY_ID" \
+            --issuer "$APPLE_NOTARY_ISSUER_ID" \
+            --wait --output-format json)
+          echo "$SUBMIT"
+          STATUS=$(echo "$SUBMIT" | jq -r .status)
+          if [[ "$STATUS" != "Accepted" ]]; then
+            # --wait exits 0 even on rejection; surface Apple's log and fail.
+            xcrun notarytool log "$(echo "$SUBMIT" | jq -r .id)" \
+              --key "$RUNNER_TEMP/notary.p8" \
+              --key-id "$APPLE_NOTARY_KEY_ID" \
+              --issuer "$APPLE_NOTARY_ISSUER_ID" || true
+            echo "::error::notarization status: $STATUS"
+            exit 1
+          fi
+
+          security delete-keychain "$KEYCHAIN"
+          codesign --verify --verbose=2 "$BINARY"
+
       - name: Package binary (tar)
         if: matrix.format == 'tar'
         run: |
