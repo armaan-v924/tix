@@ -1,0 +1,67 @@
+name: Cascade to Main
+
+# Commits pushed to a release/X.Y branch (patch fixes) are cherry-picked
+# onto a cascade/* branch and opened as a PR against main, so the stable
+# line never diverges silently from development. chore(release) version
+# bumps are branch-local bookkeeping and are skipped. A cherry-pick
+# conflict fails the run — cascade manually in that case.
+on:
+  push:
+    branches:
+      - "release/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  cascade:
+    runs-on: ubuntu-latest
+    # A new release branch is cut from main's HEAD; nothing to cascade.
+    if: "!github.event.created"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # PRs created with GITHUB_TOKEN never trigger the PR-check
+          # workflows. Set CASCADE_TOKEN (PAT or GitHub App token) so
+          # cascade PRs get checks; until then, close/reopen the PR to
+          # trigger them manually.
+          token: ${{ secrets.CASCADE_TOKEN || github.token }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+      - name: Cherry-pick onto cascade branch and open PR
+        env:
+          GH_TOKEN: ${{ secrets.CASCADE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          COMMITS=$(git rev-list --reverse \
+            "${{ github.event.before }}..${{ github.event.after }}" \
+            ^origin/main --invert-grep --grep='^chore(release)')
+          if [[ -z "$COMMITS" ]]; then
+            echo "nothing to cascade"
+            exit 0
+          fi
+          BRANCH="cascade/${GITHUB_REF_NAME#release/}-${GITHUB_SHA::7}"
+          git checkout -b "$BRANCH" origin/main
+          git cherry-pick -x --empty=drop $COMMITS || {
+            echo "::error::cherry-pick conflict — cascade ${GITHUB_REF_NAME} → main manually"
+            exit 1
+          }
+          if [[ -z "$(git rev-list origin/main..HEAD)" ]]; then
+            echo "all commits already on main"
+            exit 0
+          fi
+          git push origin "$BRANCH"
+          BODY="Automatic cascade from \`${GITHUB_REF_NAME}\`:
+
+          $(git log --format='- %h %s' origin/main..HEAD)"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(cascade): ${GITHUB_REF_NAME} → main" \
+            --body "$BODY"
