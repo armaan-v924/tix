@@ -12,8 +12,35 @@ permissions:
   contents: write
 
 jobs:
+  # The commit about to be tagged has never been built as a release
+  # artifact: cut-release and cut-patch push version bumps straight to a
+  # branch, and pr-checks only runs on pull_request. Build the wheel and
+  # load it here, on every platform we ship, before the tag exists.
+  verify-artifacts:
+    if: startsWith(github.ref, 'refs/heads/release/')
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Build wheel
+        shell: bash
+        run: just build-wheel "$(rustc -vV | awk '/^host/ { print $2 }')"
+      - name: Smoke-test wheel
+        shell: bash
+        run: just smoke-wheel
+
   tag:
     runs-on: ubuntu-latest
+    needs: verify-artifacts
     if: startsWith(github.ref, 'refs/heads/release/')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
