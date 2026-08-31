@@ -46,6 +46,32 @@ build-wheel target:
 build-docs:
     cargo doc --no-deps
 
+# import and exercise a built wheel from ./dist in a throwaway venv
+#
+# The wheels job builds an artifact it never loads, so a wheel that links
+# against the build machine's libraries — or that the platform's loader
+# rejects outright — ships green. Installing it away from the source tree is
+# the point: `import pytix` here can only resolve to the wheel, because the
+# repo has no importable `pytix` package of its own.
+smoke-wheel:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    shopt -s nullglob
+    wheels=(dist/*.whl)
+    if [[ ${#wheels[@]} -ne 1 ]]; then
+        echo "error: expected exactly one wheel in dist/, found ${#wheels[@]}"
+        exit 1
+    fi
+    venv=$(mktemp -d)/venv
+    uv venv "$venv" --python 3.11
+    uv pip install --python "$venv" "${wheels[0]}" pytest
+    python="$venv/bin/python"
+    [[ -x "$python" ]] || python="$venv/Scripts/python.exe"
+    # Fails loudly and early on a loader-level rejection, where a bare pytest
+    # run would bury it in a collection error.
+    "$python" -c 'import pytix, pytix.host; print("loaded", pytix.__file__)'
+    "$python" -m pytest pytix/tests -q
+
 # ── test ──────────────────────────────────────────────────────────────────────
 
 # run all tests
