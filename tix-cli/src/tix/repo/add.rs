@@ -15,7 +15,8 @@ pub struct Args {
     pub alias: Option<RepoAlias>,
 
     /// Owner for a bare `repo` argument (beats [defaults].default_repository_owner)
-    #[arg(short, long)]
+    // Capital: lowercase `-o` is the global --output.
+    #[arg(short = 'O', long)]
     pub owner: Option<String>,
 
     /// Full URL, `owner/repo`, or bare `repo`
