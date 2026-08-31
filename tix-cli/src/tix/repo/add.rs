@@ -60,8 +60,13 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         let mut entry = toml_edit::Table::new();
         entry["remote"] = toml_edit::value(remote.as_str());
         entry["code_path"] = toml_edit::value(code_path.display().to_string());
-        document.doc_mut()["engine"]["configured_repositories"][&alias] =
-            toml_edit::Item::Table(entry);
+        // Through `table_at`, so the entry lands as a
+        // [engine.configured_repositories.<alias>] section: indexing the
+        // path directly would collapse the whole section into a one-line
+        // inline table (#146).
+        document
+            .table_at(&["engine", "configured_repositories"])?
+            .insert(&alias, toml_edit::Item::Table(entry));
 
         // Revalidate the section we just edited before anything hits disk.
         let _valid: EngineConfig = document.section_or_default("engine")?;

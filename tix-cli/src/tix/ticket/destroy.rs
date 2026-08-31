@@ -84,9 +84,10 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 // Keep the document agreeing with disk so an abort partway
                 // leaves the ticket resolvable for a retry.
                 with_write(&ticket_document_path, |doc| {
-                    if let Some(worktrees) = doc.doc_mut()["ticket"]["worktrees"].as_table_mut() {
-                        worktrees.remove(name);
-                    }
+                    // `table_at` rather than a plain lookup: a document
+                    // written by a version that collapsed the section into
+                    // an inline table (#146) holds no `Table` to remove from.
+                    doc.table_at(&["ticket", "worktrees"])?.remove(name);
                     Ok(())
                 })?;
             }
