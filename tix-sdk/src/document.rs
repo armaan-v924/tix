@@ -126,6 +126,47 @@ impl TixDocument {
         &mut self.doc
     }
 
+    /// Navigates to the table at `path`, materializing every missing level
+    /// as a real (headered) table and expanding any auto-vivified inline
+    /// table found on the way.
+    ///
+    /// This is the write-path entry point for nested edits. Bare indexing
+    /// (`doc["engine"]["configured_repositories"]["alpha"]`) *looks* like the
+    /// same thing but is a trap: toml_edit materializes a missing key as a
+    /// dotted inline table, so the whole section collapses onto one line
+    /// (`engine = { configured_repositories = { alpha.remote = "…" } }`) and
+    /// grows unreadable with every entry (#146). Going through here keeps
+    /// nested sections rendering as `[engine.configured_repositories.alpha]`.
+    ///
+    /// Levels created here are marked implicit, so an intermediate that only
+    /// holds sub-tables renders no header of its own. An existing inline
+    /// table on `path` is expanded in place — that repairs a document a
+    /// previous version collapsed, on the next write that touches it.
+    ///
+    /// Comments survive the repair. One attached to the collapsed line moves
+    /// with it and is re-rendered above the section's header (that level
+    /// gives up its implicitness so the comment has a header to sit on); the
+    /// rest of the document is untouched either way. The single exception is
+    /// a comment written *inside* the braces, which TOML 1.0 cannot express
+    /// at all — it needs a 1.1 multi-line inline table, and nothing in tix
+    /// writes that shape.
+    ///
+    /// # Errors
+    ///
+    /// [`SdkError::Message`] when a segment of `path` holds a non-table
+    /// (a string, an array) — the caller addressed a key the document
+    /// already uses for something else.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let repos = doc.table_at(&["engine", "configured_repositories"])?;
+    /// repos.insert("alpha", toml_edit::Item::Table(entry));
+    /// ```
+    pub fn table_at(&mut self, path: &[&str]) -> Result<&mut toml_edit::Table, SdkError> {
+        table_at(self.doc.as_item_mut(), path)
+    }
+
     /// Replaces the section `name` with the serialization of `value`.
     ///
     /// This rewrites *that section only* — the owner of a type replacing its
@@ -185,6 +226,169 @@ impl TixDocument {
         debug!(path = %path.display(), "document saved atomically");
         Ok(())
     }
+}
+
+/// Navigates `item` to the table at `path`, creating and normalizing levels
+/// as [`TixDocument::table_at`] documents. A free function so the delta
+/// applier shares one traversal with the CLI's own writes.
+///
+/// # Errors
+///
+/// [`SdkError::Message`] when a segment of `path` holds a non-table.
+pub(crate) fn table_at<'a>(
+    item: &'a mut toml_edit::Item,
+    path: &[&str],
+) -> Result<&'a mut toml_edit::Table, SdkError> {
+    let mut table = as_table(item, "document root")?;
+    for (depth, segment) in path.iter().enumerate() {
+        // A top-level table repaired from an inline value carries no document
+        // position; park it past everything already placed so the repaired
+        // section lands at the end of the file instead of ahead of sections
+        // that were written as headers all along.
+        let tail = (depth == 0).then(|| next_position(table));
+        let repaired = table
+            .get(segment)
+            .is_some_and(|existing| existing.is_value());
+        if repaired {
+            // The key kept the spacing it had inside the braces, which would
+            // otherwise show up in the header as `[engine ]`. Comments
+            // attached to the key survive — encode moves a prefix containing
+            // a newline out in front of the `[`.
+            if let Some(mut key) = table.key_mut(segment) {
+                tidy_header(key.leaf_decor_mut());
+                tidy_header(key.dotted_decor_mut());
+            }
+        }
+        let commented = table
+            .key(segment)
+            .is_some_and(|key| carries_comment(key.leaf_decor()));
+        let child = as_table(
+            table.entry(segment).or_insert(toml_edit::Item::None),
+            segment,
+        )?;
+        if repaired {
+            child.set_position(tail.flatten());
+            // A comment sits on the key, and encode drops the decor of a
+            // header it suppresses. Render this level's header so the
+            // comment the user wrote has somewhere to live.
+            if commented {
+                child.set_implicit(false);
+            }
+        }
+        table = child;
+    }
+    Ok(table)
+}
+
+/// One past the last document position among `table`'s sub-tables, or `None`
+/// when it holds none.
+fn next_position(table: &toml_edit::Table) -> Option<isize> {
+    table
+        .iter()
+        .filter_map(|(_, item)| item.as_table().and_then(toml_edit::Table::position))
+        .max()
+        .map(|last| last + 1)
+}
+
+/// Materializes `item` as a real table in place: an absent key becomes an
+/// implicit table, an inline table is expanded, a real table passes through.
+///
+/// # Errors
+///
+/// [`SdkError::Message`] when `item` holds a non-table value.
+fn as_table<'a>(
+    item: &'a mut toml_edit::Item,
+    name: &str,
+) -> Result<&'a mut toml_edit::Table, SdkError> {
+    match item {
+        toml_edit::Item::Table(_) => {}
+        toml_edit::Item::None => {
+            let mut table = toml_edit::Table::new();
+            // Implicit: a level that only holds sub-tables renders no header
+            // of its own — `[a.b.c]` alone, not `[a]`, `[a.b]`, `[a.b.c]`.
+            // A level that holds values still renders one.
+            table.set_implicit(true);
+            *item = toml_edit::Item::Table(table);
+        }
+        toml_edit::Item::Value(toml_edit::Value::InlineTable(inline)) => {
+            *item = toml_edit::Item::Table(expand(std::mem::take(inline)));
+        }
+        _ => {
+            return Err(SdkError::Message(format!(
+                "'{name}' is not a table — cannot write a nested key under it"
+            )));
+        }
+    }
+    Ok(item.as_table_mut().expect("materialized just above"))
+}
+
+/// Expands an inline table into a real one, recursing through the *dotted*
+/// children (`{ alpha.remote = "…" }`) — the shape auto-vivification leaves
+/// behind. A child written as an explicit inline table is a formatting
+/// choice and stays one.
+fn expand(inline: toml_edit::InlineTable) -> toml_edit::Table {
+    let mut table = inline.into_table();
+    table.set_implicit(true);
+    tidy(table.decor_mut());
+    for (mut key, child) in table.iter_mut() {
+        tidy(key.leaf_decor_mut());
+        tidy(key.dotted_decor_mut());
+        match child {
+            toml_edit::Item::Value(toml_edit::Value::InlineTable(nested)) if nested.is_dotted() => {
+                *child = toml_edit::Item::Table(expand(std::mem::take(nested)));
+            }
+            toml_edit::Item::Value(value) => tidy(value.decor_mut()),
+            _ => {}
+        }
+    }
+    table
+}
+
+/// Drops whitespace-only decor, keeps decor carrying a comment.
+///
+/// The inline form's spacing is noise once the table has a header of its own
+/// — left in place it renders as `[engine ]` or a stray-indented key. A
+/// comment in the same position is not noise, and a document rewritten by
+/// this module must not quietly lose one. Decor this can't read (a span into
+/// input that outlived its source) is left alone: keeping stray whitespace
+/// beats dropping a comment.
+fn tidy(decor: &mut toml_edit::Decor) {
+    if !carries_comment(decor) {
+        // Cleared, not emptied: an absent decor renders at toml_edit's
+        // defaults (`key = "value"`), while an explicit "" would pin the
+        // spaces out of existence.
+        decor.clear();
+    }
+}
+
+/// Like [`tidy`], for the key of a level being turned into a table header.
+///
+/// The suffix is pinned empty rather than cleared — the default key suffix is
+/// a space, which inside brackets reads as `[engine ]`. A comment in the
+/// prefix is kept and made to start on its own line, since it is about to be
+/// re-rendered above a header rather than inline after whatever preceded it.
+fn tidy_header(decor: &mut toml_edit::Decor) {
+    if !carries_comment(decor) {
+        decor.clear();
+    } else if let Some(text) = decor.prefix().and_then(toml_edit::RawString::as_str)
+        && !text.starts_with('\n')
+    {
+        decor.set_prefix(format!("\n{text}"));
+    }
+    decor.set_suffix("");
+}
+
+/// Whether `decor` holds a comment. Decor this can't read (a span into input
+/// that outlived its source) counts as one: keeping stray whitespace beats
+/// dropping something the user wrote.
+fn carries_comment(decor: &toml_edit::Decor) -> bool {
+    [decor.prefix(), decor.suffix()]
+        .into_iter()
+        .flatten()
+        .any(|raw| match toml_edit::RawString::as_str(raw) {
+            Some(text) => text.contains('#'),
+            None => true,
+        })
 }
 
 impl fmt::Display for TixDocument {
@@ -389,6 +593,129 @@ retries = 3
         assert!(out.contains("retries = 3"));
         // Everything except the edited line is untouched.
         assert_eq!(out.replace("bugfix", "feature"), DOCUMENT);
+    }
+
+    // --- nested table writes (#146) ---
+
+    /// A repository entry lands as its own `[engine.…]` section, and a second
+    /// one joins it — never the single-line inline form bare indexing
+    /// produces.
+    #[test]
+    fn test_table_at_writes_nested_sections() {
+        let mut doc = TixDocument::parse("[cli]\ntickets_directory = \"/t\"\n").unwrap();
+        for (alias, remote) in [("alpha", "a.git"), ("beta", "b.git")] {
+            let mut entry = toml_edit::Table::new();
+            entry["remote"] = toml_edit::value(remote);
+            doc.table_at(&["engine", "configured_repositories"])
+                .unwrap()
+                .insert(alias, toml_edit::Item::Table(entry));
+        }
+        let out = doc.to_string();
+
+        assert!(
+            out.contains("[engine.configured_repositories.alpha]"),
+            "{out}"
+        );
+        assert!(
+            out.contains("[engine.configured_repositories.beta]"),
+            "{out}"
+        );
+        // Intermediate levels are implicit: no bare [engine] header, and no
+        // inline table anywhere.
+        assert!(!out.contains("engine = {"), "{out}");
+        assert!(!out.contains("[engine]\n"), "{out}");
+    }
+
+    /// A document a previous version collapsed into one inline line is
+    /// repaired by the next write that touches it — entries intact, comments
+    /// and other sections untouched.
+    #[test]
+    fn test_table_at_repairs_collapsed_section() {
+        let collapsed = r#"engine = { configured_repositories = { alpha.remote = "a.git", alpha.code_path = "/code/alpha" } }
+[cli]
+tickets_directory = "/t"
+
+# my plugin
+[myplugin]
+retries = 3
+"#;
+        let mut doc = TixDocument::parse(collapsed).unwrap();
+        let mut entry = toml_edit::Table::new();
+        entry["remote"] = toml_edit::value("b.git");
+        entry["code_path"] = toml_edit::value("/code/beta");
+        doc.table_at(&["engine", "configured_repositories"])
+            .unwrap()
+            .insert("beta", toml_edit::Item::Table(entry));
+        let out = doc.to_string();
+
+        assert!(!out.contains("engine = {"), "{out}");
+        assert!(
+            out.contains("[engine.configured_repositories.alpha]"),
+            "{out}"
+        );
+        assert!(out.contains("code_path = \"/code/alpha\""), "{out}");
+        assert!(
+            out.contains("[engine.configured_repositories.beta]"),
+            "{out}"
+        );
+        assert!(out.contains("# my plugin"), "{out}");
+        assert!(out.contains("retries = 3"), "{out}");
+
+        // The repaired section still carries the same data.
+        let engine: tix_engine::EngineConfig = TixDocument::parse(&out)
+            .unwrap()
+            .section("engine")
+            .unwrap()
+            .unwrap();
+        assert_eq!(engine.configured_repositories.len(), 2);
+        assert_eq!(
+            engine.configured_repositories["alpha"].code_path,
+            std::path::PathBuf::from("/code/alpha")
+        );
+    }
+
+    /// Comments ride through the repair: one attached to the collapsed line
+    /// is re-rendered above the section it described, and the rest of the
+    /// document keeps its own.
+    #[test]
+    fn test_table_at_repair_keeps_comments() {
+        let collapsed = "# global tix config\n\n\
+             # where the repos live\n\
+             engine = { configured_repositories = { alpha.remote = \"a.git\", \
+             alpha.code_path = \"/code/alpha\" } }\n\n\
+             [cli]\ntickets_directory = \"/t\"\n\n\
+             # my plugin\n[myplugin]\nretries = 3\n";
+
+        let mut doc = TixDocument::parse(collapsed).unwrap();
+        doc.table_at(&["engine", "configured_repositories"])
+            .unwrap();
+        let out = doc.to_string();
+
+        assert!(out.contains("# global tix config"), "{out}");
+        assert!(out.contains("# where the repos live"), "{out}");
+        assert!(out.contains("# my plugin"), "{out}");
+        // The comment needs a header to sit above, so this level renders one.
+        assert!(out.contains("[engine]"), "{out}");
+        // Spacing comes back to house style, not the inline form's.
+        assert!(out.contains("remote = \"a.git\""), "{out}");
+
+        // Repairing a repaired document changes nothing.
+        let mut again = TixDocument::parse(&out).unwrap();
+        again
+            .table_at(&["engine", "configured_repositories"])
+            .unwrap();
+        assert_eq!(again.to_string(), out);
+    }
+
+    /// Addressing a nested key under a non-table is a clear error, not a
+    /// clobbered value.
+    #[test]
+    fn test_table_at_rejects_non_table() {
+        let mut doc = TixDocument::parse("engine = \"nonsense\"\n").unwrap();
+        let err = doc
+            .table_at(&["engine", "configured_repositories"])
+            .unwrap_err();
+        assert!(err.to_string().contains("not a table"), "{err}");
     }
 
     // --- atomic writes ---

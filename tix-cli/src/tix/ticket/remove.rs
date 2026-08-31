@@ -73,9 +73,10 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         // Drop the entry as soon as the prune lands, so an error later in
         // the batch leaves the document agreeing with disk.
         with_write(&ticket_document_path, |doc| {
-            if let Some(worktrees) = doc.doc_mut()["ticket"]["worktrees"].as_table_mut() {
-                worktrees.remove(name);
-            }
+            // `table_at` rather than a plain lookup: a document written by a
+            // version that collapsed the section into an inline table (#146)
+            // holds no `Table` to remove from.
+            doc.table_at(&["ticket", "worktrees"])?.remove(name);
             Ok(())
         })?;
         println!("removed {name}");

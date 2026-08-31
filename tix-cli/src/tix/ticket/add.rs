@@ -94,12 +94,15 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 // Record each success immediately — a later failure must not
                 // lose the worktrees that already exist on disk.
                 with_write(&ticket_document_path, |doc| {
-                    // An explicit table so the entry renders as
-                    // [ticket.worktrees.<alias>], matching setup's output.
+                    // An explicit table reached through `table_at`, so the
+                    // entry renders as [ticket.worktrees.<alias>], matching
+                    // setup's output — indexing the path directly would
+                    // collapse the worktrees into one inline line (#146).
                     let mut entry = toml_edit::Table::new();
                     entry["repo"] = toml_edit::value(alias.0.as_str());
                     entry["branch"] = toml_edit::value(worktree.branch.as_str());
-                    doc.doc_mut()["ticket"]["worktrees"][&alias.0] = toml_edit::Item::Table(entry);
+                    doc.table_at(&["ticket", "worktrees"])?
+                        .insert(&alias.0, toml_edit::Item::Table(entry));
                     Ok(())
                 })?;
                 println!("{}", root.join(&alias.0).display());

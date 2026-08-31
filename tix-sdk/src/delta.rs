@@ -140,8 +140,9 @@ impl Delta {
     ///
     /// # Errors
     ///
-    /// [`SdkError::PluginImplementation`] for an empty path or an
-    /// unmappable value.
+    /// [`SdkError::PluginImplementation`] for an empty path, an unmappable
+    /// value, or a path that runs through a key the document already holds a
+    /// non-table under.
     pub fn apply_ops(&self, document: &mut TixDocument) -> Result<(), SdkError> {
         for op in &self.ops {
             let segments: Vec<&str> = op.set.split('.').collect();
@@ -153,22 +154,15 @@ impl Delta {
             }
             let (leaf, tables) = segments.split_last().expect("split never yields empty");
 
-            let mut item: &mut toml_edit::Item = document.doc_mut().as_item_mut();
-            for segment in tables {
-                let child = &mut item[*segment];
-                if child.is_none() {
-                    // Materialize missing levels as real tables (marked
-                    // implicit so empty intermediates render no header) —
-                    // bare indexing would produce an inline `a = { … }`
-                    // dotted at the top of the document instead of an
-                    // appended [a] section.
-                    let mut table = toml_edit::Table::new();
-                    table.set_implicit(true);
-                    *child = toml_edit::Item::Table(table);
-                }
-                item = child;
-            }
-            item[leaf] = toml_edit::Item::Value(json_to_toml_value(&op.value, &op.set)?);
+            // Missing levels materialize as real tables, so a nested op
+            // appends an `[a.b]` section — bare indexing would leave an
+            // inline `a = { b.key = … }` at the top of the document instead
+            // (#146).
+            let table = crate::document::table_at(document.doc_mut().as_item_mut(), tables)
+                .map_err(|e| {
+                    SdkError::PluginImplementation(format!("delta op '{}': {e}", op.set))
+                })?;
+            table[leaf] = toml_edit::Item::Value(json_to_toml_value(&op.value, &op.set)?);
         }
         Ok(())
     }
