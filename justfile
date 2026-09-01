@@ -151,7 +151,7 @@ check: check-license check-versions check-docs lint
 check-docs:
     #!/usr/bin/env bash
     set -euo pipefail
-    generated="docs/man docs/src/content/docs/reference"
+    generated="docs/man docs/src/content/docs/reference docs/src/data"
     just docs-cli
     # --porcelain rather than `git diff`: a newly added command shows up as an
     # untracked file, which a diff against the index would not see at all.
@@ -245,6 +245,10 @@ _bump old new:
     # not quietly move everything it depends on.
     cargo update --workspace --quiet
     (cd pytix && uv sync --quiet)
+    # The install page prints the version to download, so the generated
+    # release data is stale the moment a bump lands — same reason the
+    # lockfiles are refreshed here, and `just check-docs` fails without it.
+    just docs-cli
     echo "bumped {{ old }} → {{ new }}"
 
 # ── release ───────────────────────────────────────────────────────────────────

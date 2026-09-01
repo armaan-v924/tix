@@ -25,6 +25,9 @@ const CONTENT_ROOT: &str = "docs/src/content/docs";
 /// Where generated man pages land, relative to the repository root.
 const MAN_ROOT: &str = "docs/man";
 
+/// Where the release facts the site interpolates land.
+const RELEASE_DATA: &str = "docs/src/data/release.json";
+
 fn main() -> ExitCode {
     match generate(&repository_root()) {
         Ok(count) => {
@@ -67,6 +70,18 @@ fn generate(root: &Path) -> std::io::Result<usize> {
         write(&root.join(MAN_ROOT).join(&page.path), &page.body)?;
         written += 1;
     }
+
+    // The install page interpolates these rather than printing `vX.Y.Z` and
+    // making the reader substitute. A release build of the site is made from
+    // the tag it documents, so this is that release's version; the /dev/
+    // build shows the version being worked on, which its banner already says.
+    let version = env!("CARGO_PKG_VERSION");
+    write(
+        &root.join(RELEASE_DATA),
+        format!("{{\n  \"version\": \"{version}\",\n  \"tag\": \"v{version}\"\n}}\n").as_bytes(),
+    )?;
+    written += 1;
+
     Ok(written)
 }
 
