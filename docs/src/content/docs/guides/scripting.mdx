@@ -1,0 +1,83 @@
+---
+title: Scripting tix
+description: Machine-readable output, stream discipline, and exit codes.
+sidebar:
+  order: 2
+---
+
+## Output formats
+
+`tix list` and `tix info` take `--output json` or `--output toml`:
+
+```sh
+tix list --output json
+```
+
+```json
+[
+  {
+    "description": "Fix the login bug",
+    "key": "JIRA-123",
+    "worktrees": 1
+  }
+]
+```
+
+```sh
+tix info --output json
+```
+
+```json
+{
+  "description": "Fix the login bug",
+  "key": "JIRA-123",
+  "path": "/home/you/tickets/JIRA-123",
+  "worktrees": [
+    {
+      "branch": "feature/JIRA-123-fix-the-login-bug",
+      "name": "api",
+      "path": "/home/you/tickets/JIRA-123/api",
+      "repo": "api",
+      "status": "ok"
+    }
+  ]
+}
+```
+
+Keys come out alphabetically sorted, not in a hand-chosen order — worth
+knowing if you are diffing output rather than parsing it.
+
+`status` is `ok`, `missing`, or `not-a-git-repository`. The last two mean the
+ticket document records a worktree that is not there any more — worth
+checking for rather than assuming.
+
+`tix config show` also takes both. TOML output is the document as written,
+comments and all; JSON output converts the values, since JSON has nowhere to
+put comments.
+
+## Streams
+
+Results go to standard output. Diagnostics, warnings, and log output go to
+standard error, at every log level. So this stays parseable:
+
+```sh
+tix list --output json --verbose | jq '.[].key'
+```
+
+That is a guarantee, not an accident — it is why `--output` is safe to use
+in a pipeline without also having to silence logging.
+
+## Exit codes
+
+`0` on success, `1` on any error, with `error: <message>` on standard error.
+
+```sh
+if tix info --ticket "$key" --output json > /dev/null 2>&1; then
+  echo "ticket exists"
+fi
+```
+
+## Forwarding to plugins
+
+`--output` is passed to plugins as `--tix-output`, so a plugin can honour
+the format you asked for.
