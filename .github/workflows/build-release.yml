@@ -163,6 +163,16 @@ jobs:
           cp README.md LICENSE pkg/
           ARCHIVE="tix-${GITHUB_REF_NAME}-${{ matrix.suffix }}"
           tar -czf dist/${ARCHIVE} -C pkg .
+          # `tix cli update` refuses to install an archive it cannot verify,
+          # so every archive ships its digest as a sibling asset. Written from
+          # inside dist/ so the line names the bare archive, keeping it valid
+          # input for `sha256sum -c`. macOS runners carry shasum, not
+          # coreutils' sha256sum.
+          if command -v sha256sum >/dev/null 2>&1; then
+            (cd dist && sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256")
+          else
+            (cd dist && shasum -a 256 "${ARCHIVE}" > "${ARCHIVE}.sha256")
+          fi
           echo "ARCHIVE_NAME=${ARCHIVE}" >> $GITHUB_ENV
 
       - name: Package binary (zip)
@@ -174,13 +184,20 @@ jobs:
           Copy-Item README.md, LICENSE pkg/
           $archive = "tix-$env:GITHUB_REF_NAME-${{ matrix.suffix }}"
           Compress-Archive -Path pkg\* -DestinationPath "dist\$archive"
+          # Same sha256sum-style "<digest>  <name>" line as the tar legs, so
+          # the updater's parser and `sha256sum -c` both accept it. Get-FileHash
+          # returns uppercase hex; lowercase matches the coreutils convention.
+          $digest = (Get-FileHash -Algorithm SHA256 "dist\$archive").Hash.ToLower()
+          Set-Content -Path "dist\${archive}.sha256" -Value "$digest  $archive" -Encoding ascii
           "ARCHIVE_NAME=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ env.ARCHIVE_NAME }}
-          path: dist/${{ env.ARCHIVE_NAME }}
+          path: |
+            dist/${{ env.ARCHIVE_NAME }}
+            dist/${{ env.ARCHIVE_NAME }}.sha256
 
   # Its own job rather than a leg of `build`: different tooling (maturin, not
   # cargo) and different per-leg steps. Folded into this workflow rather than a
