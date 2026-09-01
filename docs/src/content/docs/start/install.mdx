@@ -1,0 +1,119 @@
+---
+title: Install
+description: Get the tix binary, keep it updated, and set up shell completions.
+sidebar:
+  order: 1
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+
+## Prebuilt binaries
+
+Every release ships a single self-contained executable. It has no runtime
+dependencies — libgit2 and OpenSSL are compiled in, so it does not care what
+is installed on the machine.
+
+| Platform | Asset |
+| --- | --- |
+| Linux, x86-64 | `tix-vX.Y.Z-linux-x86_64.tar.gz` |
+| macOS, Apple silicon | `tix-vX.Y.Z-macos-aarch64.tar.gz` |
+| Windows, x86-64 | `tix-vX.Y.Z-windows-x86_64.zip` |
+
+<Steps>
+
+1. Download the asset for your platform from the
+   [latest release](https://github.com/armaan-v924/tix/releases/latest).
+
+2. Unpack it and put `tix` somewhere on your `PATH`:
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS / Linux">
+   ```sh
+   tar -xzf tix-*-*.tar.gz
+   mkdir -p ~/.local/bin
+   mv tix ~/.local/bin/
+   ```
+   </TabItem>
+   <TabItem label="Windows">
+   ```powershell
+   Expand-Archive tix-*-windows-x86_64.zip -DestinationPath .
+   # Move tix.exe somewhere on your PATH, e.g.
+   Move-Item tix.exe $Env:LOCALAPPDATA\Programs\
+   ```
+   </TabItem>
+   </Tabs>
+
+3. Check it runs:
+
+   ```sh
+   tix --version
+   ```
+
+</Steps>
+
+## From source
+
+Needs a Rust toolchain. Nothing else — libgit2 is vendored, so there is no
+system library to install first.
+
+```sh
+git clone https://github.com/armaan-v924/tix
+cargo install --path tix/tix-cli
+```
+
+## Staying up to date
+
+```sh
+tix cli update
+```
+
+It asks GitHub for the latest release, compares it with the running version,
+and stops if you are already current. Otherwise it downloads the asset for
+your platform and replaces the binary **in place** — the executable you ran
+it from.
+
+```sh
+tix cli update --dry-run   # report what it would do, download nothing
+```
+
+<Aside type="tip">
+If `tix` lives somewhere you cannot write to, set `TIX_INSTALL_PATH` to say
+where the new binary should go instead.
+</Aside>
+
+## Shell completions
+
+`tix completions` writes a completion script to standard output for `bash`,
+`zsh`, `fish`, `elvish`, or `powershell`. It is the one command that works
+before any config exists.
+
+<Tabs syncKey="shell">
+<TabItem label="zsh">
+```sh
+tix completions zsh > "${fpath[1]}/_tix"
+```
+</TabItem>
+<TabItem label="bash">
+```sh
+tix completions bash > ~/.local/share/bash-completion/completions/tix
+```
+</TabItem>
+<TabItem label="fish">
+```sh
+tix completions fish > ~/.config/fish/completions/tix.fish
+```
+</TabItem>
+<TabItem label="powershell">
+```powershell
+tix completions powershell | Out-String | Invoke-Expression
+# To persist, append the same line to $PROFILE
+```
+</TabItem>
+</Tabs>
+
+Start a new shell afterwards.
+
+## Next
+
+tix needs a config file before it will do anything else. Continue with
+[Getting started](../getting-started/).

@@ -1,0 +1,166 @@
+---
+title: Getting started
+description: From an empty config to a working ticket, and back to nothing.
+sidebar:
+  order: 2
+---
+
+import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+
+This walks the whole loop once: set tix up, register a repository, open a
+ticket, work in it, and tear it down. Ten minutes, and you can undo all of
+it.
+
+You will need [tix installed](../install/) and at least one git repository
+you can clone.
+
+## Create the config
+
+<Steps>
+
+1. tix keeps one config file, and nothing works until it exists:
+
+   ```sh
+   tix config init
+   ```
+
+   It asks two questions, each with a default you can accept by pressing
+   return:
+
+   ```
+   Tickets directory [/home/you/tickets]:
+   Code directory (where repos are cloned) [/home/you/code]:
+   ```
+
+   The **tickets directory** is where ticket workspaces get created. The
+   **code directory** is where tix clones repositories you register.
+
+2. Look at what it wrote:
+
+   ```sh
+   tix config show
+   ```
+
+   ```toml
+   [cli]
+   tickets_directory = "/home/you/tickets"
+   code_directory = "/home/you/code"
+   ```
+
+</Steps>
+
+<Aside type="tip">
+Edit this file by hand whenever you like. tix rewrites only the values it
+touches, so your comments and layout survive. Every key is listed in the
+[configuration reference](../../reference/configuration/).
+</Aside>
+
+## Register a repository
+
+tix only manages repositories you have told it about.
+
+```sh
+tix repo add my-org/api
+```
+
+The argument can be a full URL, `owner/repo`, or a bare `repo` name if you
+have set a default owner. The alias — how you refer to it from now on —
+defaults to the repository name, here `api`. Pass `--alias` to choose
+another.
+
+That records the repository; it does not fetch anything. To clone it:
+
+```sh
+tix repo clone --all
+```
+
+`--all` clones every registered repository that is not already on disk.
+Name aliases instead to clone only those.
+
+Repeat `tix repo add` for each repository you work in. You do this once, not
+once per ticket.
+
+## Open a ticket
+
+```sh
+tix setup JIRA-123 --description "Fix the login bug" api
+```
+
+That creates a workspace with one worktree:
+
+<FileTree>
+- ~/tickets/JIRA-123
+  - .tix
+    - ticket.toml
+  - api
+</FileTree>
+
+`api` is a [git worktree](../../concepts/worktrees-and-branches/) of your
+`~/code/api` checkout, on a new branch derived from the key and description.
+Your original checkout has not moved and is not on that branch.
+
+Naming no repositories uses the ones in `[defaults].repositories`; `--all`
+uses every registered repository.
+
+## Work
+
+```sh
+cd ~/tickets/JIRA-123/api
+```
+
+From here it is an ordinary checkout. Use git as usual — commit, push, open
+a review. tix records the branch name and then stays out of the way.
+
+tix commands work from anywhere inside the ticket, at any depth:
+
+```sh
+tix info                     # this ticket: its worktrees, branches, status
+tix list                     # every ticket you have
+```
+
+From outside, name it:
+
+```sh
+tix info --ticket JIRA-123
+```
+
+<Aside type="caution">
+A bare name is always looked up in your tickets directory. If you are
+sitting next to a ticket directory, write `--ticket ./JIRA-123` — see
+[Ticket discovery](../../concepts/ticket-discovery/).
+</Aside>
+
+## Add and remove repositories
+
+Work spreading to another repository does not need a new ticket:
+
+```sh
+tix add web        # adds a worktree for the `web` repository
+tix remove web     # prunes it again; the rest of the ticket is untouched
+```
+
+## Tear it down
+
+```sh
+tix destroy JIRA-123
+```
+
+It asks for confirmation, prunes every worktree, then removes the directory.
+
+If any worktree has uncommitted changes, it stops and leaves everything
+alone — that is the point, and the reason it is safe to run. Commit, stash,
+or push first, then try again.
+
+`--force` skips the confirmation, discards uncommitted changes, and deletes
+the directory even if pruning fails. Reach for it when you are sure.
+
+Branches and commits survive either way. Destroying a ticket removes working
+directories, not history.
+
+## Where to go next
+
+- [Seeds, not defaults](../../concepts/seeds/) — why editing config never
+  rewrites a ticket that already exists. The most common surprise.
+- [Worktrees and branches](../../concepts/worktrees-and-branches/) — what
+  those directories actually are.
+- [CLI reference](../../reference/cli/) — every command and flag.
