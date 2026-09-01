@@ -162,13 +162,25 @@ say so before the constructor's own check does.
 | Member | Returns | Description |
 | --- | --- | --- |
 | `target` | `Literal["global", "ticket"]` | The document this delta applies to. |
-| `set(path, value)` | `None` | Records a set at dotted `path`. Ops are ordered; overlapping keys are last-writer-wins. |
-| `ops()` | `list[dict]` | The ops recorded so far, in order, as `{"set": path, "value": value}` dicts — the wire form, for tests and debugging. |
+| `set(path, value)` | `None` | Records a set at dotted `path`. Ops are ordered; overlapping keys are last-writer-wins. `value` is typed `DeltaValue`. |
+| `ops()` | `list[DeltaOp]` | The ops recorded so far, in order — the wire form, for tests and debugging. |
 | `to_json()` | `str` | The wire form. |
 | `write_to(path)` | `None` | Writes the wire form to `path`. |
 
 Pass a `datetime`, `date`, or `time` and `pytix` emits the tagged form JSON
 needs. The host applies the delta after you exit `0`, against a fresh parse.
+
+`DeltaValue` is what TOML can hold — `bool`, `int`, `float`, `str`,
+`datetime`/`date`/`time`, and sequences and string-keyed mappings of those.
+It excludes `None` deliberately: TOML has no null, and "absent" is spelled by
+not setting the key. `DeltaOp` is the `TypedDict` `{"set": str, "value": ...}`
+that `ops()` hands back. Both are exported for annotating your own helpers,
+alongside `DeltaTarget`.
+
+Reads are typed differently on purpose. A section's *shape* is the user's
+file, not the API's, so `config_section` and friends return `Any | None` —
+the same choice `tomllib.load` makes, and it still forces you to handle the
+absent case. Writes are the API's own vocabulary, so they are pinned.
 
 ### Module members
 
