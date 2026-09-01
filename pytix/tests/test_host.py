@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 import pytix.host
@@ -186,6 +187,55 @@ def test_delta_tags_datetimes_automatically(tmp_path: Path) -> None:
         },
         {"set": "myplugin.due", "value": {"$datetime": "2026-07-20"}},
     ]
+
+
+def test_delta_writes_any_mapping_as_a_table() -> None:
+    """A mapping that is not a `dict` is a table, not a list of its keys.
+
+    Iterating a mapping yields keys, so the array fallback used to swallow one
+    whole: `MappingProxyType({"a": 1})` was written as `["a"]`, values dropped,
+    with no error to notice. `dict` was never affected because it has its own
+    branch — nor was anything subclassing it, which is why `Counter` was fine
+    and `os.environ`, a `MutableMapping` that subclasses nothing, was not.
+    """
+    delta = pytix.host.Delta("ticket")
+    delta.set("myplugin.proxy", MappingProxyType({"a": 1, "b": ["x"]}))
+
+    assert json.loads(delta.to_json())["ops"] == [
+        {"set": "myplugin.proxy", "value": {"a": 1, "b": ["x"]}}
+    ]
+
+
+def test_delta_still_writes_ordinary_iterables_as_arrays() -> None:
+    """The mapping branch must not have swallowed the array one.
+
+    Lists, tuples and sets are iterable and indexable, which is exactly what
+    the older `PyMapping_Check` would have called a mapping.
+    """
+    delta = pytix.host.Delta("ticket")
+    delta.set("myplugin.list", ["a", "b"])
+    delta.set("myplugin.tuple", ("a", "b"))
+    delta.set("myplugin.text", "not an array")
+
+    assert [op["value"] for op in json.loads(delta.to_json())["ops"]] == [
+        ["a", "b"],
+        ["a", "b"],
+        "not an array",
+    ]
+
+
+def test_delta_rejects_non_string_keys_in_any_mapping() -> None:
+    """TOML keys are strings, whichever kind of mapping carried them.
+
+    Ignored like the other deliberate-rejection tests: `DeltaValue` keys its
+    mappings by `str`, so a checker refuses these calls as well.
+    """
+    delta = pytix.host.Delta("ticket")
+
+    with pytest.raises(pytix.TixError, match="table keys must be strings"):
+        delta.set("myplugin.dict", {1: "a"})  # type: ignore[dict-item]
+    with pytest.raises(pytix.TixError, match="table keys must be strings"):
+        delta.set("myplugin.proxy", MappingProxyType({1: "a"}))  # type: ignore[dict-item]
 
 
 def test_delta_rejects_values_toml_cannot_hold() -> None:

@@ -19,7 +19,7 @@
 
 use crate::error::message_error;
 use pyo3::prelude::*;
-use pyo3::types::{PyAnyMethods, PyDict, PyList};
+use pyo3::types::{PyAnyMethods, PyDict, PyList, PyMapping};
 use toml_edit::{Datetime, Item, Offset, Value};
 
 /// Converts a document item — a section, a nested table, a leaf — into its
@@ -159,17 +159,26 @@ pub fn py_to_json(value: &Bound<'_, PyAny>, path: &str) -> PyResult<serde_json::
         return Ok(serde_json::Value::String(text));
     }
     if let Ok(dict) = value.cast::<PyDict>() {
-        let mut map = serde_json::Map::with_capacity(dict.len());
-        for (key, item) in dict.iter() {
-            let key = key.extract::<String>().map_err(|_| {
-                message_error(format!("table keys must be strings (delta op '{path}')"))
-            })?;
-            map.insert(key, py_to_json(&item, path)?);
-        }
-        return Ok(serde_json::Value::Object(map));
+        return table_to_json(dict.iter(), path);
     }
-    // Deliberately after str and dict: both are iterable, and neither is an
-    // array.
+    // Any other mapping: `MappingProxyType`, a `Counter`, a class of the
+    // caller's own registered with `collections.abc.Mapping`. This has to come
+    // before the iterable fallback, because iterating a mapping yields its
+    // *keys* — so without this a mapping would be written as a list of its key
+    // names, quietly, with the values dropped.
+    //
+    // `PyMapping`'s type check has tested against the `collections.abc` ABC
+    // since pyo3 0.17 rather than calling `PyMapping_Check`, which answered
+    // yes for anything indexable and would have caught lists and strings here.
+    if let Ok(mapping) = value.cast::<PyMapping>() {
+        let mut pairs = Vec::new();
+        for item in mapping.items()?.try_iter()? {
+            pairs.push(item?.extract::<(Bound<'_, PyAny>, Bound<'_, PyAny>)>()?);
+        }
+        return table_to_json(pairs, path);
+    }
+    // Deliberately after str and every mapping: all of them are iterable, and
+    // none of them is an array.
     if let Ok(iterator) = value.try_iter() {
         let mut items = Vec::new();
         for item in iterator {
@@ -187,6 +196,26 @@ pub fn py_to_json(value: &Bound<'_, PyAny>, path: &str) -> PyResult<serde_json::
     Err(message_error(format!(
         "{type_name} has no TOML representation (delta op '{path}')"
     )))
+}
+
+/// Converts a mapping's items into the JSON object a table becomes.
+///
+/// Shared by the `dict` fast path and the general mapping fallback so the two
+/// cannot drift — in particular so a non-string key is refused with the same
+/// diagnostic whichever kind of mapping carried it.
+fn table_to_json<'py>(
+    items: impl IntoIterator<Item = (Bound<'py, PyAny>, Bound<'py, PyAny>)>,
+    path: &str,
+) -> PyResult<serde_json::Value> {
+    let items = items.into_iter();
+    let mut map = serde_json::Map::with_capacity(items.size_hint().0);
+    for (key, item) in items {
+        let key = key.extract::<String>().map_err(|_| {
+            message_error(format!("table keys must be strings (delta op '{path}')"))
+        })?;
+        map.insert(key, py_to_json(&item, path)?);
+    }
+    Ok(serde_json::Value::Object(map))
 }
 
 /// Recognizes the three `datetime` module types and renders them as the tagged
