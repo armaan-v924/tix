@@ -1,59 +1,55 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tix-cli/src/tix/config/set.rs`."><title>set.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="tix_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.0 (88d9e12ae 2026-08-18)" data-channel="1.98.0" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">tix_cli/tix/config/</div>set.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-2"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! `tix config set` — write one `[cli]` key through the format-preserving
-<a href=#2 id=2 data-nosnippet>2</a>//! document layer.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tix-cli/src/tix/config/set.rs`."><title>set.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="tix_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.0 (88d9e12ae 2026-08-18)" data-channel="1.98.0" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">tix_cli/tix/config/</div>set.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-2"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! `tix config set` — write one key anywhere in the config document,
+<a href=#2 id=2 data-nosnippet>2</a>//! through the format-preserving document layer.
 <a href=#3 id=3 data-nosnippet>3</a>
-<a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use </span><span class="kw">crate</span>::tix::config::{CliConfig, ConfigKey};
+<a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use </span><span class="kw">crate</span>::tix::config::{ConfigKeyPath, validate_section};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>tix_sdk::SdkError;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>tix_sdk::document::with_write;
 <a href=#7 id=7 data-nosnippet>7</a>
-<a href=#8 id=8 data-nosnippet>8</a><span class="doccomment">/// Set a value in the `[cli]` section
+<a href=#8 id=8 data-nosnippet>8</a><span class="doccomment">/// Set a value in the config document
 <a href=#9 id=9 data-nosnippet>9</a></span><span class="attr">#[derive(clap::Args, Debug)]
 <a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">pub struct </span>Args {
-<a href=#11 id=11 data-nosnippet>11</a>    <span class="doccomment">/// The `[cli]` key to set
-<a href=#12 id=12 data-nosnippet>12</a>    </span><span class="kw">pub </span>key: ConfigKey,
+<a href=#11 id=11 data-nosnippet>11</a>    <span class="doccomment">/// The `&lt;section&gt;.&lt;key&gt;` path to set (e.g. `defaults.branch_prefix`)
+<a href=#12 id=12 data-nosnippet>12</a>    </span><span class="kw">pub </span>key: ConfigKeyPath,
 <a href=#13 id=13 data-nosnippet>13</a>
 <a href=#14 id=14 data-nosnippet>14</a>    <span class="doccomment">/// The new value (parsed as a TOML value when possible, else a string)
 <a href=#15 id=15 data-nosnippet>15</a>    </span><span class="kw">pub </span>value: String,
 <a href=#16 id=16 data-nosnippet>16</a>}
 <a href=#17 id=17 data-nosnippet>17</a>
-<a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// Sets `[cli].&lt;key&gt;` and persists atomically.
+<a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// Sets `&lt;section&gt;.&lt;key&gt;` and persists atomically.
 <a href=#19 id=19 data-nosnippet>19</a>///
 <a href=#20 id=20 data-nosnippet>20</a>/// The edit is a targeted path traversal over the format-preserving DOM —
 <a href=#21 id=21 data-nosnippet>21</a>/// plugin tables, comments, and formatting elsewhere in the file survive
-<a href=#22 id=22 data-nosnippet>22</a>/// byte-identical (applies to the CLI itself, not just plugin
-<a href=#23 id=23 data-nosnippet>23</a>/// deltas). Before writing, the resulting `[cli]` section is re-deserialized
-<a href=#24 id=24 data-nosnippet>24</a>/// into [`CliConfig`]; a value the type rejects fails the whole write, and
-<a href=#25 id=25 data-nosnippet>25</a>/// nothing lands on disk ([`with_write`] discards on error).
+<a href=#22 id=22 data-nosnippet>22</a>/// byte-identical (applies to the CLI itself, not just plugin deltas).
+<a href=#23 id=23 data-nosnippet>23</a>/// Missing levels along the path materialize as real headered tables via
+<a href=#24 id=24 data-nosnippet>24</a>/// [`tix_sdk::document::TixDocument::table_at`], never as the collapsed
+<a href=#25 id=25 data-nosnippet>25</a>/// inline form bare indexing would produce (#146).
 <a href=#26 id=26 data-nosnippet>26</a>///
-<a href=#27 id=27 data-nosnippet>27</a>/// The whole cycle runs under the exclusive advisory lock (#67), so
-<a href=#28 id=28 data-nosnippet>28</a>/// concurrent `tix config set` invocations serialize rather than clobber.
-<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">pub fn </span>run(app: <span class="kw-2">&amp;</span><span class="kw">crate</span>::tix::utils::App, args: Args) -&gt; <span class="prelude-ty">Result</span>&lt;(), SdkError&gt; {
-<a href=#30 id=30 data-nosnippet>30</a>    with_write(<span class="kw-2">&amp;</span>app.context.config_path, |document| {
-<a href=#31 id=31 data-nosnippet>31</a>        <span class="comment">// `1` stays an integer, `true` a bool; anything that isn't valid
-<a href=#32 id=32 data-nosnippet>32</a>        // TOML (a bare path, say) is a string.
-<a href=#33 id=33 data-nosnippet>33</a>        </span><span class="kw">let </span>value: toml_edit::Value = args
-<a href=#34 id=34 data-nosnippet>34</a>            .value
-<a href=#35 id=35 data-nosnippet>35</a>            .parse()
-<a href=#36 id=36 data-nosnippet>36</a>            .unwrap_or_else(|<span class="kw">_</span>| toml_edit::Value::from(args.value.as_str()));
-<a href=#37 id=37 data-nosnippet>37</a>        <span class="comment">// entry().or_insert with an explicit table so a missing [cli]
-<a href=#38 id=38 data-nosnippet>38</a>        // materializes as a real section, not an inline `cli = { … }`.
-<a href=#39 id=39 data-nosnippet>39</a>        </span>document
-<a href=#40 id=40 data-nosnippet>40</a>            .doc_mut()
-<a href=#41 id=41 data-nosnippet>41</a>            .entry(<span class="string">"cli"</span>)
-<a href=#42 id=42 data-nosnippet>42</a>            .or_insert(toml_edit::table())[args.key.toml_key()] = toml_edit::Item::Value(value);
-<a href=#43 id=43 data-nosnippet>43</a>
-<a href=#44 id=44 data-nosnippet>44</a>        <span class="comment">// Revalidate: the edited section must still parse as CliConfig
-<a href=#45 id=45 data-nosnippet>45</a>        // (deny_unknown_fields; type-incompatible values fail here).
-<a href=#46 id=46 data-nosnippet>46</a>        </span><span class="kw">let </span>_valid: CliConfig = document.section(<span class="string">"cli"</span>)<span class="question-mark">?</span>.ok_or_else(|| {
-<a href=#47 id=47 data-nosnippet>47</a>            SdkError::Message(<span class="string">"edit produced no [cli] section — this is a bug"</span>.to_string())
-<a href=#48 id=48 data-nosnippet>48</a>        })<span class="question-mark">?</span>;
-<a href=#49 id=49 data-nosnippet>49</a>        <span class="prelude-val">Ok</span>(())
-<a href=#50 id=50 data-nosnippet>50</a>    })<span class="question-mark">?</span>;
-<a href=#51 id=51 data-nosnippet>51</a>    <span class="macro">println!</span>(
-<a href=#52 id=52 data-nosnippet>52</a>        <span class="string">"{} = {} ({})"</span>,
-<a href=#53 id=53 data-nosnippet>53</a>        args.key.toml_key(),
-<a href=#54 id=54 data-nosnippet>54</a>        args.value,
-<a href=#55 id=55 data-nosnippet>55</a>        app.context.config_path.display()
-<a href=#56 id=56 data-nosnippet>56</a>    );
-<a href=#57 id=57 data-nosnippet>57</a>    <span class="prelude-val">Ok</span>(())
-<a href=#58 id=58 data-nosnippet>58</a>}
+<a href=#27 id=27 data-nosnippet>27</a>/// Before writing, the edited section is re-deserialized into the type that
+<a href=#28 id=28 data-nosnippet>28</a>/// owns it ([`validate_section`]); a value that type rejects fails the whole
+<a href=#29 id=29 data-nosnippet>29</a>/// write, and nothing lands on disk ([`with_write`] discards on error). A
+<a href=#30 id=30 data-nosnippet>30</a>/// `[&lt;plugin&gt;]` table has no such type and is written as given.
+<a href=#31 id=31 data-nosnippet>31</a>///
+<a href=#32 id=32 data-nosnippet>32</a>/// The whole cycle runs under the exclusive advisory lock (#67), so
+<a href=#33 id=33 data-nosnippet>33</a>/// concurrent `tix config set` invocations serialize rather than clobber.
+<a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">pub fn </span>run(app: <span class="kw-2">&amp;</span><span class="kw">crate</span>::tix::utils::App, args: Args) -&gt; <span class="prelude-ty">Result</span>&lt;(), SdkError&gt; {
+<a href=#35 id=35 data-nosnippet>35</a>    with_write(<span class="kw-2">&amp;</span>app.context.config_path, |document| {
+<a href=#36 id=36 data-nosnippet>36</a>        <span class="comment">// `1` stays an integer, `true` a bool, `["a", "b"]` an array — the
+<a href=#37 id=37 data-nosnippet>37</a>        // shape a list-valued key needs until add/remove verbs exist.
+<a href=#38 id=38 data-nosnippet>38</a>        // Anything that isn't valid TOML (a bare path, say) is a string.
+<a href=#39 id=39 data-nosnippet>39</a>        </span><span class="kw">let </span>value: toml_edit::Value = args
+<a href=#40 id=40 data-nosnippet>40</a>            .value
+<a href=#41 id=41 data-nosnippet>41</a>            .parse()
+<a href=#42 id=42 data-nosnippet>42</a>            .unwrap_or_else(|<span class="kw">_</span>| toml_edit::Value::from(args.value.as_str()));
+<a href=#43 id=43 data-nosnippet>43</a>        document.table_at(<span class="kw-2">&amp;</span>args.key.table_path())<span class="question-mark">?</span>[args.key.leaf()] = toml_edit::Item::Value(value);
+<a href=#44 id=44 data-nosnippet>44</a>
+<a href=#45 id=45 data-nosnippet>45</a>        validate_section(document, args.key.section())
+<a href=#46 id=46 data-nosnippet>46</a>    })<span class="question-mark">?</span>;
+<a href=#47 id=47 data-nosnippet>47</a>    <span class="macro">println!</span>(
+<a href=#48 id=48 data-nosnippet>48</a>        <span class="string">"{} = {} ({})"</span>,
+<a href=#49 id=49 data-nosnippet>49</a>        args.key,
+<a href=#50 id=50 data-nosnippet>50</a>        args.value,
+<a href=#51 id=51 data-nosnippet>51</a>        app.context.config_path.display()
+<a href=#52 id=52 data-nosnippet>52</a>    );
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="prelude-val">Ok</span>(())
+<a href=#54 id=54 data-nosnippet>54</a>}
 </code></pre></div></section></main></body></html>
