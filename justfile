@@ -60,11 +60,11 @@ docs-deps:
 docs-serve: docs-cli
     npm --prefix docs run dev
 
-# build the documentation site into docs/dist, rustdoc included
-#
 # Two generators, one output tree: Astro renders the site, and `cargo doc`
 # output is grafted on at /crates afterwards so the API reference is served
 # from the same origin as everything linking to it.
+
+# build the documentation site into docs/dist, rustdoc included
 docs-build: docs-cli build-docs
     #!/usr/bin/env bash
     set -euo pipefail
