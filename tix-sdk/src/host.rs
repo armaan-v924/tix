@@ -1,4 +1,4 @@
-//! The plugin side of the invocation contract (`design/spec.md` §5).
+//! The plugin side of the [invocation contract](https://tix.armaanv.dev/latest/plugins/specification/#1-the-exec-contract).
 //!
 //! A plugin binary's first act is [`HostContext::from_env`]: it answers the
 //! bare `print-cli-help` handshake, strips every `--tix-*` flag out of argv,
@@ -19,7 +19,7 @@ use std::path::PathBuf;
 /// <https://tix.armaanv.dev/latest/plugins/protocol/>.
 pub const PROTOCOL: u64 = 1;
 
-/// Exit code reserved for protocol mismatch (`design/spec.md` §6.4).
+/// Exit code reserved for [protocol mismatch](https://tix.armaanv.dev/latest/plugins/protocol/).
 ///
 /// The established tool-layer-error slot (`docker run`, `timeout(1)`,
 /// `git bisect run` skip); excluded from the host's propagated range.

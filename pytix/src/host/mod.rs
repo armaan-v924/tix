@@ -6,9 +6,8 @@
 //! that invoked it: the flags the host forwarded, the documents those flags
 //! point at, the plugin's own state directory, and the delta channel back.
 //!
-//! The surface is deliberately narrower than the Rust SDK's and may trail it
-//! (`design/spec.md` §7): it grows as real Python plugins need it, not ahead
-//! of them.
+//! The surface is deliberately narrower than the Rust SDK's and may trail
+//! it: it grows as real Python plugins need it, ahead of nothing.
 
 pub mod context;
 pub mod delta;

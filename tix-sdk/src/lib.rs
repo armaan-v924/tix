@@ -5,7 +5,7 @@
 //! context layer, shipped as a crate so plugins inherit identical behavior
 //! for free. Surface grows by **promotion from `tix-cli`** — a helper the
 //! CLI wants applied consistently moves here — never by speculation about
-//! plugin needs (`design/2026-07-18.md`).
+//! plugin needs.
 //!
 //! What lives here:
 //!

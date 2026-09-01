@@ -1,5 +1,6 @@
 //! The generic, format-preserving config document layer — stage 1 and 2 of
-//! the read path (`design/spec.md` §3.3), plus the atomic write path (#67).
+//! the read path ([configuration](https://tix.armaanv.dev/latest/reference/configuration/)), plus the
+//! atomic write path (#67).
 //!
 //! Both tix documents (global config, `.tix/ticket.toml`) are sets of
 //! sections, one table per consumer. **There is no top-level typed struct**

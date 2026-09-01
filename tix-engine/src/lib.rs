@@ -9,7 +9,7 @@
 //! # The engine contract
 //!
 //! This crate performs **domain operations over already-resolved paths** and
-//! nothing else (`design/spec.md` §2.2):
+//! nothing else:
 //!
 //! - **Resolved paths in.** No discovery, no path resolution, no layout
 //!   policy — where config, tickets, and code live is frontend/SDK business

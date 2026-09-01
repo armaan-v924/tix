@@ -1,4 +1,5 @@
-//! Nested `tix` invocation helper (`design/spec.md` §5.5).
+//! Nested `tix` invocation helper
+//! ([contract](https://tix.armaanv.dev/latest/plugins/specification/#5-nested-tix-invocations)).
 //!
 //! A plugin may shell out to `tix`, but a nested host re-discovers from cwd
 //! — which the plugin may have changed — so nested `tix` can silently
