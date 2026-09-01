@@ -9,6 +9,9 @@ tableOfContents:
 
 Raises `TixError` throughout where the underlying operation fails.
 
+The package ships a `py.typed` marker and stubs for both namespaces, so a
+type checker sees this surface without importing the extension.
+
 ## `pytix`
 
 Engine bindings. Resolved paths in, no discovery, no IO on the value types.
@@ -39,7 +42,7 @@ A live repository, obtained from one of the resolution methods above.
 | `sync(force=False)` | `None` | Fast-forwards the default branch from the remote. |
 | `sync_base(branch, force=False)` | `None` | Fast-forwards `branch` from the remote. |
 
-### `TicketConfig(key, description, worktrees={})`
+### `TicketConfig(key, description, worktrees=None)`
 
 A ticket described. `worktrees` maps directory name to `WorktreeConfig`.
 
@@ -105,7 +108,7 @@ together.
 | Constructor | Description |
 | --- | --- |
 | `from_env_or_exit(description)` | The normal entry point: parses `sys.argv`, answers the `print-cli-help` handshake, checks the protocol, and exits on failure. Raises `SystemExit`, so `finally` blocks still run. |
-| `from_env(description=None)` | As above, returning `None` when the binary was run directly rather than through `tix <name>`. |
+| `from_env(description=None)` | The same parse, raising `TixError` instead of exiting — on a protocol mismatch, or when `--tix-config` is absent because the binary was run directly rather than through `tix <name>`. |
 | `from_args(args, description=None)` | Parses an explicit argument list, for tests and plugins managing their own argv. |
 
 | Member | Returns | Description |
@@ -125,21 +128,42 @@ together.
 | `config_document()` | `Document` | The parsed global config. |
 | `ticket_document()` | `Document` | The parsed ticket document. |
 | `ticket_config()` | `TicketConfig` | The ticket's own `[ticket]` section. |
-| `state_dir(name)` | `Path` | Per-ticket state directory, created lazily. |
+| `state_dir(plugin)` | `Path` | Per-ticket state directory, created lazily. |
 | `write_delta(delta)` | `None` | Writes `delta` to `delta_path`. |
 
 Sections come back as plain `dict`s, typed as `tomllib` would type them:
 tables are `dict`, arrays are `list`, TOML datetimes are `datetime`.
 
-### `Delta(target)`
+### `Document`
 
-An outbound config change. `target` is `"global"` or `"ticket"`; anything
-else raises.
+A parsed document — the global config or a ticket's `.tix/ticket.toml` —
+obtained from `HostContext.config_document()` or `ticket_document()`. Cannot
+be constructed from Python.
+
+Read-only by construction, and that is the point: config has a single writer,
+the host. A plugin that wants a change writes a `Delta` instead, so its edits
+land against a fresh parse after it exits cleanly, with every other section,
+comment, and byte of formatting preserved.
 
 | Member | Returns | Description |
 | --- | --- | --- |
-| `target` | `str` | The document this delta applies to. |
+| `path` | `Path` | The file this document was parsed from. |
+| `section(name)` | `dict \| None` | The top-level section `name`, or `None` when there is none. Absent and empty differ: a first run sees `None`, an existing but empty table sees `{}`. |
+| `to_dict()` | `dict` | The whole document as a nested `dict`. |
+| `str(document)` | `str` | The document's TOML source, byte-identical to the file on disk. |
+
+### `Delta(target)`
+
+An outbound config change. `target` is typed
+`Literal["global", "ticket"]` — there are exactly two documents, so a typo is
+a mistake rather than an extension point, and the stubs let a type checker
+say so before the constructor's own check does.
+
+| Member | Returns | Description |
+| --- | --- | --- |
+| `target` | `Literal["global", "ticket"]` | The document this delta applies to. |
 | `set(path, value)` | `None` | Records a set at dotted `path`. Ops are ordered; overlapping keys are last-writer-wins. |
+| `ops()` | `list[dict]` | The ops recorded so far, in order, as `{"set": path, "value": value}` dicts — the wire form, for tests and debugging. |
 | `to_json()` | `str` | The wire form. |
 | `write_to(path)` | `None` | Writes the wire form to `path`. |
 
@@ -150,6 +174,6 @@ needs. The host applies the delta after you exit `0`, against a fresh parse.
 
 | Member | Description |
 | --- | --- |
-| `cache_dir(name)` | Global cache directory for `name`, created lazily. |
+| `cache_dir(plugin)` | Global cache directory for `plugin`, created lazily. |
 | `PROTOCOL` | The invocation-contract version this build speaks. |
 | `PROTOCOL_MISMATCH_EXIT` | The exit code reserved for a protocol mismatch. |
