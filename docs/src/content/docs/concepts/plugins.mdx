@@ -1,0 +1,70 @@
+---
+title: Plugins
+description: How tix dispatches unknown commands to external programs.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Anything `tix` does not recognise as a built-in command, it treats as a
+plugin:
+
+```sh
+tix deploy staging
+```
+
+With no built-in `deploy`, tix looks for an executable named `tix-deploy` on
+your `PATH` and runs it, passing on the arguments along with the context it
+already worked out — which ticket you are in, where the config lives, what
+output format you asked for.
+
+This is the same pattern git and cargo use. A plugin is an ordinary program
+with a particular name; there is no registry, no install step, and no
+manifest. Putting `tix-deploy` on your `PATH` is the entire installation.
+
+## Built-ins always win
+
+A `tix-add` on your `PATH` does not shadow `tix add`. tix resolves its own
+commands first, so a plugin can never change what an existing command does.
+
+Plugins are also top-level only. `tix deploy` can be a plugin;
+`tix ticket deploy` cannot.
+
+## Finding what is installed
+
+Installed plugins are listed in `tix --help`, under their own heading. tix
+builds that list by asking each `tix-*` program on your `PATH` to describe
+itself, which is why it only happens when you actually ask for help rather
+than on every command.
+
+## Configuration
+
+A plugin may keep its own table in either document, named after it:
+
+```toml
+[cli]
+tickets_directory = "/home/me/tickets"
+
+[deploy]          # belongs to tix-deploy
+environment = "staging"
+```
+
+tix does not read, validate, or rewrite that table, and neither does any
+other plugin. It survives every write tix makes to the file — see
+[Configuration](../../reference/configuration/#plugin-tables).
+
+<Aside type="danger" title="Plugins run as you">
+tix makes no safety guarantees about third-party plugins. A plugin is an
+arbitrary program running with your permissions, and `tix <anything>` will
+run one that happens to match the name. Install them the way you would
+install any other executable: knowing where it came from.
+</Aside>
+
+## Writing one
+
+The contract — how arguments are passed, how context is forwarded, how a
+plugin writes config back — is in the
+[plugin specification](https://github.com/armaan-v924/tix/blob/main/PLUGIN_SPEC.md).
+There are SDKs for both languages: `tix-sdk` for Rust, with
+[API docs](/crates/tix_sdk/), and the `pytix.host` namespace for Python.
