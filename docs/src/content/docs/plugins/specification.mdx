@@ -1,7 +1,12 @@
-# tix plugin specification
+---
+title: Plugin specification
+description: The normative contract between tix and a plugin.
+sidebar:
+  order: 2
+---
 
-The authoritative reference for writing a tix plugin. The design rationale
-lives in `design/spec.md` §5–6; this document is the contract as shipped.
+The authoritative reference for writing a tix plugin: the contract as
+shipped. It is normative — where this and a guide disagree, this wins.
 
 A tix plugin is an ordinary executable named `tix-<name>` on `PATH`. That is
 the entire registration story: `tix foo` execs the first `tix-foo` it finds,
@@ -11,7 +16,7 @@ under existing subcommand trees). A Python plugin ships a `console_scripts`
 entry point named `tix-<name>` and lands on `PATH` like any Rust plugin.
 
 Both languages have an SDK that implements this document for you: `tix-sdk`
-in Rust ([API docs](https://tix.armaanv.dev/latest/crates/tix_sdk/)), the
+in Rust ([API docs](/crates/tix_sdk/)), the
 `pytix.host` namespace of the `pytix` wheel in Python. Every snippet below is
 given in both.
 
@@ -69,14 +74,14 @@ let host = tix_sdk::host::HostContext::from_env_or_exit("one-line description");
 // host.config_path, host.ticket_root, host.delta_path, host.user_args, …
 ```
 
-(`tix-sdk/examples/toy-plugin.rs` is a complete working plugin.)
+([`tix-sdk/examples/toy-plugin.rs`](https://github.com/armaan-v924/tix/blob/main/tix-sdk/examples/toy-plugin.rs) is a complete working plugin.)
 
 ## 2. Protocol version
 
 `--tix-protocol` is a monotonic integer, starting at 1, independent of any
 crate version — it is the **only** compatibility boundary between a host and
 a separately-compiled plugin. The version → change table lives in
-[`tix-sdk/PROTOCOL.md`](tix-sdk/PROTOCOL.md).
+[`tix-sdk/PROTOCOL.md`](https://github.com/armaan-v924/tix/blob/main/tix-sdk/PROTOCOL.md).
 
 - It bumps only for removal, rename, or semantic change — never additions.
 - On mismatch, exit with code **125** and a "built for protocol N, host

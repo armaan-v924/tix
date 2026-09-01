@@ -81,7 +81,7 @@ existing git state.
 A tix plugin is an ordinary executable named `tix-<name>` on `PATH`;
 `tix <name>` execs it with the workspace context forwarded. Python plugins
 ship a `console_scripts` entry point with the same name. See
-[PLUGIN_SPEC.md](PLUGIN_SPEC.md) for the full contract, and the
+the [plugin specification](https://tix.armaanv.dev/latest/plugins/specification/) for the full contract, and the
 [`tix-sdk` API docs](https://tix.armaanv.dev/latest/crates/tix_sdk/) if you're
 writing one in Rust.
 
