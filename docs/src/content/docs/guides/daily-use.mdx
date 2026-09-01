@@ -39,15 +39,26 @@ tix add web              # branch derived as at setup, from current config
 tix add web --branch fix/JIRA-123-retry
 ```
 
+A repository can appear twice, on two branches, as long as you say where the
+second one goes and what it checks out:
+
+```sh
+tix add web --as web-spike --branch spike/JIRA-123-auth
+```
+
+See [several worktrees of one
+repository](../../concepts/worktrees-and-branches/#several-worktrees-of-one-repository).
+
 And drop one without touching the rest:
 
 ```sh
 tix remove web
 ```
 
-`remove` prunes the worktree and deletes its entry. The ticket, its other
-worktrees, and the branch all survive — removing the last worktree leaves a
-valid, empty ticket.
+`remove` takes a **worktree name** — the directory, which is the repository
+alias unless you passed `--as`. It prunes the worktree and deletes its
+entry. The ticket, its other worktrees, and the branch all survive —
+removing the last worktree leaves a valid, empty ticket.
 
 <Aside type="caution">
 `tix add` derives the branch name at add time, from current config. If

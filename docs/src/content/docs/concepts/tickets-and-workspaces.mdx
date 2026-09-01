@@ -49,9 +49,10 @@ repo = "api"
 branch = "feature/JIRA-123-fix-the-login-bug"
 ```
 
-The `worktrees` table is keyed by the worktree's **directory name**. Today
-that matches the repository alias; keeping them distinct is what lets a
-ticket eventually hold several worktrees of one repository.
+The `worktrees` table is keyed by the worktree's **directory name**, which
+defaults to the repository alias. Keeping the two distinct is what lets a
+ticket hold [several worktrees of one
+repository](../worktrees-and-branches/#several-worktrees-of-one-repository).
 
 <Aside type="tip">
 Writes preserve your formatting. Comments and hand-edits survive `tix add`

@@ -39,7 +39,8 @@ Also available as `tix add` — the same command, spelled without the group.
 | Option | Description |
 | --- | --- |
 | `-t, --ticket <TICKET>` | The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted |
-| `-b, --branch <BRANCH>` | Branch for the new worktree(s); derived from `[defaults]` + ticket context when omitted |
+| `-b, --branch <BRANCH>` | Branch for the new worktree(s); derived from `[defaults]` + ticket context when omitted, and required when the derived branch is taken |
+| `--as <NAME>` | Directory name for the new worktree, defaulting to the repository alias; required when a worktree already holds that name |
 
 
 ## `tix ticket destroy`
