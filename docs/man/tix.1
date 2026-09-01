@@ -1,0 +1,81 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH tix 1  "tix 3.1.0" 
+.SH NAME
+tix
+.SH SYNOPSIS
+\fBtix\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] <\fIsubcommands\fR>
+.SH DESCRIPTION
+.SH OPTIONS
+.TP
+\fB\-\-config\fR \fI<CONFIG>\fR
+Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
+.TP
+\fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
+Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+json
+.IP \(bu 2
+toml
+.IP \(bu 2
+default
+.RE
+.TP
+\fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
+Set the log level (trace, debug, info, warn, error)
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Set the log level to trace (shorthand for \-\-log\-level trace)
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version
+.SH SUBCOMMANDS
+.TP
+tix\-cli(1)
+Manage the tix CLI itself (update, completions)
+.TP
+tix\-ticket(1)
+Create, inspect, and manage ticket workspaces
+.TP
+tix\-config(1)
+Manage the global tix config
+.TP
+tix\-repo(1)
+Register and clone source repositories
+.TP
+tix\-add(1)
+Add repository worktrees to a ticket
+.TP
+tix\-destroy(1)
+Destroy a ticket: prune its worktrees, delete its directory
+.TP
+tix\-info(1)
+Show a ticket\*(Aqs metadata and worktrees
+.TP
+tix\-list(1)
+List all tickets in the tickets directory
+.TP
+tix\-remove(1)
+Remove a worktree from a ticket without destroying it
+.TP
+tix\-setup(1)
+Create a new ticket workspace with worktrees
+.TP
+tix\-completions(1)
+Generate shell completions (top\-level alias for `tix cli completions`)
+.TP
+tix\-help(1)
+Print this message or the help of the given subcommand(s)
+.SH VERSION
+v3.1.0
