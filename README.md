@@ -5,116 +5,49 @@ its own directory with per-repository worktrees and branches, so every piece
 of work lives in an isolated context you can enter, leave, and destroy
 without touching your main checkouts.
 
+**Documentation: [tix.armaanv.dev](https://tix.armaanv.dev)**
+
 ## Install
 
-Download a prebuilt binary from the
-[latest release](https://github.com/armaan-v924/tix/releases/latest)
-(Linux x86_64, macOS aarch64, Windows x86_64), unpack it, and put `tix` on
-your `PATH`. Later, `tix cli update` self-updates from GitHub releases.
+Download the binary for your platform from the
+[latest release](https://github.com/armaan-v924/tix/releases/latest) and put
+it on your `PATH`; `tix cli update` keeps it current. Or build from source
+with `cargo install --path tix-cli`.
 
-Or build from source:
-
-```bash
-cargo install --path tix-cli
-```
-
-## Documentation
-
-Full documentation is at **[tix.armaanv.dev](https://tix.armaanv.dev)** —
-the [CLI reference](https://tix.armaanv.dev/latest/reference/cli/) for every command
-and flag, and [crate docs](https://tix.armaanv.dev/latest/crates/) for the Rust API.
+Full instructions, including shell completions, are in
+[Install](https://tix.armaanv.dev/latest/start/install/).
 
 ## Quickstart
 
 ```bash
-# Create the global config (~/.config/tix/config.toml or platform equivalent)
-tix config init
+tix config init                 # create the global config
+tix repo add my-org/api         # register a repository
+tix repo clone --all            # clone what is not already on disk
 
-# Register repositories tix should manage
-tix repo add my-org/api
-tix repo clone --all      # clone every registered repo not already on disk
+tix setup JIRA-123              # a workspace, with a worktree per repo
+cd ~/tickets/JIRA-123/api       # an ordinary checkout on its own branch
 
-# Start work on a ticket: creates the workspace and per-repo worktrees
-tix setup JIRA-123
-
-# See what exists
-tix list
-tix info JIRA-123
-
-# Add or remove a repo's worktree in an existing ticket
-tix add api
-tix remove api
-
-# Tear the whole ticket down (refuses if worktrees are dirty)
-tix destroy JIRA-123
+tix list                        # every ticket
+tix destroy JIRA-123            # tear it down; refuses if anything is dirty
 ```
 
-`setup`, `list`, `info`, `add`, `remove`, and `destroy` are top-level
-aliases for the `tix ticket …` subcommands. Shell completions come from
-`tix completions <shell>`.
+[Getting started](https://tix.armaanv.dev/latest/start/getting-started/)
+walks this through properly. Every command and flag is in the
+[CLI reference](https://tix.armaanv.dev/latest/reference/cli/), generated
+from the CLI's own argument definition.
 
-Every command and flag is documented in the
-[CLI reference](https://tix.armaanv.dev/latest/reference/cli/), generated from the
-CLI's own argument definition.
+## Extending it
 
-## Configuration
+A plugin is an executable named `tix-<name>` on your `PATH`; `tix <name>`
+runs it with the workspace context forwarded. There are SDKs for Rust and
+Python — see
+[writing a plugin](https://tix.armaanv.dev/latest/plugins/writing-a-plugin/)
+and the [specification](https://tix.armaanv.dev/latest/plugins/specification/).
 
-The global config lives at the platform config directory
-(`~/.config/tix/config.toml` on Linux, `~/Library/Application Support/tix/`
-on macOS), overridable with `TIX_CONFIG_PATH` or the global `--config` flag.
+`pytix` also exposes tix to Python directly, for scripting rather than
+plugins: [pytix](https://tix.armaanv.dev/latest/pytix/).
 
-Read and edit it through the CLI — writes are format-preserving, so your
-comments and layout survive:
-
-```bash
-tix config show
-tix config get <key>
-tix config set <key> <value>
-```
-
-Defaults set in config are **creation-time seeds**: they apply when a
-ticket or worktree is created, and changing them later never rewrites
-existing git state.
-
-## Plugins
-
-A tix plugin is an ordinary executable named `tix-<name>` on `PATH`;
-`tix <name>` execs it with the workspace context forwarded. Python plugins
-ship a `console_scripts` entry point with the same name. See
-the [plugin specification](https://tix.armaanv.dev/latest/plugins/specification/) for the full contract, and the
-[`tix-sdk` API docs](https://tix.armaanv.dev/latest/crates/tix_sdk/) if you're
-writing one in Rust.
-
-## Python bindings
-
-`pytix` exposes tix to Python: `pytix.*` binds the engine (repositories,
-tickets, worktrees), `pytix.host` binds the SDK (the plugin's handle on the
-invoking host). Both ship in every wheel — there are no extras to pick.
-
-Wheels are attached to each [release](https://github.com/armaan-v924/tix/releases/latest),
-one per platform. They are `abi3` for CPython 3.11, so a single wheel per
-platform installs on any Python 3.11 or newer:
-
-```bash
-# Substitute the version and your platform tag; see the release page for the
-# exact filenames (macosx_11_0_arm64, manylinux_2_34_x86_64, win_amd64).
-pip install https://github.com/armaan-v924/tix/releases/download/v3.1.0/pytix-3.1.0-cp311-abi3-macosx_11_0_arm64.whl
-```
-
-Not on PyPI yet. To build one from a checkout:
-
-```bash
-just build-wheel aarch64-apple-darwin    # lands in ./dist
-```
-
-```python
-import pytix
-
-repo = pytix.RepositoryConfig("https://github.com/my-org/api", "/home/me/code/api").ensure("api")
-repo.create_worktree("api", "feature/JIRA-123", "/home/me/tickets/JIRA-123/api")
-```
-
-## Workspace layout
+## Repository layout
 
 | Crate | Role |
 |-------|------|
@@ -122,18 +55,23 @@ repo.create_worktree("api", "feature/JIRA-123", "/home/me/tickets/JIRA-123/api")
 | [`tix-sdk`](tix-sdk) | Context and consistency layer shared by the CLI and plugins: config discovery and parsing, ticket discovery, the invocation contract |
 | [`tix-cli`](tix-cli) | The `tix` binary — the canonical frontend |
 | [`pytix`](pytix) | PyO3 bindings for the engine and SDK |
+| [`xtask`](xtask) | Generates the CLI and configuration references from the source |
 
-The design rationale and normative spec live in [design/](design), and the
-API reference for every crate is published at
+API documentation for every crate is published at
 [tix.armaanv.dev/latest/crates](https://tix.armaanv.dev/latest/crates/).
 
 ## Development
 
 ```bash
-just ci    # everything CI runs: fmt, clippy, lints, license/version checks, tests
+just ci         # everything CI runs: fmt, clippy, lints, license/version checks, tests
+just docs-cli   # regenerate the CLI reference and man pages
+just docs-serve # serve the documentation site locally
 ```
 
-See the [justfile](justfile) for individual recipes.
+See the [justfile](justfile) for individual recipes. Anything under
+`docs/man/`, `docs/src/content/docs/reference/`, or `docs/src/data/` is
+generated — edit the generator in [`xtask/`](xtask), and `just check-docs`
+will tell you when they disagree.
 
 ## License
 
