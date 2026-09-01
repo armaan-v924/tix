@@ -17,6 +17,12 @@ dependencies = []
 # Python >= 3.11.
 module-name = "pytix"
 features = ["pyo3/extension-module"]
+# A mixed Rust/Python layout, for one reason: typing. The extension carries no
+# type information a checker can read, so `py.typed` and the `.pyi` stubs have
+# to ship as real files alongside it. Declaring a Python source root is what
+# gives them somewhere to live — and it makes maturin use the `__init__.py`
+# checked in there instead of generating the identical one itself.
+python-source = "python"
 
 [dependency-groups]
 dev = [
