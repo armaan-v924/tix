@@ -23,6 +23,29 @@ Created by `tix config init`. Located by `--config`, then `TIX_CONFIG_PATH`,
 then the platform config directory (`~/.config/tix/config.toml` on Linux,
 `~/Library/Application Support/tix/config.toml` on macOS).
 
+Every key below is addressable as `<section>.<key>`:
+
+```sh
+tix config get defaults.branch_prefix
+tix config set defaults.branch_prefix feature
+tix config unset defaults.branch_prefix
+```
+
+A value is read as TOML when it parses as one and as a string otherwise.
+List keys take an array literal, or one element at a time:
+
+```sh
+tix config set defaults.repositories '["backend", "frontend"]'
+tix config add defaults.repositories infra
+tix config remove defaults.repositories backend
+```
+
+`add` creates the list if it does not exist yet and confirms a duplicate
+(`--force` skips the question); `remove` takes one element off, front first,
+and errors if it is not there. Both keep the array's layout and comments as
+written. Keys with a command of their own — `tix repo add` for
+`[engine].configured_repositories` — are still easier reached that way.
+
 ### `[cli]`
 
 Where tix puts things. Both keys are required.
@@ -89,6 +112,8 @@ Each entry is a table of its own:
 
 ## Plugin tables
 
-Both documents may carry a `[<plugin>]` table per plugin. tix neither
-validates nor rewrites one, and they survive every write it makes. A
-plugin's configuration is documented by that plugin.
+Both documents may carry a `[<plugin>]` table per plugin. tix has no schema
+for one, and they survive every write it makes. `tix config set
+<plugin>.<key>` reaches one like any other section, writing the value as
+given — there is no type to check it against. A plugin's configuration is
+documented by that plugin.

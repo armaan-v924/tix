@@ -47,12 +47,46 @@ pub struct App {
 /// The prompt goes to stderr so interactive commands stay pipeable — stdout
 /// carries only results.
 pub fn prompt(label: &str, default: Option<&str>) -> Result<String, tix_sdk::SdkError> {
+    let answer = ask(&match default {
+        Some(default) => format!("{label} [{default}]"),
+        None => label.to_string(),
+    })?;
+
+    match (answer.is_empty(), default) {
+        (false, _) => Ok(answer),
+        (true, Some(default)) => Ok(default.to_string()),
+        (true, None) => Err(tix_sdk::SdkError::Message(format!("{label} is required"))),
+    }
+}
+
+/// Prompts for a value that may be left unset: an empty answer is `None`,
+/// not an error.
+///
+/// The optional counterpart to [`prompt`], for keys whose absence is a
+/// meaningful state rather than a missing answer — every `[defaults]` seed.
+pub fn prompt_optional(label: &str) -> Result<Option<String>, tix_sdk::SdkError> {
+    let answer = ask(&format!("{label} (optional)"))?;
+    Ok((!answer.is_empty()).then_some(answer))
+}
+
+/// Asks a yes/no question, defaulting to no.
+///
+/// One place for the CLI's confirmation convention: `[y/N]`, an empty
+/// answer declines, and only `y`/`yes` accepts. A command that offers a way
+/// past the question spells it `--force`.
+///
+/// Reads through [`ask`] rather than [`prompt`], whose own `[default]`
+/// suffix would print a second bracket after the `[y/N]`.
+pub fn confirm(question: &str) -> Result<bool, tix_sdk::SdkError> {
+    let answer = ask(&format!("{question} [y/N]"))?;
+    Ok(matches!(answer.to_lowercase().as_str(), "y" | "yes"))
+}
+
+/// Writes `label` to stderr and reads one trimmed line from stdin.
+fn ask(label: &str) -> Result<String, tix_sdk::SdkError> {
     use std::io::{BufRead, Write};
 
-    match default {
-        Some(default) => eprint!("{label} [{default}]: "),
-        None => eprint!("{label}: "),
-    }
+    eprint!("{label}: ");
     std::io::stderr().flush().map_err(tix_sdk::SdkError::from)?;
 
     let mut answer = String::new();
@@ -60,11 +94,5 @@ pub fn prompt(label: &str, default: Option<&str>) -> Result<String, tix_sdk::Sdk
         .lock()
         .read_line(&mut answer)
         .map_err(tix_sdk::SdkError::from)?;
-    let answer = answer.trim();
-
-    match (answer.is_empty(), default) {
-        (false, _) => Ok(answer.to_string()),
-        (true, Some(default)) => Ok(default.to_string()),
-        (true, None) => Err(tix_sdk::SdkError::Message(format!("{label} is required"))),
-    }
+    Ok(answer.trim().to_string())
 }

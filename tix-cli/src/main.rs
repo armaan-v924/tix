@@ -46,10 +46,13 @@ fn main() {
             cli::CliCommands::Update(args) => cli::update::run(&app, args),
         },
         Commands::Config(args) => match args.command {
+            config::ConfigCommands::Add(args) => config::add::run(&app, args),
             config::ConfigCommands::Get(args) => config::get::run(&app, args),
             config::ConfigCommands::Init(args) => config::init::run(&app, args),
+            config::ConfigCommands::Remove(args) => config::remove::run(&app, args),
             config::ConfigCommands::Set(args) => config::set::run(&app, args),
             config::ConfigCommands::Show(args) => config::show::run(&app, args),
+            config::ConfigCommands::Unset(args) => config::unset::run(&app, args),
         },
         Commands::Repo(args) => match args.command {
             repo::RepoCommands::Add(args) => repo::add::run(&app, args),

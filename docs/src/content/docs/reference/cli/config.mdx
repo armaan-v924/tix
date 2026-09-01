@@ -17,9 +17,32 @@ tix config <COMMAND>
 ```
 
 
+## `tix config add`
+
+Append a value to a list in the config document
+
+```sh frame="none"
+tix config add [OPTIONS] <KEY> <VALUE>
+```
+
+
+### Arguments
+
+| Argument | Description |
+| --- | --- |
+| `<KEY>` | The `<section>.<key>` path of the list (e.g. `defaults.repositories`) |
+| `<VALUE>` | The value to append (parsed as a TOML value when possible, else a string) |
+
+### Options
+
+| Option | Description |
+| --- | --- |
+| `-f, --force` | Append without confirming, even if the value is already in the list |
+
+
 ## `tix config get`
 
-Read a value from the `[cli]` section
+Read a value from the config document
 
 ```sh frame="none"
 tix config get <KEY>...
@@ -30,7 +53,7 @@ tix config get <KEY>...
 
 | Argument | Description |
 | --- | --- |
-| `<KEY>...` | The `[cli]` key(s) to read<br />Accepts: `tickets-directory`, `code-directory` |
+| `<KEY>...` | The `<section>[.<key>]` path(s) to read (e.g. `defaults.branch_prefix`) |
 
 
 ## `tix config init`
@@ -49,9 +72,26 @@ tix config init [OPTIONS]
 | `--force` | Overwrite an existing config file |
 
 
+## `tix config remove`
+
+Remove a value from a list in the config document
+
+```sh frame="none"
+tix config remove <KEY> <VALUE>
+```
+
+
+### Arguments
+
+| Argument | Description |
+| --- | --- |
+| `<KEY>` | The `<section>.<key>` path of the list (e.g. `defaults.repositories`) |
+| `<VALUE>` | The value to remove (parsed as a TOML value when possible, else a string) |
+
+
 ## `tix config set`
 
-Set a value in the `[cli]` section
+Set a value in the config document
 
 ```sh frame="none"
 tix config set <KEY> <VALUE>
@@ -62,7 +102,7 @@ tix config set <KEY> <VALUE>
 
 | Argument | Description |
 | --- | --- |
-| `<KEY>` | The `[cli]` key to set<br />Accepts: `tickets-directory`, `code-directory` |
+| `<KEY>` | The `<section>.<key>` path to set (e.g. `defaults.branch_prefix`) |
 | `<VALUE>` | The new value (parsed as a TOML value when possible, else a string) |
 
 
@@ -74,4 +114,20 @@ Print the global config document
 tix config show
 ```
 
+
+
+## `tix config unset`
+
+Remove a key from the config document
+
+```sh frame="none"
+tix config unset <KEY>
+```
+
+
+### Arguments
+
+| Argument | Description |
+| --- | --- |
+| `<KEY>` | The `<section>.<key>` path to remove (e.g. `defaults.branch_prefix`) |
 

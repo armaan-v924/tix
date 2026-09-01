@@ -1,85 +1,101 @@
-//! `tix config get` — read value(s) from the `[cli]` section.
+//! `tix config get` — read value(s) from anywhere in the config document.
 
-use crate::tix::config::ConfigKey;
+use crate::tix::config::ConfigPath;
 use crate::tix::utils::OutputType;
 use tix_sdk::SdkError;
 use tix_sdk::document::TixDocument;
 
-/// Read a value from the `[cli]` section
+/// Read a value from the config document
 #[derive(clap::Args, Debug)]
 pub struct Args {
-    /// The `[cli]` key(s) to read
+    /// The `<section>[.<key>]` path(s) to read (e.g. `defaults.branch_prefix`)
     #[arg(required = true)]
-    pub key: Vec<ConfigKey>,
+    pub key: Vec<ConfigPath>,
 }
 
-/// Reads each requested key as a path into `[cli]` and prints its value.
+/// Reads each requested path out of the document and prints what is there.
 ///
-/// A single key prints the bare value (scripting-friendly); multiple keys
-/// print `key = value` lines. Keys are validated at parse time by the
-/// [`ConfigKey`] value enum; a key that is valid but unset in the document
-/// errors here.
+/// A single value prints bare — a string without its quotes, everything
+/// else as the TOML literal `tix config set` would take back, so a list key
+/// round-trips through the two commands. Anything else (several paths, or
+/// one naming a whole table) prints as TOML at its real position in the
+/// document, `[defaults]` header and all, which is also what makes the JSON
+/// shape mirror the file rather than flattening it.
+///
+/// A path that is valid but unset errors: absent and empty are different,
+/// and a script reading a key that was never written should hear about it.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let document = TixDocument::load(&app.context.config_path)?;
 
-    let mut pairs = Vec::with_capacity(args.key.len());
-    for key in &args.key {
-        let item = document
-            .doc()
-            .get("cli")
-            .and_then(|cli| cli.get(key.toml_key()))
-            .ok_or_else(|| {
+    let mut found = Vec::with_capacity(args.key.len());
+    for path in &args.key {
+        let mut item = document.doc().as_item();
+        for segment in path.segments() {
+            item = item.get(segment).ok_or_else(|| {
                 SdkError::Message(format!(
-                    "'{}' is not set in [cli] (config: {})",
-                    key.toml_key(),
+                    "'{path}' is not set (config: {})",
                     app.context.config_path.display()
                 ))
             })?;
-        pairs.push((key.toml_key(), item.clone()));
+        }
+        found.push((path, item.clone()));
     }
 
+    // A lone value is the only output that is not a document fragment.
+    if let ([(_, item)], OutputType::Default) = (found.as_slice(), app.output)
+        && let Some(text) = bare_value(item)
+    {
+        println!("{text}");
+        return Ok(());
+    }
+
+    let extract = rebuild(&found)?;
     match app.output {
-        OutputType::Default => {
-            if let [(_, item)] = pairs.as_slice() {
-                println!("{}", render_bare(item));
-            } else {
-                for (key, item) in &pairs {
-                    println!("{key} = {}", item.to_string().trim());
-                }
-            }
-        }
-        OutputType::Toml => {
-            for (key, item) in &pairs {
-                println!("{key} = {}", item.to_string().trim());
-            }
+        // A table cloned out of the document brings its own blank-line
+        // prefix; the extract starts at its first line.
+        OutputType::Default | OutputType::Toml => {
+            print!("{}", extract.to_string().trim_start_matches('\n'))
         }
         OutputType::Json => {
-            let mut object = serde_json::Map::new();
-            for (key, item) in &pairs {
-                object.insert((*key).to_string(), item_to_json(key, item)?);
-            }
-            println!("{}", serde_json::to_string_pretty(&object).unwrap());
+            let value: toml::Value = toml::from_str(&extract.to_string())?;
+            let json = serde_json::to_string_pretty(&value)
+                .map_err(|e| SdkError::Message(format!("json conversion failed: {e}")))?;
+            println!("{json}");
         }
     }
     Ok(())
 }
 
-/// A scalar's natural text (unquoted strings); non-scalars render as TOML.
-fn render_bare(item: &toml_edit::Item) -> String {
-    match item.as_str() {
-        Some(s) => s.to_string(),
-        None => item.to_string().trim().to_string(),
+/// A value's natural text: a string's own characters, unquoted, and every
+/// other value's TOML literal. `None` for a table, which is a piece of
+/// document rather than a value and has no bare form.
+fn bare_value(item: &toml_edit::Item) -> Option<String> {
+    match item.as_value()? {
+        toml_edit::Value::String(text) => Some(text.value().to_string()),
+        value => Some(value.to_string().trim().to_string()),
     }
 }
 
-/// Converts one TOML item to JSON by round-tripping it through a real TOML
-/// parse — handles every value shape without a hand-written mapping.
-fn item_to_json(key: &str, item: &toml_edit::Item) -> Result<serde_json::Value, SdkError> {
-    let table: toml::Table = toml::from_str(&format!("{key} = {}", item.to_string().trim()))?;
-    let value = table
-        .get(key)
-        .cloned()
-        .unwrap_or(toml::Value::String(String::new()));
-    serde_json::to_value(value)
-        .map_err(|e| SdkError::Message(format!("json conversion failed: {e}")))
+/// Rebuilds the requested items into a document of their own, each at the
+/// path it was read from.
+///
+/// Reconstructing the position is what keeps the output honest: a table
+/// printed on its own would carry sub-headers relative to nothing, and a
+/// value would print a dotted key TOML reads back as a different shape.
+/// Rebuilt this way, the output is a valid fragment of the config file, and
+/// the JSON conversion comes for free by parsing it.
+///
+/// # Errors
+///
+/// [`SdkError::Message`] if two requested paths disagree about the document
+/// shape (`defaults` and `defaults.branch_prefix.x`, say) — the same
+/// non-table diagnostic any nested write raises.
+fn rebuild(found: &[(&ConfigPath, toml_edit::Item)]) -> Result<TixDocument, SdkError> {
+    let mut extract = TixDocument::empty();
+    for (path, item) in found {
+        let segments = path.segments();
+        let (leaf, parents) = segments.split_last().expect("non-empty by construction");
+        extract.table_at(parents)?.insert(leaf, item.clone());
+    }
+    Ok(extract)
 }

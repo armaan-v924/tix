@@ -44,19 +44,15 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let document = TixDocument::load(&app.context.config_path)?;
     let engine: EngineConfig = document.section_or_default("engine")?;
 
-    if !args.force {
-        let answer = crate::tix::utils::prompt(
-            &format!(
-                "Destroy ticket '{}' at {}? [y/N]",
-                ticket.key,
-                root.display()
-            ),
-            Some("n"),
-        )?;
-        if !matches!(answer.to_lowercase().as_str(), "y" | "yes") {
-            println!("aborted");
-            return Ok(());
-        }
+    if !args.force
+        && !crate::tix::utils::confirm(&format!(
+            "Destroy ticket '{}' at {}?",
+            ticket.key,
+            root.display()
+        ))?
+    {
+        println!("aborted");
+        return Ok(());
     }
 
     let mut entries: Vec<(&String, &WorktreeConfig)> = ticket.worktrees.iter().collect();
