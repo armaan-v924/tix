@@ -1,4 +1,4 @@
-//! The plugin side of the [invocation contract](https://tix.armaanv.dev/latest/plugins/specification/#1-the-exec-contract).
+//! The plugin side of the [invocation contract](https://tix.armaanv.dev/latest/plugins/specification/#the-exec-contract).
 //!
 //! A plugin binary's first act is [`HostContext::from_env`]: it answers the
 //! bare `print-cli-help` handshake, strips every `--tix-*` flag out of argv,
@@ -68,7 +68,7 @@ impl HostContext {
     /// Parses host-injected flags out of `args`.
     ///
     /// - `print-cli-help` as the sole argument is handled **before** any
-    ///   host flag is required (it is invoked bare, spec §5.6): the plugin's
+    ///   host flag is required (it is invoked bare): the plugin's
     ///   registered description prints and the process exits 0. Register one
     ///   with [`Self::from_args_with_description`].
     /// - Known `--tix-*` flags are collected; **unknown `--tix-*` flags are
@@ -216,7 +216,7 @@ impl HostContext {
 /// Tix's own global flags, pre-scanned out of raw forwarded args.
 ///
 /// `external_subcommand` captures everything after a plugin name raw, so
-/// `tix foo --verbose` leaves the parsed globals untouched (spec §5.3). The
+/// `tix foo --verbose` leaves the parsed globals untouched. The
 /// host pre-scans the raw args with this — the same code that defines the
 /// SDK's view of the contract — resolves settled values, and forwards those;
 /// the matched flags are consumed (they are tix's, not the plugin's).

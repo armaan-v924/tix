@@ -1,5 +1,5 @@
 //! Plugin discovery for `tix --help` — the "Plugins" section
-//! ([help integration](https://tix.armaanv.dev/latest/plugins/specification/#6-help-integration)).
+//! ([help integration](https://tix.armaanv.dev/latest/plugins/specification/#help-integration)).
 //!
 //! Listing is best-effort by contract: a plugin whose handshake is missing,
 //! broken, slow, or malicious degrades to its bare name. **The listing

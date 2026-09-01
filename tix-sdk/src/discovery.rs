@@ -66,7 +66,7 @@ pub fn is_ticket_root(path: &Path) -> bool {
 ///
 /// Ticket directories contain worktrees and people symlink into them, so
 /// logical vs. physical paths can resolve *different tickets* from the same
-/// `cd`. Discovery MUST NOT canonicalize (spec §4): we walk what the user
+/// `cd`. Discovery MUST NOT canonicalize: we walk what the user
 /// sees in their prompt, matching git's behavior. `$PWD` is trusted only when
 /// it is absolute and still names the same directory as the process cwd;
 /// otherwise the process cwd is the fallback.
@@ -99,7 +99,7 @@ pub fn discover_ticket_root() -> Result<Option<PathBuf>, SdkError> {
 ///   (matching git's `GIT_DISCOVERY_ACROSS_FILESYSTEM` default).
 /// - The walk is **not** bounded by the configured tickets directory — that
 ///   coupling was rejected because a moved or symlinked ticket would fail
-///   with no visible cause (spec §4).
+///   with no visible cause.
 pub fn discover_ticket_root_from(start: &Path) -> Option<PathBuf> {
     let start_device = device_of(start);
     let mut current = start;

@@ -33,7 +33,8 @@ pub struct Args {
 /// Runs **without ticket context** by design — this is the command that
 /// creates it. `[defaults]` is read **once**, here, and the derived values
 /// are written into the ticket document; later changes to `[defaults]` never
-/// touch this ticket (seeds, not defaults — spec §3.4).
+/// touch this ticket (see
+/// [creation-time seeds](https://tix.armaanv.dev/latest/concepts/seeds/)).
 ///
 /// Repo selection: explicit aliases win, `--all` takes every registered
 /// repo, and neither falls back to the `defaults.repositories` seed list.

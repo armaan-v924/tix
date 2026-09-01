@@ -1,5 +1,5 @@
 //! Plugin dispatch: exec `tix-<name>` with the invocation contract
-//! ([contract](https://tix.armaanv.dev/latest/plugins/specification/#1-the-exec-contract)).
+//! ([contract](https://tix.armaanv.dev/latest/plugins/specification/#the-exec-contract)).
 //!
 //! Unknown subcommands land here via the clap catch-all — builtins always
 //! win, so dispatch is only ever reached for non-builtin names. There is no
@@ -16,14 +16,14 @@ use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig};
 use tracing::debug;
 
 /// Recursion guard: `tix-foo` shelling `tix foo` forever is the one failure
-/// mode that damages more than tix (spec §5.5).
+/// mode that damages more than tix.
 const DEPTH_ENV: &str = "TIX_DEPTH";
 const DEPTH_CAP: u32 = 10;
 
 /// Dispatches `tix <name> <args…>` to the `tix-<name>` binary on `PATH`.
 ///
 /// The host resolves its own globals **before** forwarding — the raw args
-/// are pre-scanned (spec §5.3, the same SDK code plugins build on) and the
+/// are pre-scanned (the same SDK code plugins build on) and the
 /// plugin receives settled `--tix-*` values, never raw flags. stdin/stdout/
 /// stderr are inherited: the plugin owns the terminal. The child's exit code
 /// propagates unmodified, except **125**, which is reserved for protocol
@@ -78,7 +78,7 @@ pub fn run(app: &App, args: Vec<String>) -> Result<(), SdkError> {
         .and_then(|root| detect_current_repo(root).transpose())
         .transpose()?;
 
-    // Host-created temp file for the outbound delta (spec §5.2). Kept alive
+    // Host-created temp file for the outbound delta. Kept alive
     // until after the wait; deleted on drop.
     let delta_file = tempfile::NamedTempFile::new().map_err(SdkError::from)?;
 
@@ -181,7 +181,7 @@ fn is_executable(path: &std::path::Path) -> bool {
     path.is_file()
 }
 
-/// Applies the plugin's outbound delta, if it wrote one (spec §6).
+/// Applies the plugin's outbound delta, if it wrote one.
 ///
 /// The apply happens against a **fresh parse at apply time** under the
 /// exclusive lock — never the host's startup snapshot — so it merges with

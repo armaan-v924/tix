@@ -19,7 +19,7 @@ pub struct Args {
 ///
 /// The edit is a targeted path traversal over the format-preserving DOM —
 /// plugin tables, comments, and formatting elsewhere in the file survive
-/// byte-identical (spec §6.2 applies to the CLI itself, not just plugin
+/// byte-identical (applies to the CLI itself, not just plugin
 /// deltas). Before writing, the resulting `[cli]` section is re-deserialized
 /// into [`CliConfig`]; a value the type rejects fails the whole write, and
 /// nothing lands on disk ([`with_write`] discards on error).

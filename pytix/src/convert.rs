@@ -1,7 +1,7 @@
 //! Value conversion across the three representations a plugin sees.
 //!
 //! Config travels in two directions and two formats, and the asymmetry is
-//! deliberate ([contract](https://tix.armaanv.dev/latest/plugins/specification/#3-config-access)): inbound config is TOML,
+//! deliberate ([contract](https://tix.armaanv.dev/latest/plugins/specification/#config-access)): inbound config is TOML,
 //! because it is a
 //! real file a human edits, and the outbound delta is JSON, because Python has
 //! a TOML *reader* in the stdlib but no writer. So this module holds two

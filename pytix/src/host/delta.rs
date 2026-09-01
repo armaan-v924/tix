@@ -13,7 +13,7 @@ use tix_sdk::delta::{Delta, DeltaOp, DeltaTarget};
 /// place. It records what it wants at dotted key paths, writes the result to
 /// the path the host passed in `--tix-delta`, and exits; the host applies the
 /// ops against a fresh parse afterwards
-/// ([contract](https://tix.armaanv.dev/latest/plugins/specification/#3-config-access)). Writing no file
+/// ([contract](https://tix.armaanv.dev/latest/plugins/specification/#config-access)). Writing no file
 /// means no changes, so a plugin with nothing to say simply never builds one.
 ///
 /// Ops are applied in order and overlapping keys are last-writer-wins.
