@@ -30,10 +30,11 @@ jobs:
           JSON
           OUTPUT
 
+  # The site itself is published from main by docs.yml; this job exists to
+  # attach a snapshot of the docs to the release, so a tagged version has a
+  # browsable copy that does not move when main does.
   docs:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,63 +42,21 @@ jobs:
 
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
 
-      - name: Build docs
-        run: just build-docs
-
-      - name: Stage docs
-        run: |
-          DOC_OUT=$(mktemp -d)
-          cp -r target/doc/* "$DOC_OUT"
-          touch "$DOC_OUT/.nojekyll"
-          # cargo doc emits only per-crate index pages; GitHub Pages 404s
-          # without a root index.html.
-          cat > "$DOC_OUT/index.html" <<'EOF'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>tix API documentation</title>
-            <style>
-              body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; line-height: 1.6; }
-              h1 { font-size: 1.6rem; }
-              li { margin: 0.5rem 0; }
-            </style>
-          </head>
-          <body>
-            <h1>tix API documentation</h1>
-            <ul>
-              <li><a href="tix_sdk/index.html"><code>tix-sdk</code></a> — the SDK for plugins and frontends</li>
-              <li><a href="tix_engine/index.html"><code>tix-engine</code></a> — the core engine</li>
-              <li><a href="tix/index.html"><code>tix</code></a> — the CLI</li>
-            </ul>
-          </body>
-          </html>
-          EOF
-          echo "DOC_OUT=$DOC_OUT" >> $GITHUB_ENV
-
-      - name: Publish docs to docs branch
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git fetch origin docs || true
-          if git show-ref --verify --quiet refs/heads/docs; then
-            git checkout docs
-          else
-            git checkout --orphan docs
-          fi
-          find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
-          # `/.` instead of `/*`: the glob misses dotfiles, dropping .nojekyll
-          cp -r "$DOC_OUT"/. .
-          git add -A
-          git commit -m "Update docs for ${GITHUB_REF_NAME}" || echo "No changes to commit"
-          git push origin docs --force
+      - name: Build docs site
+        run: just docs-deps docs-build
+        env:
+          ASTRO_TELEMETRY_DISABLED: "1"
 
       - name: Package docs
         run: |
           mkdir -p dist
-          tar -czf dist/docs-${GITHUB_REF_NAME}.tar.gz -C "$DOC_OUT" .
+          tar -czf dist/docs-${GITHUB_REF_NAME}.tar.gz -C docs/dist .
 
       - name: Upload docs artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

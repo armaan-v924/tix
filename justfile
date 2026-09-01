@@ -46,6 +46,38 @@ build-wheel target:
 build-docs:
     cargo doc --no-deps
 
+# ── docs ──────────────────────────────────────────────────────────────────────
+
+# regenerate the CLI reference and man pages from the clap definition
+docs-cli:
+    cargo run -q -p xtask
+
+# install the docs site's node dependencies
+docs-deps:
+    npm --prefix docs ci
+
+# serve the docs site locally with live reload
+docs-serve: docs-cli
+    npm --prefix docs run dev
+
+# build the documentation site into docs/dist, rustdoc included
+#
+# Two generators, one output tree: Astro renders the site, and `cargo doc`
+# output is grafted on at /crates afterwards so the API reference is served
+# from the same origin as everything linking to it.
+docs-build: docs-cli build-docs
+    #!/usr/bin/env bash
+    set -euo pipefail
+    npm --prefix docs run build
+    rm -rf docs/dist/crates
+    mkdir -p docs/dist/crates
+    # `/.` rather than `/*`: the glob would miss rustdoc's dotfiles.
+    cp -R target/doc/. docs/dist/crates/
+    # cargo doc emits per-crate index pages but no root, so /crates/ alone
+    # would 404.
+    cp docs/crates-index.html docs/dist/crates/index.html
+    echo "site built at docs/dist"
+
 # import and exercise a built wheel from ./dist in a throwaway venv
 #
 # The wheels job builds an artifact it never loads, so a wheel that links
@@ -112,8 +144,24 @@ check-python-lint:
 # ── checks ────────────────────────────────────────────────────────────────────
 
 # run all non-lint checks (CI entrypoint)
-check: check-license check-versions lint
+check: check-license check-versions check-docs lint
     @echo "all checks passed"
+
+# verify the generated CLI reference and man pages match the CLI
+check-docs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    generated="docs/man docs/src/content/docs/reference"
+    just docs-cli
+    # --porcelain rather than `git diff`: a newly added command shows up as an
+    # untracked file, which a diff against the index would not see at all.
+    drift=$(git status --porcelain -- $generated)
+    if [[ -n "$drift" ]]; then
+        echo "error: generated docs are stale — run \`just docs-cli\` and commit the result"
+        echo "$drift"
+        exit 1
+    fi
+    echo "generated docs match the CLI (ok)"
 
 # verify LICENSE copyright year is current
 check-license:

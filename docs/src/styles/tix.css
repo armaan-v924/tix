@@ -1,0 +1,67 @@
+/* tix palette.
+ *
+ * Starlight treats bare `:root` as the dark theme and `[data-theme='light']`
+ * as light, so both are defined here rather than behind a media query. Only
+ * tokens that differ from Starlight's defaults are overridden. */
+
+:root {
+  --sl-color-accent-low: #14312b;
+  --sl-color-accent: #1f7a63;
+  --sl-color-accent-high: #a3ded0;
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #e9eeec;
+  --sl-color-gray-2: #bcc4c1;
+  --sl-color-gray-3: #808f8a;
+  --sl-color-gray-4: #4c5b57;
+  --sl-color-gray-5: #2e3b37;
+  --sl-color-gray-6: #1d2825;
+  --sl-color-black: #141c1a;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #c4e6db;
+  --sl-color-accent: #106953;
+  --sl-color-accent-high: #0a3b2f;
+
+  --sl-color-white: #141c1a;
+  --sl-color-gray-1: #1d2825;
+  --sl-color-gray-2: #2e3b37;
+  --sl-color-gray-3: #5c6b66;
+  --sl-color-gray-4: #8b9a95;
+  --sl-color-gray-5: #c3cdc9;
+  --sl-color-gray-6: #e3eae7;
+  --sl-color-gray-7: #f1f5f3;
+  --sl-color-black: #ffffff;
+}
+
+/* The CLI reference is mostly two-column flag tables. The left column holds
+ * an invocation like `-t, --ticket <TICKET>`, which reads badly wrapped
+ * mid-flag, so it gets the space it needs and the description takes the
+ * slack. */
+.sl-markdown-content table {
+  width: 100%;
+}
+
+.sl-markdown-content table td:first-child {
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+/* Below the sidebar breakpoint there is no room to spare: let the flag
+ * column wrap rather than pushing the whole page sideways. */
+@media (max-width: 50rem) {
+  .sl-markdown-content table td:first-child {
+    white-space: normal;
+  }
+}
+
+/* Command names are headings *and* code (`## \`tix ticket setup\``). Keep the
+ * monospace, drop the inline-code chip — at heading size the background box
+ * reads as a button. */
+.sl-markdown-content :is(h1, h2, h3, h4) code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}

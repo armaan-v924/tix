@@ -1,0 +1,77 @@
+name: Docs
+
+# The documentation site tracks main: the CLI reference is generated from the
+# CLI's own definition, so publishing only at release time would leave the
+# reference describing a version nobody is running yet.
+#
+# This is the only workflow that writes the `docs` branch. The release
+# workflow builds the same site, but only to attach a snapshot to the
+# release — two publishers racing to force-push one branch is not worth the
+# freshness it would buy.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "tix-cli/**"
+      - "tix-sdk/**"
+      - "tix-engine/**"
+      - "xtask/**"
+      - "justfile"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Build site
+        run: just docs-deps docs-build
+        env:
+          ASTRO_TELEMETRY_DISABLED: "1"
+
+      - name: Publish to docs branch
+        run: |
+          set -euo pipefail
+          # Stage outside the worktree: the next step wipes the checkout, and
+          # docs/dist would go with it.
+          site=$(mktemp -d)
+          cp -R docs/dist/. "$site"/
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git fetch origin docs || true
+          if git show-ref --verify --quiet refs/remotes/origin/docs; then
+            git checkout -B docs origin/docs
+          else
+            git checkout --orphan docs
+          fi
+          find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
+          # `/.` rather than `/*`: the glob misses .nojekyll, without which
+          # GitHub Pages runs Jekyll and drops the `_astro/` asset directory.
+          cp -R "$site"/. .
+          git add -A
+          git commit -m "Update docs for ${GITHUB_SHA:0:7}" || echo "No changes to commit"
+          git push origin docs --force
