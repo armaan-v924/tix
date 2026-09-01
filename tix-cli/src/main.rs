@@ -1,7 +1,6 @@
-mod tix;
-
-use crate::tix::utils::App;
-use crate::tix::{Commands, cli, config, plugin, repo, ticket};
+use tix_cli::tix;
+use tix_cli::tix::utils::App;
+use tix_cli::tix::{Commands, cli, config, plugin, repo, ticket};
 use tix_sdk::context::Context;
 use tracing_subscriber::fmt;
 
