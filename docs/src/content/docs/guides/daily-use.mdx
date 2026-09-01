@@ -1,0 +1,101 @@
+---
+title: Daily use
+description: Working across several tickets and repositories, and tearing them down.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+[Getting started](../../start/getting-started/) walks one ticket end to end.
+This is what the rest of the week looks like.
+
+## Several tickets at once
+
+Tickets do not interact. Each has its own directory and its own branches, so
+switching work is `cd`:
+
+```sh
+tix list                    # every ticket, with descriptions
+cd ~/tickets/JIRA-456
+```
+
+There is no "current ticket" to select. Commands read your working
+directory, so being in a ticket *is* selecting it.
+
+To act on one without moving:
+
+```sh
+tix info --ticket JIRA-456
+tix add web --ticket JIRA-456
+```
+
+## Repositories in a ticket
+
+Work spreads. Add a repository to a ticket that already exists:
+
+```sh
+tix add web              # branch derived as at setup, from current config
+tix add web --branch fix/JIRA-123-retry
+```
+
+And drop one without touching the rest:
+
+```sh
+tix remove web
+```
+
+`remove` prunes the worktree and deletes its entry. The ticket, its other
+worktrees, and the branch all survive — removing the last worktree leaves a
+valid, empty ticket.
+
+<Aside type="caution">
+`tix add` derives the branch name *now*, not at ticket creation. If
+`branch_prefix` changed in between, the new worktree will not match its
+siblings — see [Seeds, not defaults](../../concepts/seeds/).
+</Aside>
+
+## Checking state
+
+```sh
+tix info
+```
+
+Prints the key, description, path, and a row per worktree with its
+repository, branch, and whether it still resolves on disk. A worktree that
+has been deleted or is no longer a git checkout is flagged rather than
+failing the command.
+
+## New repositories
+
+Registering is separate from using:
+
+```sh
+tix repo add my-org/payments      # register
+tix repo clone --all              # clone anything not yet on disk
+```
+
+Once registered, a repository is available to every ticket.
+
+## Tearing down
+
+```sh
+tix destroy JIRA-123
+```
+
+Confirms, prunes each worktree, then removes the directory — and stops
+without deleting anything if a worktree has uncommitted changes. Each
+successful prune is recorded as it happens, so a run that stops part way can
+be retried rather than restarted.
+
+```sh
+tix destroy JIRA-123 --force
+```
+
+No confirmation, uncommitted changes discarded, directory deleted even if
+pruning fails. Anything left behind is warned about, with a pointer at
+`git worktree prune`.
+
+Branches and commits survive either way. Destroying a ticket removes working
+directories, not history — so a ticket whose work is merged and pushed is
+safe to destroy, and one whose work is not is safe to keep.

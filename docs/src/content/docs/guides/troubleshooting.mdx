@@ -1,0 +1,132 @@
+---
+title: Troubleshooting
+description: What tix's errors mean and what to do about them.
+sidebar:
+  order: 3
+---
+
+Every error tix prints goes to standard error, prefixed `error:`, and exits
+`1`.
+
+## No config
+
+```
+error: config not found: no config file at /home/you/.config/tix/config.toml
+       — run `tix config init` to create one
+```
+
+Nothing works before the config exists. If you *have* one and tix disagrees,
+it is looking somewhere else — `--config` beats `TIX_CONFIG_PATH` beats the
+platform default. `tix config show --config <path>` confirms which file it
+read.
+
+```
+error: global config has no [cli] section — run `tix config init`
+```
+
+The file exists but is missing `tickets_directory` / `code_directory`. Add
+the section by hand or re-run init with `--force`.
+
+## Not inside a ticket
+
+```
+error: not inside a ticket — cd into one or pass --ticket <path|id>
+```
+
+The upward walk found no `.tix/ticket.toml`. Either you are outside any
+ticket, or you are next to one rather than inside it — a bare `--ticket
+NAME` is looked up in your tickets directory, so a ticket in the current
+directory needs `--ticket ./NAME`.
+
+## Unknown repository or worktree
+
+```
+error: 'api' is not a registered repository (registered: backend, web)
+```
+
+Aliases are what `tix repo add` registered, not directory names. The list in
+the message is everything tix knows.
+
+```
+error: 'api' is not a tracked worktree of ticket 'JIRA-123' (tracked: web)
+```
+
+`tix remove` addresses the worktree directory name in the ticket, which is
+not necessarily a repository you expect to be there. `tix info` lists them.
+
+## Already exists
+
+```
+error: ticket 'JIRA-123' already exists at /home/you/tickets/JIRA-123
+```
+
+tix will not create over an existing ticket. Use it, or destroy it first.
+
+```
+error: alias 'api' is already registered (remote: https://…) — pick another with --alias
+```
+
+```
+error: ticket 'JIRA-123' already has a worktree for 'api'
+```
+
+One worktree per repository per ticket, for now.
+
+## Keys are not paths
+
+```
+error: 'feature/login' is not a valid ticket key — keys are names, not paths
+```
+
+A key names a directory under your tickets directory; a separator would make
+the ticket's own location ambiguous.
+
+## Destroy stopped part way
+
+```
+error: could not prune worktree 'api': … — nothing further was deleted;
+       fix it (or pass --force) and retry
+```
+
+Almost always uncommitted changes. This is the safety behaviour, not a
+failure: commit, stash, or push, then retry. Worktrees already pruned stay
+pruned and the ticket document is kept in step, so retrying resumes rather
+than starting over.
+
+With `--force`, pruning failures become warnings and the directory is
+deleted regardless. That can leave registrations behind in the source
+repositories:
+
+```
+warning: left dangling: api (api) — run `git worktree prune` in the affected source repos
+```
+
+Run that in the repository under your code directory, not in the ticket.
+
+## Worktrees flagged in `tix info`
+
+```
+api    ⚠ missing on disk
+web    ⚠ not a git repository
+```
+
+The ticket document records a worktree that is gone or is no longer a git
+checkout — usually something deleted by hand. `tix remove <name>` drops the
+entry; add it back with `tix add <alias>` if you still want it.
+
+## Unknown command
+
+```
+error: unknown command 'deploy': not a builtin, and no 'tix-deploy' executable on PATH
+```
+
+A typo, or a plugin that is not on your `PATH`. `tix --help` lists the
+plugins tix can currently find.
+
+## Conflicting log flags
+
+```
+error: Only one of --verbose, --quiet, --log-level may be specified
+```
+
+They set the same thing. Pick one.

@@ -35,6 +35,10 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "start" } }],
         },
         {
+          label: "Guides",
+          items: [{ autogenerate: { directory: "guides" } }],
+        },
+        {
           label: "Concepts",
           items: [{ autogenerate: { directory: "concepts" } }],
         },
