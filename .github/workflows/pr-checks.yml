@@ -83,6 +83,26 @@ jobs:
         shell: bash
         run: just smoke-wheel
 
+  check-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      # Fails when the CLI reference or the man pages no longer match the
+      # clap definition they are generated from.
+      - run: just check-docs
+      # And separately, that the site those pages feed still builds — a page
+      # can be perfectly current and still break MDX.
+      - run: just docs-deps docs-build
+        env:
+          ASTRO_TELEMETRY_DISABLED: "1"
+
   check-versions:
     runs-on: ubuntu-latest
     steps:

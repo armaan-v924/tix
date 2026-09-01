@@ -11,8 +11,9 @@ under existing subcommand trees). A Python plugin ships a `console_scripts`
 entry point named `tix-<name>` and lands on `PATH` like any Rust plugin.
 
 Both languages have an SDK that implements this document for you: `tix-sdk`
-in Rust, the `pytix.host` namespace of the `pytix` wheel in Python. Every
-snippet below is given in both.
+in Rust ([API docs](https://tix.armaanv.dev/crates/tix_sdk/)), the
+`pytix.host` namespace of the `pytix` wheel in Python. Every snippet below is
+given in both.
 
 **Safety policy:** tix makes no safety guarantees about third-party plugins.
 A plugin is an arbitrary program running as you; install at your own risk.
