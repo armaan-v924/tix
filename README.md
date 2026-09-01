@@ -21,8 +21,8 @@ cargo install --path tix-cli
 ## Documentation
 
 Full documentation is at **[tix.armaanv.dev](https://tix.armaanv.dev)** —
-the [CLI reference](https://tix.armaanv.dev/reference/cli/) for every command
-and flag, and [crate docs](https://tix.armaanv.dev/crates/) for the Rust API.
+the [CLI reference](https://tix.armaanv.dev/latest/reference/cli/) for every command
+and flag, and [crate docs](https://tix.armaanv.dev/latest/crates/) for the Rust API.
 
 ## Quickstart
 
@@ -54,7 +54,7 @@ aliases for the `tix ticket …` subcommands. Shell completions come from
 `tix completions <shell>`.
 
 Every command and flag is documented in the
-[CLI reference](https://tix.armaanv.dev/reference/cli/), generated from the
+[CLI reference](https://tix.armaanv.dev/latest/reference/cli/), generated from the
 CLI's own argument definition.
 
 ## Configuration
@@ -82,7 +82,7 @@ A tix plugin is an ordinary executable named `tix-<name>` on `PATH`;
 `tix <name>` execs it with the workspace context forwarded. Python plugins
 ship a `console_scripts` entry point with the same name. See
 [PLUGIN_SPEC.md](PLUGIN_SPEC.md) for the full contract, and the
-[`tix-sdk` API docs](https://tix.armaanv.dev/crates/tix_sdk/) if you're
+[`tix-sdk` API docs](https://tix.armaanv.dev/latest/crates/tix_sdk/) if you're
 writing one in Rust.
 
 ## Python bindings
@@ -125,7 +125,7 @@ repo.create_worktree("api", "feature/JIRA-123", "/home/me/tickets/JIRA-123/api")
 
 The design rationale and normative spec live in [design/](design), and the
 API reference for every crate is published at
-[tix.armaanv.dev/crates](https://tix.armaanv.dev/crates/).
+[tix.armaanv.dev/latest/crates](https://tix.armaanv.dev/latest/crates/).
 
 ## Development
 
