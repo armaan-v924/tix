@@ -5,7 +5,7 @@ use crate::tix::utils::OutputType;
 use tix_sdk::SdkError;
 use tix_sdk::document::TixDocument;
 
-/// Read a value from the [cli] section
+/// Read a value from the `[cli]` section
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// The `[cli]` key(s) to read

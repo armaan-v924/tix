@@ -114,7 +114,7 @@ mod branch_name_tests {
 
 /// Loads the required `[cli]` section from the resolved global config.
 ///
-/// Shared by every ticket subcommand; the "no [cli] section" error points at
+/// Shared by every ticket subcommand; the "no `[cli]` section" error points at
 /// `tix config init` rather than leaking a parse detail.
 pub fn load_cli_config(
     context: &tix_sdk::context::Context,
@@ -173,6 +173,9 @@ pub struct TicketArgs {
 
 #[derive(Args, Debug)]
 pub struct TicketSharedArgs {
+    /// The ticket to act on: a bare id resolved under the tickets
+    /// directory, or a path (anything containing a separator, or `.`/`..`).
+    /// Discovered by walking up from the current directory when omitted
     #[arg(short, long, value_hint = clap::ValueHint::DirPath)]
     pub ticket: Option<TicketRef>,
 }

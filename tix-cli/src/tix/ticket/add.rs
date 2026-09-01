@@ -14,7 +14,7 @@ pub struct Args {
     #[command(flatten)]
     pub shared: TicketSharedArgs,
 
-    /// Branch for the new worktree(s); derived from [defaults] + ticket
+    /// Branch for the new worktree(s); derived from `[defaults]` + ticket
     /// context when omitted
     #[arg(short, long)]
     pub branch: Option<String>,
