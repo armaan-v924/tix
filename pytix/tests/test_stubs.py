@@ -73,6 +73,26 @@ def parse_stub(module_name: str) -> tuple[dict[str, ast.stmt], dict[str, set[str
     return top, classes
 
 
+def stub_only_declarations(top: dict[str, ast.stmt]) -> set[str]:
+    """The names that describe the API rather than belonging to it.
+
+    Two spellings: a `TypeAlias` assignment, and a class deriving from
+    `TypedDict` or `Protocol`. Both are things a checker reads and the
+    interpreter never sees, so neither can be matched against `dir()`.
+    """
+    stub_only = set()
+    for name, node in top.items():
+        match node:
+            case ast.AnnAssign(annotation=ast.Name(id="TypeAlias")):
+                stub_only.add(name)
+            case ast.ClassDef(bases=bases) if any(
+                isinstance(base, ast.Name) and base.id in {"TypedDict", "Protocol"}
+                for base in bases
+            ):
+                stub_only.add(name)
+    return stub_only
+
+
 def public_names(obj: Any) -> set[str]:
     """The public attributes of a module or class, dunders excluded."""
     return {name for name in dir(obj) if not name.startswith("_")}
@@ -115,20 +135,14 @@ def test_stub_declares_nothing_the_module_lacks(module_name: str) -> None:
     breaks callers: a stub naming something absent type-checks an
     `AttributeError` into existence.
 
-    Type aliases are exempt. They are stub-only by nature — `DeltaTarget`
-    names the `Literal` that `Delta(target)` accepts and has no runtime
-    counterpart to compare against.
+    Type declarations are exempt, because they describe the surface rather
+    than being part of it: `DeltaTarget` names the `Literal` that
+    `Delta(target)` accepts, and `DeltaOp` the shape `Delta.ops()` returns.
+    Neither has a runtime counterpart to compare against.
     """
     module = {"pytix": pytix, "pytix.host": pytix.host}[module_name]
     top, _ = parse_stub(module_name)
-    aliases = {
-        name
-        for name, node in top.items()
-        if isinstance(node, ast.AnnAssign)
-        and isinstance(node.annotation, ast.Name)
-        and node.annotation.id == "TypeAlias"
-    }
-    phantom = set(top) - aliases - public_names(module)
+    phantom = set(top) - stub_only_declarations(top) - public_names(module)
     assert not phantom, f"the {module_name} stub declares {sorted(phantom)}, which it does not export"
 
 

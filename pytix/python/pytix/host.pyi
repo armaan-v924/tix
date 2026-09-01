@@ -10,9 +10,11 @@ defaults included — come from the `#[pymethods]` blocks and their
 `#[pyo3(signature = ...)]` attributes.
 """
 
+from collections.abc import Mapping, Sequence
+from datetime import date, datetime, time
 from os import PathLike
 from pathlib import Path
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, TypedDict
 
 from pytix import TicketConfig
 
@@ -27,6 +29,45 @@ There are exactly two, so a typo is a mistake rather than an extension point.
 `Delta` re-checks at runtime and raises `TixError`; this alias is what lets a
 type checker catch it first.
 """
+
+DeltaValue: TypeAlias = (
+    bool
+    | int
+    | float
+    | str
+    | datetime
+    | date
+    | time
+    | Sequence[DeltaValue]
+    | Mapping[str, DeltaValue]
+)
+"""What `Delta.set` can record: a value TOML is able to hold.
+
+Notably **not** `None` — TOML has no null, and "absent" is spelled by not
+setting the key at all. That is the mistake this alias exists to catch, since
+`None` is the one wrong value a caller reaches for on purpose.
+
+Containers are the covariant ABCs rather than `list` and `dict`, so an
+ordinary `dict[str, str]` or `list[int]` is accepted; `dict` is invariant in
+its value type and would reject both.
+"""
+
+JsonValue: TypeAlias = (
+    bool | int | float | str | None | list[JsonValue] | dict[str, JsonValue]
+)
+"""A value in a delta's JSON wire form.
+
+The write side is JSON, not TOML, because Python has a TOML reader in the
+stdlib but no writer. So there are no `datetime` objects here: a `datetime`,
+`date`, or `time` handed to `set` arrives back as the tagged
+`{"$datetime": "..."}` object.
+"""
+
+class DeltaOp(TypedDict):
+    """One recorded op, in the wire form `ops()` hands back."""
+
+    set: str
+    value: JsonValue
 
 PROTOCOL: int
 """The invocation-contract version this build speaks.
@@ -235,17 +276,21 @@ class Delta:
     def target(self) -> DeltaTarget:
         """The document this delta targets."""
 
-    def ops(self) -> list[dict[str, Any]]:
-        """The ops recorded so far, in order, as `{"set": path, "value": value}`
-        dicts — the wire form, for tests and debugging.
+    def ops(self) -> list[DeltaOp]:
+        """The ops recorded so far, in order — the wire form, for tests and
+        debugging.
+
+        Each op is exactly `{"set": path, "value": value}`, which is what
+        `DeltaOp` says, so a misspelled key is caught rather than returning
+        `None` at runtime.
         """
 
-    def set(self, path: str, value: object) -> None:
+    def set(self, path: str, value: DeltaValue) -> None:
         """Records `value` at the dotted key `path`, e.g. `myplugin.branch`.
 
-        Raises `TixError` if `value` has no TOML representation — `None` most
-        commonly, since TOML has no null and "absent" is spelled by not
-        setting the key at all.
+        Raises `TixError` if `value` has no TOML representation. `DeltaValue`
+        anticipates that check: `None` and a stray `Path` — the two a caller
+        actually reaches for — are rejected before the call is made.
         """
 
     def to_json(self) -> str:

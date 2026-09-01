@@ -189,17 +189,26 @@ def test_delta_tags_datetimes_automatically(tmp_path: Path) -> None:
 
 
 def test_delta_rejects_values_toml_cannot_hold() -> None:
-    """TOML has no null; "absent" is spelled by not setting the key."""
+    """TOML has no null; "absent" is spelled by not setting the key.
+
+    `DeltaValue` excludes `None`, so a checker refuses this call too — hence
+    the ignore. The runtime check is not redundant: the stubs are advice a
+    caller can decline, and an untyped plugin gets no advice at all.
+    """
     delta = pytix.host.Delta("ticket")
 
     with pytest.raises(pytix.TixError, match="None is not representable"):
-        delta.set("myplugin.nothing", None)
+        delta.set("myplugin.nothing", None)  # type: ignore[arg-type]
 
 
 def test_delta_rejects_unknown_targets() -> None:
-    """There are exactly two documents, so a typo is a mistake, not an extension."""
+    """There are exactly two documents, so a typo is a mistake, not an extension.
+
+    Ignored for the same reason as the delta value above: `DeltaTarget` makes
+    this a static error as well, and the runtime check still has to hold.
+    """
     with pytest.raises(pytix.TixError, match="unknown delta target"):
-        pytix.host.Delta("somewhere-else")
+        pytix.host.Delta("somewhere-else")  # type: ignore[arg-type]
 
 
 def test_write_delta_uses_the_host_supplied_path(
