@@ -1,0 +1,234 @@
+---
+title: Writing a plugin
+description: Build a working tix plugin in Rust or Python.
+sidebar:
+  order: 1
+---
+
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+A plugin is a program named `tix-<name>` on your `PATH`. `tix hello` runs
+`tix-hello`, handing it the context it already resolved. This builds one.
+
+The [specification](../specification/) is the contract; this is the shortest
+path to something that runs.
+
+## Set up
+
+<Tabs syncKey="language">
+<TabItem label="Rust">
+```sh
+cargo new tix-hello
+cd tix-hello
+cargo add serde --features derive
+```
+
+`tix-sdk` is not on crates.io yet, so depend on the repository:
+
+```toml
+[dependencies]
+tix-sdk = { git = "https://github.com/armaan-v924/tix" }
+```
+</TabItem>
+<TabItem label="Python">
+```sh
+mkdir tix-hello && cd tix-hello
+uv init
+```
+
+`pytix` is not on PyPI yet. Add the wheel for your platform from the
+[latest release](https://github.com/armaan-v924/tix/releases/latest):
+
+```sh
+uv add https://github.com/armaan-v924/tix/releases/download/vX.Y.Z/pytix-X.Y.Z-cp311-abi3-macosx_11_0_arm64.whl
+```
+
+Then expose the entry point, so installing puts `tix-hello` on `PATH`:
+
+```toml
+[project.scripts]
+tix-hello = "tix_hello:main"
+```
+</TabItem>
+</Tabs>
+
+## Read the host context
+
+One call parses the `--tix-*` flags, answers the `print-cli-help`
+handshake, checks the protocol, and exits 125 on a mismatch.
+
+<Tabs syncKey="language">
+<TabItem label="Rust">
+```rust
+use tix_sdk::host::HostContext;
+
+fn main() {
+    let host = HostContext::from_env_or_exit("greets you from a tix plugin");
+
+    println!("hello {}", host.user_args.join(" "));
+    match &host.ticket_root {
+        Some(root) => println!("ticket: {}", root.display()),
+        None => println!("ticket: none"),
+    }
+}
+```
+</TabItem>
+<TabItem label="Python">
+```python
+import pytix.host
+
+
+def main() -> None:
+    context = pytix.host.HostContext.from_env_or_exit(
+        "greets you from a tix plugin"
+    )
+
+    print("hello", *context.user_args)
+    print("ticket:", context.ticket_root or "none")
+```
+</TabItem>
+</Tabs>
+
+`user_args` is what the user typed, with the host's flags stripped — feed it
+straight to your own argument parser. `ticket_root` is `None` outside a
+ticket, which is a normal state rather than an error.
+
+## Run it without the host
+
+Plugins take real paths, so you can invoke one directly:
+
+```sh
+tix-hello --tix-protocol 1 --tix-config ~/.config/tix/config.toml world
+```
+
+```
+hello world
+ticket: none
+```
+
+<Aside type="tip">
+`tix-hello print-cli-help` should print your one-line description and exit
+0 — that is the handshake `tix --help` uses to show a description beside
+your name. The SDK answers it from the string you passed.
+</Aside>
+
+## Read your own config
+
+Your plugin owns the `[hello]` table in either document. Its schema is
+yours; tix never looks inside.
+
+```toml
+# ~/.config/tix/config.toml
+[hello]
+greeting = "howdy"
+```
+
+<Tabs syncKey="language">
+<TabItem label="Rust">
+```rust
+use serde::Deserialize;
+use tix_sdk::document::TixDocument;
+
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct Config {
+    greeting: Option<String>,
+}
+
+let document = TixDocument::load(&host.config_path)?;
+let config: Config = document.section_or_default("hello")?;
+let greeting = config.greeting.unwrap_or_else(|| "hello".into());
+```
+</TabItem>
+<TabItem label="Python">
+```python
+config = context.config_section("hello") or {}
+greeting = config.get("greeting", "hello")
+```
+
+Sections come back as plain `dict`s, typed as `tomllib` would type them.
+An absent section is `None`.
+</TabItem>
+</Tabs>
+
+## Write config back
+
+Plugins never write the files. You emit a *delta*, and the host applies it
+after you exit 0 — against a fresh parse, so it merges with anything written
+while you ran.
+
+<Tabs syncKey="language">
+<TabItem label="Rust">
+```rust
+use tix_sdk::delta::{Delta, DeltaTarget};
+
+if let Some(path) = host.delta_path.as_deref() {
+    Delta::new(DeltaTarget::Global)
+        .set("hello.runs", 1)?
+        .write_to(path)?;
+}
+```
+</TabItem>
+<TabItem label="Python">
+```python
+if context.delta_path:
+    delta = pytix.host.Delta("global")
+    delta.set("hello.runs", 1)
+    context.write_delta(delta)
+```
+</TabItem>
+</Tabs>
+
+Writing no file changes nothing, and so does exiting nonzero.
+
+## Install it
+
+<Tabs syncKey="language">
+<TabItem label="Rust">
+```sh
+cargo install --path .
+```
+</TabItem>
+<TabItem label="Python">
+```sh
+uv tool install .
+```
+</TabItem>
+</Tabs>
+
+With `tix-hello` on your `PATH`:
+
+```sh
+tix hello world
+```
+
+It now appears under **Plugins** in `tix --help`, with your description.
+
+## Where to be careful
+
+Ignore `--tix-*` flags you do not recognize. New ones are added without
+bumping the protocol, and their presence is how you detect a capability.
+
+Do not reimplement `-v` / `-q` / `--log-level` precedence — `--tix-log-level`
+is already resolved.
+
+Shelling back out to `tix` re-discovers the ticket from the working
+directory, which you may have changed. Pin it:
+
+<Tabs syncKey="language">
+<TabItem label="Rust">
+```rust
+let mut cmd = tix_sdk::spawn::tix_command(host.require_ticket()?);
+cmd.args(["ticket", "info"]);
+```
+</TabItem>
+<TabItem label="Python">
+```python
+subprocess.run(["tix", "--ticket", context.require_ticket(), "ticket", "info"])
+```
+</TabItem>
+</Tabs>
+
+For caches and derived data, use a state directory rather than config —
+[§4](../specification/#4-plugin-state-vs-plugin-config) covers the
+difference.
