@@ -163,8 +163,13 @@ fn command_index(root: &CommandDoc) -> String {
                     .collect();
                 description.push_str(&format!("<br />Alias: {}", spelled.join(", ")));
             }
+            // Relative, not absolute: the site is published under a base
+            // path per version (`/dev/`, `/latest/`, `/v3.1/`), and Astro
+            // rewrites the base into links it manages but not into links
+            // written inside markdown. A sibling-relative href is correct at
+            // every base.
             out.push_str(&format!(
-                "| [`{}`](/reference/cli/{}/#{}) | {} |\n",
+                "| [`{}`](./{}/#{}) | {} |\n",
                 leaf.path, group.name, anchor, description
             ));
         }
