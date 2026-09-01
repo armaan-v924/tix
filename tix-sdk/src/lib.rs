@@ -17,8 +17,9 @@
 //! - [`delta`] — diff-back config deltas: the plugin write helper and the
 //!   host's JSON→TOML apply mechanics.
 //! - [`host`] — the plugin side of the invocation contract: `--tix-*` flag
-//!   parsing and the protocol check ([`host::PROTOCOL`]; version → change
-//!   table in `tix-sdk/PROTOCOL.md`).
+//!   parsing and the protocol check ([`host::PROTOCOL`]; the version →
+//!   change table is published with the
+//!   [plugin documentation](https://tix.armaanv.dev/latest/plugins/protocol/)).
 //! - [`spawn`] — nested `tix` invocations pinned to the current ticket.
 //! - [`state`] — plugin state directories, created lazily.
 //! - [`SdkError`] — the SDK's error type; document parse/serialize errors
