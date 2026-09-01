@@ -208,12 +208,22 @@ fn describe_arg(arg: &Arg) -> ArgDoc {
 
 /// `-d, --description <DESCRIPTION>` — short and long spellings, then the
 /// value placeholder for anything that is not a bare flag.
+///
+/// Visible aliases are spelled out alongside the canonical names: clap prints
+/// them as a trailing `[alias: --as]` note, which a one-line table cell has no
+/// room for.
 fn option_form(arg: &Arg) -> String {
     let mut spellings = Vec::new();
     if let Some(short) = arg.get_short() {
         spellings.push(format!("-{short}"));
     }
+    for short in arg.get_visible_short_aliases().unwrap_or_default() {
+        spellings.push(format!("-{short}"));
+    }
     if let Some(long) = arg.get_long() {
+        spellings.push(format!("--{long}"));
+    }
+    for long in arg.get_visible_aliases().unwrap_or_default() {
         spellings.push(format!("--{long}"));
     }
     let spelled = spellings.join(", ");
