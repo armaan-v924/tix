@@ -1,0 +1,155 @@
+---
+title: pytix reference
+description: Every class and method in the pytix and pytix.host namespaces.
+sidebar:
+  order: 2
+tableOfContents:
+  maxHeadingLevel: 3
+---
+
+Raises `TixError` throughout where the underlying operation fails.
+
+## `pytix`
+
+Engine bindings. Resolved paths in, no discovery, no IO on the value types.
+
+### `RepositoryConfig(remote, code_path)`
+
+A repository described but not touched — nothing is read, cloned, or
+validated until a resolution method runs.
+
+| Member | Returns | Description |
+| --- | --- | --- |
+| `remote` | `str` | The remote URL. |
+| `code_path` | `Path` | The local path the clone lives at. |
+| `resolve(alias)` | `Repository` | Opens the already-cloned repository at `code_path`. Raises if it is not a git repository. |
+| `clone_remote(alias)` | `Repository` | Clones `remote` into `code_path` and opens it. |
+| `ensure(alias)` | `Repository` | Opens the clone, cloning first if it does not exist. |
+
+### `Repository`
+
+A live repository, obtained from one of the resolution methods above.
+
+| Member | Returns | Description |
+| --- | --- | --- |
+| `alias` | `str` | The alias it is registered under. |
+| `config` | `RepositoryConfig` | The config it was resolved from. |
+| `create_worktree(name, branch, path, force=False)` | `Worktree` | Creates a worktree at `path` on `branch`, creating the branch at the synced head if absent. |
+| `remove_worktree(path, force=False)` | `None` | Prunes the worktree at `path`. Without `force`, refuses one with uncommitted changes. |
+| `sync(force=False)` | `None` | Fast-forwards the default branch from the remote. |
+| `sync_base(branch, force=False)` | `None` | Fast-forwards `branch` from the remote. |
+
+### `TicketConfig(key, description, worktrees={})`
+
+A ticket described. `worktrees` maps directory name to `WorktreeConfig`.
+
+| Member | Returns | Description |
+| --- | --- | --- |
+| `key` | `str` | The ticket's key, e.g. `JIRA-123`. |
+| `description` | `str` | Human-readable description. |
+| `worktrees` | `dict[str, WorktreeConfig]` | Recorded worktrees, keyed by directory name. |
+| `resolve(path)` | `Ticket` | Validates this config against the ticket directory at `path`. |
+
+`resolve` is the only way to obtain a `Ticket`, and it is a validation
+rather than a document read — nothing is parsed and nothing is written.
+`path` is the already-resolved ticket directory (the parent of `.tix/`).
+Every recorded worktree must exist there and open as a git repository;
+untracked directories under the ticket root are ignored.
+
+There is deliberately no `branch` on a ticket. Worktrees share a branch
+prefix rather than one branch, so each carries its own.
+
+### `Ticket`
+
+A validated ticket workspace.
+
+| Member | Returns | Description |
+| --- | --- | --- |
+| `key` | `str` | The ticket's key. |
+| `description` | `str` | Human-readable description. |
+| `path` | `Path` | The ticket workspace directory. |
+| `worktrees` | `list[Worktree]` | Verified live worktrees, in name order. |
+
+### `WorktreeConfig(repo, branch)`
+
+| Member | Returns | Description |
+| --- | --- | --- |
+| `repo` | `str` | Alias of the repository it belongs to. |
+| `branch` | `str` | The branch checked out in it. |
+
+### `Worktree`
+
+A live worktree. Cannot be constructed from Python — it comes from
+`Repository.create_worktree` or `Ticket.worktrees`.
+
+| Member | Returns | Description |
+| --- | --- | --- |
+| `name` | `str` | The directory name under the ticket root. |
+| `repo_alias` | `str` | Alias of the repository it belongs to. |
+| `path` | `Path` | Full path to the worktree directory. |
+| `branch` | `str` | The branch checked out in it. |
+
+### `TixError`
+
+The exception every engine failure arrives as, carrying the engine's
+message.
+
+## `pytix.host`
+
+The plugin's handle on the invoking host. See
+[writing a plugin](../../plugins/writing-a-plugin/) for how these fit
+together.
+
+### `HostContext`
+
+| Constructor | Description |
+| --- | --- |
+| `from_env_or_exit(description)` | The normal entry point: parses `sys.argv`, answers the `print-cli-help` handshake, checks the protocol, and exits on failure. Raises `SystemExit`, so `finally` blocks still run. |
+| `from_env(description=None)` | As above, returning `None` when the binary was run directly rather than through `tix <name>`. |
+| `from_args(args, description=None)` | Parses an explicit argument list, for tests and plugins managing their own argv. |
+
+| Member | Returns | Description |
+| --- | --- | --- |
+| `config_path` | `Path` | The global config file. |
+| `ticket_root` | `Path \| None` | The ticket directory, or `None` outside one. |
+| `require_ticket()` | `Path` | The ticket directory, raising when there is none. |
+| `delta_path` | `Path \| None` | The file this plugin's delta should be written to. |
+| `repo` | `str \| None` | Alias of the repository worktree the cwd is inside. |
+| `repo_dir` | `Path \| None` | That worktree's path. |
+| `log_level` | `str \| None` | The host's resolved log level. |
+| `output` | `str \| None` | Resolved output format: `json`, `toml`, or `default`. |
+| `color` | `bool \| None` | The host's resolved color decision. |
+| `user_args` | `list[str]` | The user's arguments, with `--tix-*` stripped. Feed to `argparse`. |
+| `config_section(name)` | `dict \| None` | Section `name` of the global config, or `None` when absent. |
+| `ticket_section(name)` | `dict \| None` | The same, from the ticket document. |
+| `config_document()` | `Document` | The parsed global config. |
+| `ticket_document()` | `Document` | The parsed ticket document. |
+| `ticket_config()` | `TicketConfig` | The ticket's own `[ticket]` section. |
+| `state_dir(name)` | `Path` | Per-ticket state directory, created lazily. |
+| `write_delta(delta)` | `None` | Writes `delta` to `delta_path`. |
+
+Sections come back as plain `dict`s, typed as `tomllib` would type them:
+tables are `dict`, arrays are `list`, TOML datetimes are `datetime`.
+
+### `Delta(target)`
+
+An outbound config change. `target` is `"global"` or `"ticket"`; anything
+else raises.
+
+| Member | Returns | Description |
+| --- | --- | --- |
+| `target` | `str` | The document this delta applies to. |
+| `set(path, value)` | `None` | Records a set at dotted `path`. Ops are ordered; overlapping keys are last-writer-wins. |
+| `to_json()` | `str` | The wire form. |
+| `write_to(path)` | `None` | Writes the wire form to `path`. |
+
+Pass a `datetime`, `date`, or `time` and `pytix` emits the tagged form JSON
+needs. The host applies the delta after you exit `0`, against a fresh parse.
+
+### Module members
+
+| Member | Description |
+| --- | --- |
+| `cache_dir(name)` | Global cache directory for `name`, created lazily. |
+| `PROTOCOL` | The invocation-contract version this build speaks. |
+| `PROTOCOL_MISMATCH_EXIT` | The exit code reserved for a protocol mismatch. |

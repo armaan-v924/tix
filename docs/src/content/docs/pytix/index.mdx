@@ -1,0 +1,103 @@
+---
+title: pytix
+description: Python bindings for the tix engine and the plugin SDK.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`pytix` is one extension module with two namespaces:
+
+| Namespace | Binds | For |
+| --- | --- | --- |
+| `pytix` | `tix-engine` | Scripting against repositories, tickets, and worktrees |
+| `pytix.host` | `tix-sdk` | Writing a plugin in Python |
+
+Both ship in every wheel. There are no extras to pick — a wheel is built
+once, so `import pytix.host` either always works or is a lie.
+
+## Install
+
+Not on PyPI yet. Wheels are attached to each
+[release](https://github.com/armaan-v924/tix/releases/latest), one per
+platform, built `abi3` for CPython 3.11 — so a single wheel per platform
+installs on any Python 3.11 or newer.
+
+```sh
+pip install https://github.com/armaan-v924/tix/releases/download/vX.Y.Z/pytix-X.Y.Z-cp311-abi3-macosx_11_0_arm64.whl
+```
+
+Substitute your platform tag: `macosx_11_0_arm64`, `manylinux_2_34_x86_64`,
+or `win_amd64`. Or build one from a checkout:
+
+```sh
+just build-wheel aarch64-apple-darwin    # lands in ./dist
+```
+
+## Resolved paths in
+
+The engine namespace inherits the engine's contract: it takes paths that are
+already resolved, and does no discovery of its own. There is no
+`tickets_directory` here and nothing reads your config — deciding where
+things live is the CLI's job, or yours.
+
+```python
+import pytix
+
+repository = pytix.RepositoryConfig(
+    "https://github.com/my-org/api", "/home/me/code/api"
+).ensure("api")
+
+worktree = repository.create_worktree(
+    "api", "feature/JIRA-123", "/home/me/tickets/JIRA-123/api"
+)
+print(worktree.branch, worktree.path)
+```
+
+`RepositoryConfig` describes a repository without touching disk. Nothing is
+read or cloned until you resolve it — `resolve` opens an existing clone,
+`clone_remote` clones, `ensure` does whichever is needed.
+
+## Validating a ticket
+
+A `Ticket` cannot be constructed directly. You describe one and validate it
+against a directory:
+
+```python
+config = pytix.TicketConfig(
+    "JIRA-123",
+    "Fix the login bug",
+    {"api": pytix.WorktreeConfig("api", "feature/JIRA-123-fix-login")},
+)
+
+ticket = config.resolve("/home/me/tickets/JIRA-123")
+print([w.name for w in ticket.worktrees])
+```
+
+`resolve` is a validation rather than a document read: it parses nothing and
+writes nothing. Every recorded worktree must exist there and open as a git
+repository, or it raises `TixError`.
+
+<Aside type="tip">
+Reading and writing `.tix/ticket.toml` belongs to `pytix.host`, not here.
+Engine types do no IO at all.
+</Aside>
+
+## Errors
+
+Every engine failure arrives as `pytix.TixError`, carrying the engine's
+message.
+
+```python
+try:
+    config.resolve("missing")
+except pytix.TixError as error:
+    print(error)
+```
+
+## Writing a plugin
+
+`pytix.host` is the plugin side — flag parsing, the protocol check, document
+reads, and the delta channel. See
+[writing a plugin](../../plugins/writing-a-plugin/).
