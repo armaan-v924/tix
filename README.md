@@ -39,13 +39,15 @@ from the CLI's own argument definition.
 ## Extending it
 
 A plugin is an executable named `tix-<name>` on your `PATH`; `tix <name>`
-runs it with the workspace context forwarded. There are SDKs for Rust and
-Python — see
+runs it with the workspace context forwarded. Both languages have an SDK
+that implements the contract for you — `tix-sdk` in Rust, `pytix.host` in
+Python. See
 [writing a plugin](https://tix.armaanv.dev/latest/plugins/writing-a-plugin/)
 and the [specification](https://tix.armaanv.dev/latest/plugins/specification/).
 
-`pytix` also exposes tix to Python directly, for scripting rather than
-plugins: [pytix](https://tix.armaanv.dev/latest/concepts/pytix/).
+The same wheel also binds the engine as `pytix.*`, for scripting against
+repositories, tickets, and worktrees without writing a plugin at all:
+[pytix](https://tix.armaanv.dev/latest/concepts/pytix/).
 
 ## Repository layout
 
