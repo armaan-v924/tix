@@ -12,7 +12,7 @@ use tracing::{error, info};
 /// Create a new ticket workspace with worktrees
 #[derive(clap::Args, Debug)]
 pub struct Args {
-    /// The ticket key, e.g. JIRA-123 (a name, not a path)
+    /// The ticket key, e.g. JIRA-123 (becomes the directory name; no / or \\)
     pub key: String,
 
     /// Human-readable description; feeds branch name derivation
@@ -44,7 +44,7 @@ pub struct Args {
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     if args.key.is_empty() || args.key.contains(['/', '\\']) {
         return Err(SdkError::Message(format!(
-            "'{}' is not a valid ticket key — keys are names, not paths (path-form creation is #114)",
+            "'{}' is not a valid ticket key — it becomes a directory name, so '/' and '\\' are rejected (path-form creation is #114)",
             args.key
         )));
     }

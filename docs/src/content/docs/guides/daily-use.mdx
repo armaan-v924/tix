@@ -50,9 +50,9 @@ worktrees, and the branch all survive — removing the last worktree leaves a
 valid, empty ticket.
 
 <Aside type="caution">
-`tix add` derives the branch name *now*, not at ticket creation. If
-`branch_prefix` changed in between, the new worktree will not match its
-siblings — see [Seeds, not defaults](../../concepts/seeds/).
+`tix add` derives the branch name at add time, from current config. If
+`branch_prefix` changed since setup, the new worktree will not match its
+siblings — see [creation-time seeds](../../concepts/seeds/).
 </Aside>
 
 ## Checking state
@@ -96,6 +96,5 @@ No confirmation, uncommitted changes discarded, directory deleted even if
 pruning fails. Anything left behind is warned about, with a pointer at
 `git worktree prune`.
 
-Branches and commits survive either way. Destroying a ticket removes working
-directories, not history — so a ticket whose work is merged and pushed is
-safe to destroy, and one whose work is not is safe to keep.
+Branches and commits survive either way — destroying a ticket removes only
+working directories.

@@ -13,33 +13,32 @@ export const base = `https://github.com/armaan-v924/tix/releases/download/${rele
 ## Prebuilt binaries
 
 <Tabs syncKey="os">
-<TabItem label="macOS">
+<TabItem label="macOS (Apple Silicon)">
 <Code
   lang="sh"
   code={`mkdir -p ~/.local/bin
 curl -fsSL ${base}/tix-${release.tag}-macos-aarch64.tar.gz | tar -xz -C ~/.local/bin tix`}
 />
-Apple silicon. Make sure `~/.local/bin` is on your `PATH`.
+Make sure `~/.local/bin` is on your `PATH`.
 </TabItem>
 
-<TabItem label="Linux">
+<TabItem label="Linux (x86_64)">
 <Code
   lang="sh"
   code={`mkdir -p ~/.local/bin
 curl -fsSL ${base}/tix-${release.tag}-linux-x86_64.tar.gz | tar -xz -C ~/.local/bin tix`}
 />
-x86-64. Make sure `~/.local/bin` is on your `PATH`.
+Make sure `~/.local/bin` is on your `PATH`.
 </TabItem>
 
-<TabItem label="Windows">
+<TabItem label="Windows (x86_64)">
 <Code
   lang="powershell"
-  code={`$dest = "$Env:LOCALAPPDATA\\Programs\\tix"
-Invoke-WebRequest ${base}/tix-${release.tag}-windows-x86_64.zip -OutFile tix.zip
-Expand-Archive tix.zip -DestinationPath $dest -Force
+  code={`Invoke-WebRequest ${base}/tix-${release.tag}-windows-x86_64.zip -OutFile tix.zip
+Expand-Archive tix.zip -DestinationPath "$HOME\\AppData\\Local\\Programs\\tix" -Force
 Remove-Item tix.zip`}
 />
-x86-64. Add `$dest` to your `PATH` to finish.
+Add `%LOCALAPPDATA%\Programs\tix` to your `PATH` to finish.
 </TabItem>
 </Tabs>
 

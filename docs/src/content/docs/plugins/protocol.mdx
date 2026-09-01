@@ -1,0 +1,25 @@
+---
+title: Protocol versions
+description: The host/plugin compatibility integer and what each version changed.
+sidebar:
+  order: 3
+---
+
+`--tix-protocol` is the only compatibility boundary between a host and a
+separately-compiled plugin. Crate versions carry no compatibility meaning.
+
+- Monotonic, starting at 1. The SDK's compiled-in value is
+  `tix_sdk::host::PROTOCOL`.
+- Bumped only for removal, rename, or semantic change of an existing flag or
+  document — never for additions. The SDK ignores unknown `--tix-*` flags, so
+  additions are safe by construction, and flag presence doubles as capability
+  detection.
+- On mismatch the SDK prints `built for protocol N, host speaks M — rebuild`
+  and exits **125** (`host::PROTOCOL_MISMATCH_EXIT`), which the host excludes
+  from the propagated exit-code range.
+
+## Versions
+
+| Protocol | Introduced | Changes |
+| --- | --- | --- |
+| 1 | v3.0 | Initial contract: `--tix-protocol`, `--tix-config`, `--tix-ticket` (only inside a ticket), `--tix-delta`, `--tix-repo` / `--tix-repo-dir` (only inside a repo worktree), `--tix-log-level`, `--tix-output`, `--tix-color`; JSON delta diff-back applied on exit 0; `TIX_DEPTH` fork-bomb cap; exit 125 reserved. |

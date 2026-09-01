@@ -43,8 +43,8 @@ A ticket directory sitting in your working directory still has to be written
 
 ## Both forms are assertions
 
-`--ticket` says *this is a ticket root*, not *start looking here*. Pointing
-it at a subdirectory is an error rather than a shorter walk:
+`--ticket` asserts *this is a ticket root*. Pointing it at a subdirectory is
+an error:
 
 ```sh
 tix info --ticket ./JIRA-123/api

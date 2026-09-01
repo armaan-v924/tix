@@ -1,5 +1,5 @@
 ---
-title: Seeds, not defaults
+title: Creation-time seeds
 description: Why changing [defaults] never rewrites a ticket that already exists.
 sidebar:
   order: 2
@@ -39,9 +39,8 @@ rewrite what git already did.
 | `default_repository_owner` | Remote URL construction | `tix repo add` |
 | `github_base_url` | Remote URL construction | `tix repo add` |
 
-`[defaults].repositories` and a ticket's worktree list are not an override
-pair: the first is what to seed a *new* ticket with, the second is what a
-ticket has.
+`[defaults].repositories` seeds a *new* ticket; a ticket's worktree list
+records what it actually has. Changing the first leaves the second alone.
 
 ## Changing an existing ticket
 
