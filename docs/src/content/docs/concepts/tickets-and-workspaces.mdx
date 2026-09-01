@@ -7,41 +7,37 @@ sidebar:
 
 import { FileTree, Aside } from '@astrojs/starlight/components';
 
-A **ticket** is a directory. That is the whole idea: one piece of work gets
-one directory, containing a checkout of every repository that work touches,
-and nothing else.
+A ticket is a directory: one piece of work, one directory, containing a
+checkout of every repository that work touches.
 
-Tickets live under the `tickets_directory` you set with `tix config init`.
+Tickets live under the `tickets_directory` from `tix config init`.
 `tix setup JIRA-123` creates one:
 
 <FileTree>
 - ~/tickets
   - JIRA-123
     - .tix
-      - ticket.toml   the ticket document — key, description, worktrees
+      - ticket.toml   the ticket document
     - api             a git worktree of your `api` checkout
     - web             a git worktree of your `web` checkout
 </FileTree>
 
-The directories named after your repositories are not clones. They are git
-*worktrees*, hanging off checkouts you already have — see
-[Worktrees and branches](../worktrees-and-branches/).
+Those repository directories are not clones — they are
+[git worktrees](../worktrees-and-branches/) hanging off checkouts you
+already have.
 
 ## The ticket key
 
-`JIRA-123` is the ticket's **key**. It names the directory, it seeds the
-branch name, and it is how you refer to the ticket from anywhere else on
-your machine.
+`JIRA-123` is the **key**. It names the directory, seeds the branch name,
+and is how you refer to the ticket from elsewhere.
 
-Keys are names, not paths. `tix setup feature/login` is rejected rather than
-creating a nested directory — a key with a separator in it would make the
-ticket's own location ambiguous.
+Keys are names, not paths: `tix setup feature/login` is rejected rather than
+creating a nested directory.
 
 ## The ticket document
 
-Every ticket has a `.tix/ticket.toml`. It is what makes a directory a ticket:
-the [discovery walk](../ticket-discovery/) looks for exactly this file, and
-`tix info` reads it rather than scanning the disk.
+`.tix/ticket.toml` is what makes a directory a ticket — the
+[discovery walk](../ticket-discovery/) looks for exactly this file.
 
 ```toml
 [ticket]
@@ -53,24 +49,20 @@ repo = "api"
 branch = "feature/JIRA-123-fix-the-login-bug"
 ```
 
-The `worktrees` table is keyed by **directory name**, not by repository
-alias. Today those are the same — one worktree per repository means the
-directory is just the alias — but they are different things, which is what
-lets a ticket eventually hold more than one worktree of the same repository.
+The `worktrees` table is keyed by **directory name**, not repository alias.
+Today they coincide; they are different things, which is what lets a ticket
+eventually hold several worktrees of one repository.
 
 <Aside type="tip">
-Writes to this file preserve your formatting. Comments and hand-edits survive
-`tix ticket add` and `tix ticket remove`, and so do tables belonging to
-plugins.
+Writes preserve your formatting. Comments and hand-edits survive `tix add`
+and `tix remove`, and so do tables belonging to plugins.
 </Aside>
 
 ## What a ticket is not
 
-A ticket is not a branch, and not a git repository. Nothing at the ticket
-root is under version control — the ticket directory is scaffolding around
-worktrees, and each worktree is its own checkout with its own branch and its
-own index.
+Not a branch, and not a git repository. Nothing at the ticket root is under
+version control — each worktree is its own checkout with its own branch and
+index.
 
-That is why [`tix destroy`](../../reference/cli/ticket/#tix-ticket-destroy)
-has to prune worktrees rather than just deleting the directory: the
-repositories they came from are still tracking them.
+That is why `tix destroy` prunes worktrees rather than just deleting the
+directory: the repositories they came from are still tracking them.

@@ -234,8 +234,8 @@ pub fn cell(text: &str) -> String {
 /// Kept in the generator rather than a checked-in partial so that the drift
 /// check covers the entire rendered page, not just its tables.
 const OVERVIEW: &str = r#"
-Every command `tix` accepts, generated directly from the CLI's own argument
-definition. If a flag exists, it is on this page.
+Every command `tix` accepts, generated from the CLI's own argument
+definition.
 
 ## Notation
 
@@ -243,64 +243,52 @@ definition. If a flag exists, it is on this page.
 | --- | --- |
 | `<VALUE>` | Required. |
 | `[VALUE]` | Optional. |
-| `<VALUE>...` | Repeatable — pass it more than once, or give several values. |
+| `<VALUE>...` | Repeatable. |
 
 Every command also accepts `-h` / `--help`; `tix --version` prints the
 version.
 
 ## Selecting a ticket
 
-`tix ticket add`, `remove`, `info`, and `destroy` operate on one ticket. With
-no flag they discover it by walking up from the working directory looking for
-a `.tix/ticket.toml`, nearest ancestor winning. The walk follows the logical
-working directory rather than resolving symlinks, and stops at a filesystem
-boundary.
+`tix ticket add`, `remove`, `info`, and `destroy` act on one ticket. With no
+flag they discover it by walking up from the working directory for a
+`.tix/ticket.toml`, nearest ancestor winning.
 
-`--ticket` skips the walk, and its argument is read as one of two forms:
+`--ticket` skips the walk, and its argument is read by shape:
 
 | You write | Read as | Resolves to |
 | --- | --- | --- |
 | `JIRA-123` | id | `tickets_directory/JIRA-123` |
-| `./JIRA-123` | path | that directory, relative to the working directory |
+| `./JIRA-123` | path | that directory |
 | `../other`, `/abs/path`, `.` | path | that directory |
 
-The rule is that a bare name is **always** an id. A ticket directory sitting
-in your working directory must therefore be written `./JIRA-123`, not
-`JIRA-123` — otherwise it resolves against the tickets directory instead.
+A bare name is **always** an id, so a ticket in your working directory must
+be written `./JIRA-123`. Both forms assert *this is a ticket root* — pointing
+at a subdirectory is an error, not a shorter walk.
 
-Both forms are assertions, not starting points: pointing `--ticket` at a
-subdirectory of a ticket is an error rather than a shorter walk.
-
-`tix destroy` additionally takes the ticket as a positional argument, read
-the same two ways — `tix destroy JIRA-123`. It conflicts with `--ticket`:
-pass one or the other, not both.
+`tix destroy` also takes the ticket positionally, read the same two ways. It
+conflicts with `--ticket`.
 
 ## Plugins
 
-Any argument `tix` does not recognise as a built-in command is dispatched to
-a plugin: `tix deploy` execs `tix-deploy` from `PATH`, forwarding the
-workspace context. Plugins are listed under their own heading in `tix --help`.
-See the [plugin specification](https://github.com/armaan-v924/tix/blob/main/PLUGIN_SPEC.md)
-for the contract.
+Any argument `tix` does not recognise is dispatched to a plugin: `tix deploy`
+execs `tix-deploy` from `PATH` with the workspace context forwarded.
+See the [plugin specification](https://github.com/armaan-v924/tix/blob/main/PLUGIN_SPEC.md).
 "#;
 
 /// Environment and exit-status notes, appended to the overview.
 const ENVIRONMENT: &str = r#"
 ## Environment
 
-| Variable | Effect |
-| --- | --- |
-| `TIX_CONFIG_PATH` | Location of the global config file. Beaten by `--config`; ignored when set but empty. |
-
-With neither `--config` nor `TIX_CONFIG_PATH`, the config file is read from
-the platform config directory — `~/.config/tix/config.toml` on Linux,
+`TIX_CONFIG_PATH` sets the global config location. `--config` beats it, and
+it is ignored when set but empty. With neither, the file is read from the
+platform config directory — `~/.config/tix/config.toml` on Linux,
 `~/Library/Application Support/tix/config.toml` on macOS. Every command
-except `tix config init` and `tix cli completions` requires that file to
-exist.
+except `tix config init` and `tix cli completions` requires it to exist.
 
 ## Exit status
 
-`tix` exits `0` on success and `1` on any error, printing `error: <message>`
-to standard error. Diagnostics and log output also go to standard error, so
-`tix ticket list --output json | jq` stays parseable regardless of log level.
+`0` on success, `1` on any error, with `error: <message>` on stderr.
+Diagnostics and logs also go to stderr, so `tix list --output json | jq`
+stays parseable at any log level.
 "#;

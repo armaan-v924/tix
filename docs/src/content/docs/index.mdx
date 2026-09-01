@@ -4,11 +4,11 @@ description: A ticket-scoped workspace manager built on git worktrees.
 template: splash
 hero:
   tagline: |
-    One directory per ticket, one git worktree per repository. Enter it,
-    work, tear it down — without ever touching your main checkouts.
+    One directory per ticket, one git worktree per repository — without
+    touching your main checkouts.
   actions:
-    - text: CLI reference
-      link: reference/cli/
+    - text: Get started
+      link: start/getting-started/
       icon: right-arrow
     - text: View on GitHub
       link: https://github.com/armaan-v924/tix
@@ -16,7 +16,7 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid, Code } from '@astrojs/starlight/components';
+import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid>
   <Card title="Ticket-scoped workspaces" icon="open-book">
@@ -36,21 +36,3 @@ import { Card, CardGrid, Code } from '@astrojs/starlight/components';
     invoked with the workspace context already resolved.
   </Card>
 </CardGrid>
-
-## Getting started
-
-Download a binary from the [latest release](https://github.com/armaan-v924/tix/releases/latest),
-put it on your `PATH`, and create the global config:
-
-<Code code={`tix config init
-tix repo add my-org/api
-tix repo clone --all`} lang="sh" />
-
-Then start work on a ticket:
-
-<Code code={`tix setup JIRA-123 --description "Fix the login bug"
-cd ~/tickets/JIRA-123`} lang="sh" />
-
-Every command and flag is listed in the [CLI reference](./reference/cli/),
-which is generated from the CLI's own argument definition — if `tix` accepts
-it, it is documented there.
