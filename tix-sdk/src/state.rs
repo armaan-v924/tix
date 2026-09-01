@@ -1,4 +1,5 @@
-//! Plugin state directory helpers (`design/spec.md` §3.5).
+//! Plugin state directory helpers
+//! ([config vs state](https://tix.armaanv.dev/latest/plugins/specification/#4-plugin-state-vs-plugin-config)).
 //!
 //! **State is not config.** Config is human-editable settings in a
 //! `[<plugin>]` table, read via section accessors and written via diff-back.

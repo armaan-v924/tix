@@ -1,4 +1,4 @@
-//! Diff-back config deltas (`design/spec.md` §6).
+//! Diff-back config deltas ([contract](https://tix.armaanv.dev/latest/plugins/specification/#3-config-access)).
 //!
 //! Diff-back exists **only** because config has a single-writer constraint —
 //! the host. It is not an RPC channel: everything else a plugin does

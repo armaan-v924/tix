@@ -11,7 +11,8 @@ use std::path::PathBuf;
 
 /// The `[cli]` section of the global config — `tix-cli`'s own settings.
 ///
-/// Owned by the frontend, not the engine (`design/spec.md` §3.2): directory
+/// Owned by the frontend rather than the engine
+/// ([configuration](https://tix.armaanv.dev/latest/reference/configuration/)): directory
 /// layout is frontend policy, and the engine has no `tickets_directory`.
 /// Extracted from the parsed document via the section accessors
 /// ([`tix_sdk::document::TixDocument::section`]).

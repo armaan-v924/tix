@@ -1,7 +1,7 @@
 //! The SDK's error type.
 //!
-//! Document parsing and serialization are SDK concerns (`design/spec.md`
-//! §2.2) — the `ParseError`/`SerializationError` variants that used to live
+//! Document parsing and serialization are SDK concerns — the
+//! `ParseError`/`SerializationError` variants that used to live
 //! on the engine's [`TixError`] migrate here, so `tix-engine` carries no
 //! runtime `toml` dependency.
 

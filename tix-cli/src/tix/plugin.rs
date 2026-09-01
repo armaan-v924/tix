@@ -1,5 +1,5 @@
 //! Plugin dispatch: exec `tix-<name>` with the invocation contract
-//! (`design/spec.md` §5).
+//! ([contract](https://tix.armaanv.dev/latest/plugins/specification/#1-the-exec-contract)).
 //!
 //! Unknown subcommands land here via the clap catch-all — builtins always
 //! win, so dispatch is only ever reached for non-builtin names. There is no

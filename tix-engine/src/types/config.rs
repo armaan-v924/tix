@@ -5,7 +5,8 @@ use std::collections::HashMap;
 /// The `[engine]` section of the global config.
 ///
 /// This is a *section* type, not the whole document — there is deliberately
-/// no top-level typed struct for the global config (`design/spec.md` §3.2).
+/// no top-level typed struct for the global config
+/// ([configuration](https://tix.armaanv.dev/latest/reference/configuration/)).
 /// The document level belongs to the frontend/SDK's generic parsed tree,
 /// which extracts sections on demand; a whole-document struct here would
 /// drag frontend types (`[cli]`) and plugin tables into the engine and break

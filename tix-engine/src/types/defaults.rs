@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 /// written into the ticket document. Changing a global value later affects
 /// only new tickets; there is no runtime override/fallback resolver anywhere
 /// in tix. Anything that shapes git state must be a seed — topology on disk
-/// cannot be retroactively rewritten by config (see `design/spec.md` §3.4).
+/// cannot be retroactively rewritten by config
+/// (see [creation-time seeds](https://tix.armaanv.dev/latest/concepts/seeds/)).
 ///
 /// Every field is optional in the document: a partial (or absent) `[defaults]`
 /// section is normal, and [`Default`] gives the all-empty value for the

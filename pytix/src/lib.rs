@@ -1,6 +1,6 @@
 //! Python bindings for tix.
 //!
-//! One extension module, two namespaces (`design/spec.md` §7):
+//! One extension module, two namespaces:
 //!
 //! - `pytix.*` binds `tix-engine` — repositories, tickets, worktrees:
 //!   general-purpose scripting against tix's domain operations, with the

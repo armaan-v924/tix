@@ -3,7 +3,7 @@
 //! Owned by `tix-cli` and written here first; promoted to `tix-sdk` (#96) so
 //! plugins resolve tickets identically to the canonical frontend. Explicitly
 //! *not* an engine concern — `tix-engine` takes resolved paths as given
-//! (`design/spec.md` §4).
+//! ([ticket discovery](https://tix.armaanv.dev/latest/concepts/ticket-discovery/)).
 //!
 //! Two paths in:
 //!
@@ -20,7 +20,7 @@ use tix_engine::TixError;
 use tracing::debug;
 
 /// A `--ticket` argument: one flag, two forms, disambiguated by shape
-/// (`design/spec.md` §4).
+/// ([ticket discovery](https://tix.armaanv.dev/latest/concepts/ticket-discovery/)).
 ///
 /// - **Path** — the argument contains a path separator, is absolute, or is
 ///   `.`/`..`. Asserts *this path is the ticket root*.
@@ -57,7 +57,7 @@ impl std::str::FromStr for TicketRef {
 /// The predicate is the **file**, not the bare `.tix/` directory — projects
 /// live above tickets with their own `.tix/`, so testing for the directory
 /// would halt an upward walk at a project and misreport it as a ticket
-/// (`design/spec.md` §4).
+/// ([ticket discovery](https://tix.armaanv.dev/latest/concepts/ticket-discovery/)).
 pub fn is_ticket_root(path: &Path) -> bool {
     path.join(".tix").join("ticket.toml").is_file()
 }

@@ -1,8 +1,9 @@
 //! Frontend context: paths resolved once at startup and handed to every
 //! subcommand.
 //!
-//! Config path resolution is stage 1 of the read path (`design/spec.md`
-//! §3.3) and belongs to the frontend/SDK — the engine never reads env vars
+//! Config path resolution is stage 1 of the read path
+//! ([configuration](https://tix.armaanv.dev/latest/reference/configuration/)) and belongs to the
+//! frontend/SDK — the engine never reads env vars
 //! or flags. Written in `tix-cli` first (#52); promoted here (#96) so plugins
 //! resolve identically.
 //!

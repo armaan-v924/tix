@@ -12,7 +12,8 @@ use tix_sdk::delta::{Delta, DeltaOp, DeltaTarget};
 /// Config has one writer — the host — so a plugin never edits a document in
 /// place. It records what it wants at dotted key paths, writes the result to
 /// the path the host passed in `--tix-delta`, and exits; the host applies the
-/// ops against a fresh parse afterwards (`design/spec.md` §6). Writing no file
+/// ops against a fresh parse afterwards
+/// ([contract](https://tix.armaanv.dev/latest/plugins/specification/#3-config-access)). Writing no file
 /// means no changes, so a plugin with nothing to say simply never builds one.
 ///
 /// Ops are applied in order and overlapping keys are last-writer-wins.
