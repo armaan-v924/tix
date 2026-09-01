@@ -7,85 +7,58 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-Commands that act on one ticket — `tix info`, `tix add`, `tix remove`,
-`tix destroy` — have to work out which one you mean. With no flag, they
-find it from where you are.
-
-## The walk
-
-tix walks upward from the working directory looking for a `.tix/ticket.toml`,
-and the nearest one wins.
+With no flag, ticket-scoped commands walk upward from the working directory
+looking for a `.tix/ticket.toml`. Nearest one wins.
 
 ```
 ~/tickets/JIRA-123/.tix/ticket.toml     ← found
 ~/tickets/JIRA-123/api/src/handlers/    ← you are here
 ```
 
-So any directory inside a ticket is inside that ticket, however deep. You do
-not have to be at the root.
+Any directory inside a ticket is inside that ticket, at any depth.
 
-Three details worth knowing:
-
-- It follows the **logical** working directory — the path your shell reports,
-  not the one you get after resolving symlinks. A symlinked ticket directory
-  behaves as you would expect, and tix agrees with git about where you are.
-- It looks for the **file**, not the `.tix/` directory, so a directory
-  containing `.tix/` for other reasons is not mistaken for a ticket.
-- It stops at a filesystem boundary, matching git's default behaviour.
-
-The walk is not limited to your tickets directory. A ticket found somewhere
-else still works; tix notes it at debug level and carries on.
+The walk follows the **logical** working directory rather than resolving
+symlinks, so tix agrees with git about where you are. It matches the file,
+not the `.tix/` directory. It stops at a filesystem boundary. It is not
+limited to your tickets directory — a ticket found elsewhere still works.
 
 ## Overriding it
 
-`--ticket` skips the walk. Its argument is read as one of two forms, decided
-by shape:
+`--ticket` skips the walk. Its argument is read as one of two forms, by
+shape:
 
 | You write | Read as | Resolves to |
 | --- | --- | --- |
 | `JIRA-123` | id | `tickets_directory/JIRA-123` |
 | `./JIRA-123` | path | that directory, relative to where you are |
-| `../other` | path | that directory |
-| `/abs/path` | path | that directory |
-| `.` | path | the working directory |
+| `../other`, `/abs/path`, `.` | path | that directory |
 
-The rule is that **a bare name is always an id**. Anything containing a path
-separator, or `.` / `..`, is a path.
+A bare name is **always** an id. Anything with a path separator, or `.` /
+`..`, is a path.
 
 <Aside type="caution" title="The one that catches people">
-If a ticket directory is sitting right there in your working directory, you
-still have to write `./JIRA-123`. Written bare, `JIRA-123` resolves against
-your tickets directory instead — which is either a different ticket or an
-error, but never the one in front of you.
+A ticket directory sitting in your working directory still has to be written
+`./JIRA-123`. Bare, it resolves against your tickets directory instead.
 </Aside>
 
 ## Both forms are assertions
 
-`--ticket` says *this is a ticket root*. It is not a starting point for
-another walk.
-
-Pointing it at a subdirectory of a ticket is an error, not a shorter search:
+`--ticket` says *this is a ticket root*, not *start looking here*. Pointing
+it at a subdirectory is an error rather than a shorter walk:
 
 ```sh
 tix info --ticket ./JIRA-123/api
 # error: not a ticket root
 ```
 
-That is deliberate. A flag that silently searched upward from wherever you
-pointed it would make `--ticket` and the default behaviour differ only in
-where they start, and a typo would resolve to something plausible instead of
-failing.
+Otherwise a typo would resolve to something plausible instead of failing.
 
-## Destroy takes it positionally too
-
-`tix destroy` accepts the ticket as a positional argument, read the same two
-ways:
+## Destroy takes it positionally
 
 ```sh
 tix destroy JIRA-123      # id form
 tix destroy ./JIRA-123    # path form
 ```
 
-It conflicts with `--ticket` — pass one or the other. The positional exists
-because destroying a ticket is usually something you do from outside it, and
-naming it is the normal case rather than the exception.
+Read the same two ways, and conflicts with `--ticket` — pass one or the
+other. It exists because destroying a ticket is usually done from outside it.

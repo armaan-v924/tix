@@ -7,35 +7,26 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-The directories inside a ticket are **git worktrees**: additional working
-directories attached to a repository you already have on disk. They are a
-built-in git feature, not something tix invents.
+The directories inside a ticket are **git worktrees** — additional working
+directories attached to a repository you already have.
 
 ```
-~/code/api          your checkout, on main, untouched
-~/tickets/JIRA-123/api    a worktree of the same repository, on its own branch
+~/code/api                  your checkout, on main, untouched
+~/tickets/JIRA-123/api      a worktree of it, on its own branch
 ```
 
-Both are working directories of one repository. They share its object
-store, its remotes, and its branches — so a fetch in one is visible in the
-other, and a branch created in the worktree is a real branch in `~/code/api`.
-What they do not share is the checkout: different branches, different index,
-different uncommitted changes.
+They share the repository's object store, remotes, and branches: a fetch in
+one is visible in the other, and a branch created in the worktree is a real
+branch in `~/code/api`. They do not share the checkout — different branch,
+different index, different uncommitted changes.
 
-## Why this instead of cloning
-
-Because your main checkout never moves. Starting a ticket does not switch
-branches in `~/code/api`, stash anything, or care whether it is dirty. You
-can have four tickets open at once, each with its own branch of the same
-repository, and all of them at the same time.
-
-And because it is cheap. A worktree copies the working files but not the
-history, and clones nothing over the network.
+So starting a ticket never switches branches in your main checkout, never
+stashes, and does not care whether it is dirty. Several tickets can hold
+branches of the same repository at once.
 
 ## Each worktree has its own branch
 
-A ticket does not have "a branch". Each worktree records its own, in the
-[ticket document](../../reference/configuration/#ticket):
+A ticket does not have "a branch". Each worktree records its own:
 
 ```toml
 [ticket.worktrees.api]
@@ -47,17 +38,14 @@ repo = "web"
 branch = "feature/JIRA-123-fix-the-login-bug"
 ```
 
-Those two names match because they were derived from the same key at the
-same moment — but they are branches in *different repositories*, and nothing
-keeps them in step afterwards. Rename one in git and the other is unaffected.
-
-What worktrees in a ticket share is a branch **prefix**, not a branch.
+Those names match because they were derived from the same key at the same
+moment, but they are branches in *different repositories* and nothing keeps
+them in step afterwards. Worktrees in a ticket share a branch **prefix**,
+not a branch.
 
 <Aside type="caution" title="A worktree added later can differ">
-`tix ticket add` derives the branch name at *add* time, against whatever
-`branch_prefix` says then. If you changed the prefix since the ticket was
-created, the new worktree will not match its siblings. Pass `--branch` to
-say exactly what you want.
+`tix ticket add` derives the name at *add* time, against whatever
+`branch_prefix` says then. Pass `--branch` to say exactly what you want.
 </Aside>
 
 ## How the name is derived
@@ -66,8 +54,8 @@ say exactly what you want.
 <branch_prefix>/<key>-<sanitized description>
 ```
 
-The description is lowercased, every run of non-alphanumeric characters
-becomes a single `-`, the ends are trimmed, and the result is capped at 40
+The description is lowercased, runs of non-alphanumeric characters collapse
+to a single `-`, the ends are trimmed, and the result is capped at 40
 characters.
 
 | Prefix | Key | Description | Branch |
@@ -77,15 +65,11 @@ characters.
 | *(none)* | `JIRA-123` | `Retry logic` | `JIRA-123-retry-logic` |
 | `feature` | `JIRA-123` | `!!!` | `feature/JIRA-123` |
 
-Each part drops out cleanly when absent, and a description that sanitizes to
-nothing behaves as if you gave none.
-
-This happens **once**, when the worktree is created, and the result is
-written to the ticket document. See [Seeds, not defaults](../seeds/).
+Each part drops out cleanly when absent. This happens once, at creation —
+see [Seeds, not defaults](../seeds/).
 
 ## Branches are yours
 
-tix creates a branch when a worktree needs one and records the name. After
-that it does not manage them: it will not rename, rebase, push, or delete a
-branch. `tix destroy` prunes worktrees, which removes the *working
-directories* — the branches and their commits stay in the repository.
+tix creates a branch when a worktree needs one and records the name. It will
+not rename, rebase, push, or delete one. `tix destroy` removes working
+directories; branches and commits stay.

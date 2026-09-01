@@ -7,57 +7,28 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-The `[defaults]` section of your global config is the most commonly
-misread part of tix, because the name suggests something it deliberately
-does not do.
-
-Values in `[defaults]` are **seeds**. They are read once, at the moment a
-ticket or a worktree is created, and the result is written into the ticket
-document. Changing one later affects only things created after the change.
+Values in `[defaults]` are **seeds**. They are read once, when a ticket or
+worktree is created, and the result is written into the ticket document.
+Changing one later affects only what you create afterwards.
 
 <Aside type="caution" title="There is no fallback resolver">
 tix never consults `[defaults]` at read time. A ticket's branch is whatever
-its `.tix/ticket.toml` says it is — not "the config value, unless the ticket
-overrides it". The two are not an override pair.
+its `.tix/ticket.toml` says — not "the config value, unless overridden".
 </Aside>
 
-## The situation this explains
-
-You set a branch prefix, create a ticket, then change your mind:
-
-```toml
-[defaults]
-branch_prefix = "feature"
-```
+## What that looks like
 
 ```sh
-tix setup JIRA-123          # branch: feature/JIRA-123
-tix config set ...          # change branch_prefix to "fix"
-tix info JIRA-123           # branch: feature/JIRA-123 — unchanged
+tix setup JIRA-123              # branch: feature/JIRA-123
+# ...change branch_prefix to "fix"...
+tix info JIRA-123               # branch: feature/JIRA-123 — unchanged
+tix setup JIRA-456              # branch: fix/JIRA-456
 ```
 
-The existing branch keeps its name. It is a real git branch, in a real
-repository, possibly pushed, possibly with commits and open reviews against
-it. Renaming it because a config value changed would be tix reaching into
-git state you did not ask it to touch.
-
-New tickets pick up the new prefix:
-
-```sh
-tix setup JIRA-456          # branch: fix/JIRA-456
-```
-
-## Why it works this way
-
-Anything that shapes state on disk has to be a seed, because on-disk
-topology cannot be retroactively rewritten by a config file. A branch that
-exists, exists. A worktree that was created at a path is at that path.
-
-The alternative — resolving config at read time — would mean the meaning of
-an existing ticket changes underneath you whenever you edit a file
-elsewhere. tix would then have to either lie about state (report a branch
-name that does not match git) or mutate it (rename branches behind your
-back). Neither is acceptable, so the value is captured once and recorded.
+The first branch keeps its name. It is a real git branch, possibly pushed,
+possibly with a review open against it. Anything that shapes state on disk
+has to be captured at creation, because a config file cannot retroactively
+rewrite what git already did.
 
 ## The seed fields
 
@@ -68,26 +39,21 @@ back). Neither is acceptable, so the value is captured once and recorded.
 | `default_repository_owner` | Remote URL construction | `tix repo add` |
 | `github_base_url` | Remote URL construction | `tix repo add` |
 
-`[defaults].repositories` and a ticket's own worktree list are, again, not an
-override pair: the first is what to seed a *new* ticket with, the second is
-what a ticket actually has.
+`[defaults].repositories` and a ticket's worktree list are not an override
+pair: the first is what to seed a *new* ticket with, the second is what a
+ticket has.
 
 ## Changing an existing ticket
 
-Since config will not do it, do it directly:
+Config will not do it, so do it directly:
 
 ```sh
-# Add a repository to a ticket that already exists
-tix add web
-
-# Give a new worktree a branch of your choosing
-tix add web --branch fix/JIRA-123-retry
+tix add web                              # add a repository
+tix add web --branch fix/JIRA-123-retry  # with a branch you choose
 ```
 
 `tix ticket add` re-derives the branch name **at add time**, against
-whatever `branch_prefix` says now and the ticket's recorded key and
-description. A worktree added after you changed the prefix will therefore
-not match its siblings — which is intentional, and why `--branch` exists.
+whatever `branch_prefix` says now. A worktree added after you changed the
+prefix will not match its siblings — hence `--branch`.
 
-To rename a branch that already exists, use git. tix records what git tells
-it; it does not own your branches.
+To rename a branch that exists, use git. tix records what git tells it.

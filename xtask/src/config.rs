@@ -290,74 +290,51 @@ fn strip_doc_links(doc: &str) -> String {
 /// Hand-written framing. As with the CLI reference, the prose lives in the
 /// generator so the drift check covers the whole page rather than its tables.
 const PREAMBLE: &str = r#"
-Every key tix reads. The tables below are generated from the types tix
-parses the files with, so a key that exists is listed here and a key that is
-listed exists.
+Every key tix reads, generated from the types it parses the files with.
 
-Both documents are TOML, and both are read through a format-preserving
-layer: `tix config set` and every command that records state rewrite only
-the value they touch. Comments, key order, and whitespace survive, and so do
-tables belonging to plugins.
-
-Unknown keys are an error rather than being ignored, so a typo fails loudly
-instead of silently doing nothing.
+Both documents are TOML, written through a format-preserving layer: only the
+value being changed is rewritten, so comments, key order, and plugin tables
+survive. Unknown keys are an error rather than being ignored.
 "#;
 
 /// Where the global config lives and how its location is resolved.
 const GLOBAL_INTRO: &str = r#"
-Created by `tix config init`. Its location is resolved in this order:
-
-1. `--config <PATH>`
-2. `TIX_CONFIG_PATH` — ignored when set but empty
-3. the platform config directory — `~/.config/tix/config.toml` on Linux,
-   `~/Library/Application Support/tix/config.toml` on macOS
-
-Every command except `tix config init` and `tix cli completions` requires
-the file to exist.
+Created by `tix config init`. Located by `--config`, then `TIX_CONFIG_PATH`,
+then the platform config directory (`~/.config/tix/config.toml` on Linux,
+`~/Library/Application Support/tix/config.toml` on macOS).
 "#;
 
 /// Where the ticket document lives and what it is for.
 const TICKET_INTRO: &str = r#"
 One per ticket, at `.tix/ticket.toml` under the ticket root. Its presence is
-what makes a directory a ticket — the discovery walk looks for exactly this
-file.
-
-You do not normally write it by hand; `tix setup`, `tix add`, and
-`tix remove` maintain it. It is documented because you will read it, and
-because a ticket that has drifted from what is on disk is diagnosed by
-comparing the two.
+what makes a directory a ticket. `tix setup`, `tix add`, and `tix remove`
+maintain it; it is documented because you will read it.
 "#;
 
 /// Plugins own their own tables in both documents.
 const PLUGIN_TABLES: &str = r#"
 ## Plugin tables
 
-Both documents may carry a `[<plugin>]` table per plugin, and neither tix
-nor another plugin validates or rewrites one. They survive every write tix
-makes.
-
-A plugin's own configuration is documented by that plugin.
+Both documents may carry a `[<plugin>]` table per plugin. tix neither
+validates nor rewrites one, and they survive every write it makes. A
+plugin's configuration is documented by that plugin.
 "#;
 
 /// What `[cli]` is for.
 const CLI_INTRO: &str = r#"
-Where tix puts things. Both keys are required, and `tix config init` asks
-for them.
+Where tix puts things. Both keys are required.
 "#;
 
 /// What `[engine]` is for.
 const ENGINE_INTRO: &str = r#"
-The repositories tix knows about. Maintained by `tix repo add` — you
-rarely write this section by hand.
+The repositories tix knows about. Maintained by `tix repo add`.
 "#;
 
 /// What `[defaults]` is for.
 const DEFAULTS_INTRO: &str = r#"
-Values read **once**, when a ticket or worktree is created, and then
-recorded in the ticket document. Changing one never rewrites a ticket that
-already exists — see [Seeds, not defaults](../../concepts/seeds/).
-
-Every key is optional, and an absent `[defaults]` section is normal.
+Read **once**, when a ticket or worktree is created, then recorded in the
+ticket document — changing one never rewrites an existing ticket. See
+[Seeds, not defaults](../../concepts/seeds/). Every key is optional.
 "#;
 
 /// What `[ticket]` is for.
