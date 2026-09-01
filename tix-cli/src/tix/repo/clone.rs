@@ -18,7 +18,7 @@ pub struct Args {
     pub repo_aliases: Vec<RepoAlias>,
 }
 
-/// Clones each target via [`RepositoryConfig::ensure`] — a repo already on
+/// Clones each target via [`tix_sdk::RepositoryConfig::ensure`] — a repo already on
 /// disk is a reported no-op, not an error.
 ///
 /// The batch never aborts on one failure: every target is attempted, each

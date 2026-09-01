@@ -2,7 +2,7 @@
 //! Core library for the tix workspace manager.
 //!
 //! `tix-engine` provides the types and operations used by all tix frontends:
-//! the CLI ([`tix-cli`]) and the Python bindings ([`pytix`]). It is intentionally
+//! the CLI (`tix-cli`) and the Python bindings (`pytix`). It is intentionally
 //! free of any UI concerns — all output, prompting, and formatting live in the
 //! frontends.
 //!

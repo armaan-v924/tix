@@ -5,7 +5,7 @@ use crate::tix::config::{CliConfig, ConfigKey};
 use tix_sdk::SdkError;
 use tix_sdk::document::with_write;
 
-/// Set a value in the [cli] section
+/// Set a value in the `[cli]` section
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// The `[cli]` key to set

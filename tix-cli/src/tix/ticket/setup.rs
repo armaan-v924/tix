@@ -23,7 +23,7 @@ pub struct Args {
     #[arg(short, long, group = "repos")]
     pub all: bool,
 
-    /// Repositories to include (defaults to [defaults].repositories)
+    /// Repositories to include (defaults to `[defaults].repositories`)
     #[arg(group = "repos")]
     pub repo_aliases: Vec<RepoAlias>,
 }
