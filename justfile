@@ -151,7 +151,11 @@ check: check-license check-versions check-docs lint
 check-docs:
     #!/usr/bin/env bash
     set -euo pipefail
-    generated="docs/man docs/src/content/docs/reference docs/src/data"
+    # Listed precisely rather than by directory: reference/ also holds
+    # hand-written pages, which this must not treat as drift.
+    generated="docs/man docs/src/data \
+        docs/src/content/docs/reference/cli \
+        docs/src/content/docs/reference/configuration.mdx"
     just docs-cli
     # --porcelain rather than `git diff`: a newly added command shows up as an
     # untracked file, which a diff against the index would not see at all.

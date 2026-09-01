@@ -31,7 +31,7 @@ export default defineConfig({
       lastUpdated: true,
       sidebar: [
         {
-          label: "Start here",
+          label: "Start Here",
           items: [{ autogenerate: { directory: "start" } }],
         },
         {
@@ -47,18 +47,15 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "plugins" } }],
         },
         {
-          label: "pytix",
-          items: [{ autogenerate: { directory: "pytix" } }],
-        },
-        {
           label: "Reference",
           items: [
             { autogenerate: { directory: "reference/cli" } },
             { slug: "reference/configuration" },
+            { slug: "reference/pytix" },
             {
               // Rustdoc is not part of the Astro build; the publish workflow
               // copies `cargo doc` output into `crates/` alongside it.
-              label: "Crate docs",
+              label: "Crate Docs",
               link: "/crates/",
             },
           ],

@@ -45,7 +45,7 @@ Python — see
 and the [specification](https://tix.armaanv.dev/latest/plugins/specification/).
 
 `pytix` also exposes tix to Python directly, for scripting rather than
-plugins: [pytix](https://tix.armaanv.dev/latest/pytix/).
+plugins: [pytix](https://tix.armaanv.dev/latest/concepts/pytix/).
 
 ## Repository layout
 

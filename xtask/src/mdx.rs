@@ -43,7 +43,7 @@ pub fn render(root: &CommandDoc) -> Vec<Page> {
 fn render_overview(root: &CommandDoc) -> String {
     let mut out = String::new();
     out.push_str(&frontmatter(
-        "CLI reference",
+        "CLI Reference",
         "Every tix command and flag, generated from the CLI's own definition.",
         1,
         2,
