@@ -27,6 +27,7 @@ use std::path::PathBuf;
 /// assert_eq!(entry.repo, "backend");
 /// assert_eq!(entry.branch, "feature/JIRA-123-fix-login");
 /// ```
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct WorktreeConfig {

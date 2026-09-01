@@ -9,6 +9,7 @@
 //! This is an xtask rather than a `build.rs` so that documentation is
 //! generated on demand instead of on every build of the CLI.
 
+mod config;
 mod man;
 mod mdx;
 mod model;
@@ -53,7 +54,9 @@ fn generate(root: &Path) -> std::io::Result<usize> {
     let documented = model::document(&command);
     let mut written = 0;
 
-    for page in mdx::render(&documented) {
+    let mut pages = mdx::render(&documented);
+    pages.push(config::render());
+    for page in pages {
         write(
             &root.join(CONTENT_ROOT).join(&page.path),
             page.body.as_bytes(),

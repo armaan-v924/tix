@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use tracing::{debug, error, info, warn};
 
 /// The configuration for a repository.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct RepositoryConfig {
     /// The remote URL of the repository.

@@ -19,8 +19,16 @@ git2 = { version = "0.21.0", features = [
     "vendored-libgit2",
     "vendored-openssl",
 ] }
+# Optional and off by default: the derive it provides is what lets the
+# documentation generator read this crate's config types instead of a
+# hand-maintained copy of them. Released binaries never compile it.
+schemars = { version = "1.2.2", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 tracing = "0.1.44"
+
+[features]
+# Enabled by xtask when generating the configuration reference.
+schema = ["dep:schemars"]
 
 [dev-dependencies]
 tempfile = "3.27.0"

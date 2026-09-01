@@ -42,6 +42,7 @@ use serde::{Deserialize, Serialize};
 /// let defaults: Defaults = toml::from_str("").unwrap();
 /// assert_eq!(defaults, Defaults::default());
 /// ```
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Defaults {

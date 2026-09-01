@@ -60,6 +60,7 @@ use tracing::{debug, error};
 /// .unwrap();
 /// assert!(config.worktrees.is_empty());
 /// ```
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct TicketConfig {
