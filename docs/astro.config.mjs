@@ -47,6 +47,10 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "plugins" } }],
         },
         {
+          label: "pytix",
+          items: [{ autogenerate: { directory: "pytix" } }],
+        },
+        {
           label: "Reference",
           items: [
             { autogenerate: { directory: "reference/cli" } },
