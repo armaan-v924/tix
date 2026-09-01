@@ -31,6 +31,10 @@ export default defineConfig({
       lastUpdated: true,
       sidebar: [
         {
+          label: "Start here",
+          items: [{ autogenerate: { directory: "start" } }],
+        },
+        {
           label: "Concepts",
           items: [{ autogenerate: { directory: "concepts" } }],
         },
