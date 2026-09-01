@@ -5,56 +5,53 @@ sidebar:
   order: 1
 ---
 
-import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Code, Aside } from '@astrojs/starlight/components';
+import release from '../../../data/release.json';
+
+export const base = `https://github.com/armaan-v924/tix/releases/download/${release.tag}`;
 
 ## Prebuilt binaries
 
-Every release ships a single self-contained executable. It has no runtime
-dependencies — libgit2 and OpenSSL are compiled in, so it does not care what
-is installed on the machine.
+<Tabs syncKey="os">
+<TabItem label="macOS">
+<Code
+  lang="sh"
+  code={`mkdir -p ~/.local/bin
+curl -fsSL ${base}/tix-${release.tag}-macos-aarch64.tar.gz | tar -xz -C ~/.local/bin tix`}
+/>
+Apple silicon. Make sure `~/.local/bin` is on your `PATH`.
+</TabItem>
 
-| Platform | Asset |
-| --- | --- |
-| Linux, x86-64 | `tix-vX.Y.Z-linux-x86_64.tar.gz` |
-| macOS, Apple silicon | `tix-vX.Y.Z-macos-aarch64.tar.gz` |
-| Windows, x86-64 | `tix-vX.Y.Z-windows-x86_64.zip` |
+<TabItem label="Linux">
+<Code
+  lang="sh"
+  code={`mkdir -p ~/.local/bin
+curl -fsSL ${base}/tix-${release.tag}-linux-x86_64.tar.gz | tar -xz -C ~/.local/bin tix`}
+/>
+x86-64. Make sure `~/.local/bin` is on your `PATH`.
+</TabItem>
 
-<Steps>
+<TabItem label="Windows">
+<Code
+  lang="powershell"
+  code={`$dest = "$Env:LOCALAPPDATA\\Programs\\tix"
+Invoke-WebRequest ${base}/tix-${release.tag}-windows-x86_64.zip -OutFile tix.zip
+Expand-Archive tix.zip -DestinationPath $dest -Force
+Remove-Item tix.zip`}
+/>
+x86-64. Add `$dest` to your `PATH` to finish.
+</TabItem>
+</Tabs>
 
-1. Download the asset for your platform from the
-   [latest release](https://github.com/armaan-v924/tix/releases/latest).
+Check it runs:
 
-2. Unpack it and put `tix` somewhere on your `PATH`:
-
-   <Tabs syncKey="os">
-   <TabItem label="macOS / Linux">
-   ```sh
-   tar -xzf tix-*-*.tar.gz
-   mkdir -p ~/.local/bin
-   mv tix ~/.local/bin/
-   ```
-   </TabItem>
-   <TabItem label="Windows">
-   ```powershell
-   Expand-Archive tix-*-windows-x86_64.zip -DestinationPath .
-   # Move tix.exe somewhere on your PATH, e.g.
-   Move-Item tix.exe $Env:LOCALAPPDATA\Programs\
-   ```
-   </TabItem>
-   </Tabs>
-
-3. Check it runs:
-
-   ```sh
-   tix --version
-   ```
-
-</Steps>
+```sh
+tix --version
+```
 
 ## From source
 
-Needs a Rust toolchain. Nothing else — libgit2 is vendored, so there is no
-system library to install first.
+Needs a Rust toolchain.
 
 ```sh
 git clone https://github.com/armaan-v924/tix
@@ -112,8 +109,3 @@ tix completions powershell | Out-String | Invoke-Expression
 </Tabs>
 
 Start a new shell afterwards.
-
-## Next
-
-tix needs a config file before it will do anything else. Continue with
-[Getting started](../getting-started/).
