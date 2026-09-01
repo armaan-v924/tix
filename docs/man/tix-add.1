@@ -4,7 +4,7 @@
 .SH NAME
 tix\-add \- Add repository worktrees to a ticket
 .SH SYNOPSIS
-\fBtix add\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-b\fR|\fB\-\-branch\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIREPO_ALIASES\fR> 
+\fBtix add\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-b\fR|\fB\-\-branch\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-as\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIREPO_ALIASES\fR> 
 .SH DESCRIPTION
 Add repository worktrees to a ticket
 .SH OPTIONS
@@ -16,7 +16,7 @@ Path to the global config file (overrides TIX_CONFIG_PATH and the platform defau
 The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted
 .TP
 \fB\-b\fR, \fB\-\-branch\fR \fI<BRANCH>\fR
-Branch for the new worktree(s); derived from `[defaults]` + ticket context when omitted
+Branch for the new worktree(s); derived from `[defaults]` + ticket context when omitted, and required when the derived branch is taken
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
 Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
@@ -32,6 +32,9 @@ toml
 .IP \(bu 2
 default
 .RE
+.TP
+\fB\-\-as\fR \fI<NAME>\fR
+Directory name for the new worktree, defaulting to the repository alias; required when a worktree already holds that name
 .TP
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)

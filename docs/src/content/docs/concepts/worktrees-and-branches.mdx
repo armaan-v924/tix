@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, FileTree } from '@astrojs/starlight/components';
 
 The directories inside a ticket are **git worktrees** — additional working
 directories attached to a repository you already have.
@@ -67,6 +67,47 @@ characters.
 
 Each part drops out cleanly when absent. This happens once, at creation —
 see [creation-time seeds](../seeds/).
+
+## Several worktrees of one repository
+
+One worktree per repository is the common case, and its directory is named
+after the repository alias. When one ticket needs two branches of the same
+repository open side by side, the second worktree goes under its own name:
+
+```sh
+tix add api --as api-auth-spike --branch spike/JIRA-123-auth
+```
+
+<FileTree>
+- ~/tickets/JIRA-123
+  - api               on feature/JIRA-123-fix-the-login-bug
+  - api-auth-spike    on spike/JIRA-123-auth
+</FileTree>
+
+Both flags are needed there, and neither is guessed: `api` is taken as a
+directory name, and the branch `api` holds cannot be checked out twice.
+
+Each is required only when its own default is unusable — `--as` when a
+worktree already occupies that directory, `--branch` when a worktree of the
+same repository already has the derived branch. Nothing about a repository
+appearing twice is special in itself, so `tix add api` after a
+`tix remove api` takes the free name and the derived branch back with no
+flags at all.
+
+```toml
+[ticket.worktrees.api]
+repo = "api"
+branch = "feature/JIRA-123-fix-the-login-bug"
+
+[ticket.worktrees.api-auth-spike]
+repo = "api"
+branch = "spike/JIRA-123-auth"
+```
+
+Everything downstream addresses the **name**, not the alias: `tix remove
+api-auth-spike` takes that worktree alone, `tix info` lists both under
+`api`, and a plugin run from inside either one is told `--tix-repo api`
+with the `--tix-repo-dir` of the worktree you are actually in.
 
 ## Branches are yours
 
