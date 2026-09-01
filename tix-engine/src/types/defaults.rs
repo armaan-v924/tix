@@ -59,9 +59,8 @@ pub struct Defaults {
     pub default_repository_owner: Option<String>,
     /// Which registered repositories a new ticket includes.
     ///
-    /// This is *what to seed a new ticket with* — a different field from the
-    /// ticket document's worktree map (*what the ticket has*), not an
-    /// override pair.
+    /// Seeds a *new* ticket. The ticket document's worktree map records what
+    /// a ticket actually has; changing this leaves existing tickets alone.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub repositories: Vec<String>,
 }

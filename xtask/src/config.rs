@@ -50,7 +50,7 @@ fn section<T: JsonSchema>(table: &str, document: Document, intro: &'static str) 
         table: table.to_string(),
         document,
         intro,
-        schema: serde_json::to_value(schema_for!(T)).expect("schema serialises"),
+        schema: serde_json::to_value(schema_for!(T)).expect("schema serializes"),
     }
 }
 
@@ -334,7 +334,7 @@ The repositories tix knows about. Maintained by `tix repo add`.
 const DEFAULTS_INTRO: &str = r#"
 Read **once**, when a ticket or worktree is created, then recorded in the
 ticket document — changing one never rewrites an existing ticket. See
-[Seeds, not defaults](../../concepts/seeds/). Every key is optional.
+[creation-time seeds](../../concepts/seeds/). Every key is optional.
 "#;
 
 /// What `[ticket]` is for.

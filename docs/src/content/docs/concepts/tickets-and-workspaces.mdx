@@ -22,7 +22,7 @@ Tickets live under the `tickets_directory` from `tix config init`.
     - web             a git worktree of your `web` checkout
 </FileTree>
 
-Those repository directories are not clones — they are
+Those repository directories are
 [git worktrees](../worktrees-and-branches/) hanging off checkouts you
 already have.
 
@@ -31,8 +31,8 @@ already have.
 `JIRA-123` is the **key**. It names the directory, seeds the branch name,
 and is how you refer to the ticket from elsewhere.
 
-Keys are names, not paths: `tix setup feature/login` is rejected rather than
-creating a nested directory.
+A key becomes the directory name, so `/` and `\` are rejected. Everything
+else is allowed — `REL-1.2.3` works.
 
 ## The ticket document
 
@@ -49,9 +49,9 @@ repo = "api"
 branch = "feature/JIRA-123-fix-the-login-bug"
 ```
 
-The `worktrees` table is keyed by **directory name**, not repository alias.
-Today they coincide; they are different things, which is what lets a ticket
-eventually hold several worktrees of one repository.
+The `worktrees` table is keyed by the worktree's **directory name**. Today
+that matches the repository alias; keeping them distinct is what lets a
+ticket eventually hold several worktrees of one repository.
 
 <Aside type="tip">
 Writes preserve your formatting. Comments and hand-edits survive `tix add`

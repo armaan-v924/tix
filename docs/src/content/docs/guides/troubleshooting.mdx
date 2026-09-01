@@ -44,8 +44,7 @@ directory needs `--ticket ./NAME`.
 error: 'api' is not a registered repository (registered: backend, web)
 ```
 
-Aliases are what `tix repo add` registered, not directory names. The list in
-the message is everything tix knows.
+Aliases come from `tix repo add`. The message lists everything tix knows.
 
 ```
 error: 'api' is not a tracked worktree of ticket 'JIRA-123' (tracked: web)
@@ -72,14 +71,15 @@ error: ticket 'JIRA-123' already has a worktree for 'api'
 
 One worktree per repository per ticket, for now.
 
-## Keys are not paths
+## Invalid ticket key
 
 ```
-error: 'feature/login' is not a valid ticket key — keys are names, not paths
+error: 'feature/login' is not a valid ticket key — it becomes a directory
+       name, so '/' and '\' are rejected
 ```
 
-A key names a directory under your tickets directory; a separator would make
-the ticket's own location ambiguous.
+A key becomes a directory name under your tickets directory, so `/` and `\`
+are rejected. Everything else is allowed — `REL-1.2.3` is a fine key.
 
 ## Destroy stopped part way
 
@@ -88,10 +88,9 @@ error: could not prune worktree 'api': … — nothing further was deleted;
        fix it (or pass --force) and retry
 ```
 
-Almost always uncommitted changes. This is the safety behaviour, not a
-failure: commit, stash, or push, then retry. Worktrees already pruned stay
-pruned and the ticket document is kept in step, so retrying resumes rather
-than starting over.
+Almost always uncommitted changes. Commit, stash, or push, then retry.
+Worktrees already pruned stay pruned and the ticket document is kept in
+step, so a retry resumes.
 
 With `--force`, pruning failures become warnings and the directory is
 deleted regardless. That can leave registrations behind in the source
@@ -101,7 +100,7 @@ repositories:
 warning: left dangling: api (api) — run `git worktree prune` in the affected source repos
 ```
 
-Run that in the repository under your code directory, not in the ticket.
+Run that in the source repository under your code directory.
 
 ## Worktrees flagged in `tix info`
 

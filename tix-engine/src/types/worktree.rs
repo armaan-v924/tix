@@ -8,7 +8,7 @@ use std::path::PathBuf;
 /// [`TicketConfig`](crate::TicketConfig); this struct carries what that
 /// directory *is*: which repository it belongs to and which branch it has
 /// checked out. Repos in one ticket may sit on different branches — worktrees
-/// share a branch *prefix*, not a branch.
+/// share a branch *prefix* rather than one branch.
 ///
 /// # Examples
 ///

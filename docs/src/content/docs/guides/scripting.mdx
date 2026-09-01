@@ -44,8 +44,7 @@ tix info --output json
 }
 ```
 
-Keys come out alphabetically sorted, not in a hand-chosen order — worth
-knowing if you are diffing output rather than parsing it.
+Keys come out alphabetically sorted.
 
 `status` is `ok`, `missing`, or `not-a-git-repository`. The last two mean the
 ticket document records a worktree that is not there any more — worth
@@ -58,14 +57,11 @@ put comments.
 ## Streams
 
 Results go to standard output. Diagnostics, warnings, and log output go to
-standard error, at every log level. So this stays parseable:
+standard error, at every log level, so this stays parseable:
 
 ```sh
 tix list --output json --verbose | jq '.[].key'
 ```
-
-That is a guarantee, not an accident — it is why `--output` is safe to use
-in a pipeline without also having to silence logging.
 
 ## Exit codes
 
@@ -79,5 +75,5 @@ fi
 
 ## Forwarding to plugins
 
-`--output` is passed to plugins as `--tix-output`, so a plugin can honour
+`--output` is passed to plugins as `--tix-output`, so a plugin can honor
 the format you asked for.

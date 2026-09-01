@@ -70,11 +70,10 @@ pub struct TicketConfig {
     pub description: String,
     /// Worktree state, keyed by worktree directory name under the ticket root.
     ///
-    /// Keyed by directory name rather than repo alias so that multiple
-    /// worktrees of one repository need no schema change; the single-worktree
-    /// case degenerates to `name == alias`. Each entry records its own branch —
-    /// there is deliberately no single shared `branch` field, since worktrees
-    /// share a branch *prefix*, not a branch.
+    /// Keyed by directory name so that multiple worktrees of one repository
+    /// need no schema change; the single-worktree case degenerates to
+    /// `name == alias`. Each entry records its own branch, since worktrees in
+    /// a ticket share a branch *prefix* rather than one branch.
     #[serde(default)]
     pub worktrees: HashMap<String, WorktreeConfig>,
 }
