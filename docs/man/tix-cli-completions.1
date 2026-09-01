@@ -1,0 +1,68 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH tix-cli-completions 1  "completions " 
+.SH NAME
+tix\-cli\-completions \- Generate shell completions
+.SH SYNOPSIS
+\fBtix cli completions\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fISHELL\fR> 
+.SH DESCRIPTION
+Generate shell completions
+.SH OPTIONS
+.TP
+\fB\-\-config\fR \fI<CONFIG>\fR
+Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
+.TP
+\fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
+Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+json
+.IP \(bu 2
+toml
+.IP \(bu 2
+default
+.RE
+.TP
+\fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
+Set the log level (trace, debug, info, warn, error)
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Set the log level to trace (shorthand for \-\-log\-level trace)
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fISHELL\fR>
+The shell to generate completions for
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+bash
+.IP \(bu 2
+elvish
+.IP \(bu 2
+fish
+.IP \(bu 2
+powershell
+.IP \(bu 2
+zsh
+.RE
+.SH EXTRA
+Installation:
+  bash:        tix completions bash > /etc/bash_completion.d/tix
+               (or: ~/.local/share/bash\-completion/completions/tix)
+  zsh:         tix completions zsh > ~/.zfunc/_tix
+               (with `fpath+=~/.zfunc; autoload \-Uz compinit; compinit` in ~/.zshrc)
+  fish:        tix completions fish > ~/.config/fish/completions/tix.fish
+  elvish:      tix completions elvish > ~/.config/elvish/lib/tix.elv
+  powershell:  tix completions powershell >> $PROFILE

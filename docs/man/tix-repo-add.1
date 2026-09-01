@@ -1,0 +1,49 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH tix-repo-add 1  "add " 
+.SH NAME
+tix\-repo\-add \- Register a repository in config (without cloning)
+.SH SYNOPSIS
+\fBtix repo add\fR [\fB\-a\fR|\fB\-\-alias\fR] [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-O\fR|\fB\-\-owner\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIREPO\fR> 
+.SH DESCRIPTION
+Register a repository in config (without cloning)
+.SH OPTIONS
+.TP
+\fB\-a\fR, \fB\-\-alias\fR \fI<ALIAS>\fR
+Alias to register under (defaults to the repository name)
+.TP
+\fB\-\-config\fR \fI<CONFIG>\fR
+Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
+.TP
+\fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
+Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+json
+.IP \(bu 2
+toml
+.IP \(bu 2
+default
+.RE
+.TP
+\fB\-O\fR, \fB\-\-owner\fR \fI<OWNER>\fR
+Owner for a bare `repo` argument (beats `[defaults].default_repository_owner`)
+.TP
+\fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
+Set the log level (trace, debug, info, warn, error)
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Set the log level to trace (shorthand for \-\-log\-level trace)
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIREPO\fR>
+Full URL, `owner/repo`, or bare `repo`

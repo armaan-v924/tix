@@ -1,0 +1,62 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH tix-ticket 1  "ticket " 
+.SH NAME
+tix\-ticket \- Create, inspect, and manage ticket workspaces
+.SH SYNOPSIS
+\fBtix ticket\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+.SH DESCRIPTION
+Create, inspect, and manage ticket workspaces
+.SH OPTIONS
+.TP
+\fB\-\-config\fR \fI<CONFIG>\fR
+Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
+.TP
+\fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
+Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+json
+.IP \(bu 2
+toml
+.IP \(bu 2
+default
+.RE
+.TP
+\fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
+Set the log level (trace, debug, info, warn, error)
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Set the log level to trace (shorthand for \-\-log\-level trace)
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH SUBCOMMANDS
+.TP
+tix\-ticket\-add(1)
+Add repository worktrees to a ticket
+.TP
+tix\-ticket\-destroy(1)
+Destroy a ticket: prune its worktrees, delete its directory
+.TP
+tix\-ticket\-info(1)
+Show a ticket\*(Aqs metadata and worktrees
+.TP
+tix\-ticket\-list(1)
+List all tickets in the tickets directory
+.TP
+tix\-ticket\-remove(1)
+Remove a worktree from a ticket without destroying it
+.TP
+tix\-ticket\-setup(1)
+Create a new ticket workspace with worktrees
+.TP
+tix\-ticket\-help(1)
+Print this message or the help of the given subcommand(s)

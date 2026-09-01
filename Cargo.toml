@@ -4,6 +4,7 @@ members = [
     "tix-sdk",
     "tix-cli",
     "pytix",
+    "xtask",
 ]
 default-members = [
     "tix-engine",

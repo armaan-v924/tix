@@ -1,0 +1,43 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH tix-info 1  "info " 
+.SH NAME
+tix\-info \- Show a ticket\*(Aqs metadata and worktrees
+.SH SYNOPSIS
+\fBtix info\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH DESCRIPTION
+Show a ticket\*(Aqs metadata and worktrees
+.SH OPTIONS
+.TP
+\fB\-\-config\fR \fI<CONFIG>\fR
+Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
+.TP
+\fB\-t\fR, \fB\-\-ticket\fR \fI<TICKET>\fR
+The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted
+.TP
+\fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
+Output format
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+json
+.IP \(bu 2
+toml
+.IP \(bu 2
+default
+.RE
+.TP
+\fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
+Set the log level (trace, debug, info, warn, error)
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Set the log level to trace (shorthand for \-\-log\-level trace)
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help

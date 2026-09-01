@@ -1,0 +1,43 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH tix-config-init 1  "init " 
+.SH NAME
+tix\-config\-init \- Create the global config interactively
+.SH SYNOPSIS
+\fBtix config init\fR [\fB\-\-config\fR] [\fB\-\-force\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH DESCRIPTION
+Create the global config interactively
+.SH OPTIONS
+.TP
+\fB\-\-config\fR \fI<CONFIG>\fR
+Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
+.TP
+\fB\-\-force\fR
+Overwrite an existing config file
+.TP
+\fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
+Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+json
+.IP \(bu 2
+toml
+.IP \(bu 2
+default
+.RE
+.TP
+\fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
+Set the log level (trace, debug, info, warn, error)
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Set the log level to trace (shorthand for \-\-log\-level trace)
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
