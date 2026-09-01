@@ -11,7 +11,9 @@ use tix_sdk::{Defaults, EngineConfig, SdkError};
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// Alias to register under (defaults to the repository name)
-    #[arg(short, long)]
+    // `--as` mirrors the worktree-alias spelling (#85) so one word means one
+    // thing across the CLI; visible so `--help` advertises both.
+    #[arg(short, long, visible_alias = "as")]
     pub alias: Option<RepoAlias>,
 
     /// Owner for a bare `repo` argument (beats `[defaults].default_repository_owner`)
