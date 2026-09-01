@@ -7,7 +7,7 @@ hero:
     One directory per ticket, one git worktree per repository — without
     touching your main checkouts.
   actions:
-    - text: Get started
+    - text: Get Started
       link: start/getting-started/
       icon: right-arrow
     - text: View on GitHub
@@ -19,19 +19,19 @@ hero:
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid>
-  <Card title="Ticket-scoped workspaces" icon="open-book">
+  <Card title="Ticket-Scoped Workspaces" icon="add-document">
     `tix setup JIRA-123` creates a directory for the ticket and a worktree
     inside it for each repository the work touches, each on its own branch.
   </Card>
-  <Card title="Your checkouts stay put" icon="approve-check">
+  <Card title="Your Checkouts Stay Put" icon="code-branch">
     Worktrees hang off the repositories you already have. Nothing is cloned
     twice, and nothing switches branches under you.
   </Card>
-  <Card title="Destroy without residue" icon="trash">
+  <Card title="Destroy Without Residue" icon="approve-check">
     `tix destroy` prunes every worktree and removes the directory — and
     refuses outright while any of them still has uncommitted work.
   </Card>
-  <Card title="Extensible" icon="puzzle">
+  <Card title="Extensible" icon="link-alt">
     Any executable named `tix-<name>` on your `PATH` becomes `tix <name>`,
     invoked with the workspace context already resolved.
   </Card>
