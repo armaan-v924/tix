@@ -15,7 +15,8 @@ use std::path::PathBuf;
 /// for removal, rename, or semantic change of an existing flag or document —
 /// never for additions (unknown `--tix-*` flags are ignored, so additions
 /// are safe by construction and flag presence doubles as capability
-/// detection). The version → change table lives in `tix-sdk/PROTOCOL.md`.
+/// detection). The version → change table is published at
+/// <https://tix.armaanv.dev/latest/plugins/protocol/>.
 pub const PROTOCOL: u64 = 1;
 
 /// Exit code reserved for protocol mismatch (`design/spec.md` §6.4).
