@@ -12,5 +12,10 @@ toml = "1.1.2"
 toml_edit = { version = "0.25.13", features = ["serde"] }
 tracing = "0.1.44"
 
+[features]
+# Passthrough so a frontend can reach the engine's schema derives without
+# depending on tix-engine directly.
+schema = ["tix-engine/schema"]
+
 [dev-dependencies]
 tempfile = "3.27.0"

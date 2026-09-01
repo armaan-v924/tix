@@ -23,6 +23,7 @@ use std::path::PathBuf;
 /// tickets_directory = "/home/user/tickets"
 /// code_directory = "/home/user/code"
 /// ```
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct CliConfig {

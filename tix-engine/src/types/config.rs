@@ -34,6 +34,7 @@ use std::collections::HashMap;
 /// let restored: EngineConfig = toml::from_str(&toml::to_string(&engine).unwrap()).unwrap();
 /// assert_eq!(restored, engine);
 /// ```
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct EngineConfig {

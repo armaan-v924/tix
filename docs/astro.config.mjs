@@ -31,14 +31,21 @@ export default defineConfig({
       lastUpdated: true,
       sidebar: [
         {
-          label: "CLI reference",
-          items: [{ autogenerate: { directory: "reference/cli" } }],
+          label: "Concepts",
+          items: [{ autogenerate: { directory: "concepts" } }],
         },
         {
-          // Rustdoc is not part of the Astro build; CI copies `cargo doc`
-          // output into `dist/crates/` after this site is built.
-          label: "Crate docs",
-          link: "/crates/",
+          label: "Reference",
+          items: [
+            { autogenerate: { directory: "reference/cli" } },
+            { slug: "reference/configuration" },
+            {
+              // Rustdoc is not part of the Astro build; the publish workflow
+              // copies `cargo doc` output into `crates/` alongside it.
+              label: "Crate docs",
+              link: "/crates/",
+            },
+          ],
         },
       ],
     }),
