@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tix crate documentation</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+        --bg: #141c1a;
+        --fg: #e9eeec;
+        --muted: #808f8a;
+        --accent: #6fd3b8;
+        --rule: #2e3b37;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #ffffff;
+          --fg: #141c1a;
+          --muted: #5c6b66;
+          --accent: #106953;
+          --rule: #e3eae7;
+        }
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        line-height: 1.6;
+        max-width: 44rem;
+        margin: 0 auto;
+        padding: 4rem 1.5rem;
+      }
+      a { color: var(--accent); }
+      h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+      .lede { color: var(--muted); margin-top: 0; }
+      ul { list-style: none; padding: 0; }
+      li { border-top: 1px solid var(--rule); padding: 1rem 0; }
+      li p { margin: 0.25rem 0 0; color: var(--muted); }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <h1>tix crate documentation</h1>
+    <p class="lede">API reference for the Rust crates behind tix.</p>
+    <ul>
+      <li>
+        <a href="tix_sdk/index.html"><code>tix-sdk</code></a>
+        <p>
+          Context and consistency layer shared by the CLI and plugins: config
+          discovery and parsing, ticket discovery, the invocation contract.
+          Start here if you are writing a plugin in Rust.
+        </p>
+      </li>
+      <li>
+        <a href="tix_engine/index.html"><code>tix-engine</code></a>
+        <p>
+          Domain operations over already-resolved paths — repositories,
+          worktrees, branches. No IO policy, no UI.
+        </p>
+      </li>
+      <li>
+        <a href="tix_cli/index.html"><code>tix-cli</code></a>
+        <p>The <code>tix</code> binary's own crate — the canonical frontend.</p>
+      </li>
+    </ul>
+    <footer><a href="/">← tix documentation</a></footer>
+  </body>
+</html>
