@@ -20,7 +20,7 @@ tix makes no safety guarantees about third-party plugins. A plugin is an
 arbitrary program running as you.
 </Aside>
 
-## 1. The exec contract
+## The exec contract
 
 When the user runs `tix <name> <args…>`, the host execs:
 
@@ -41,7 +41,7 @@ tix-<name> --tix-protocol <int> \
 | `--tix-protocol` | always | The [protocol integer](../protocol/). |
 | `--tix-config` | always | Path to the global config file — the real file on disk. |
 | `--tix-ticket` | only inside a ticket | Path to the **ticket directory** (parent of `.tix/`). Its absence is meaningful: commands that create tickets run without one. |
-| `--tix-delta` | always | Host-created temp file for your outbound config delta ([§3](#3-config-access)). stdout is yours, for the user. Writing no file changes nothing. |
+| `--tix-delta` | always | Host-created temp file for your outbound config delta ([config access](#config-access)). stdout is yours, for the user. Writing no file changes nothing. |
 | `--tix-repo` / `--tix-repo-dir` | when cwd is inside a repo worktree | Alias and path of that worktree (longest-prefix match of cwd against the ticket's worktrees). |
 | `--tix-log-level` | always | The host's **resolved** level — it already collapsed `-v`/`-q`/`--log-level`. Do not reimplement that precedence. |
 | `--tix-output` | always | Resolved output format, so `tix foo --json \| jq` works through you. |
@@ -81,7 +81,7 @@ context = pytix.host.HostContext.from_env_or_exit("one-line description")
 </TabItem>
 </Tabs>
 
-## 2. Protocol version
+## Protocol version
 
 `--tix-protocol` is a monotonic integer, independent of any crate version,
 and the only compatibility boundary between host and plugin. On mismatch,
@@ -91,7 +91,7 @@ crash; a plugin exiting 125 for its own reasons will be misreported.
 
 See [protocol versions](../protocol/) for the version-to-change table.
 
-## 3. Config access
+## Config access
 
 Two TOML documents exist: the global config and the ticket document
 (`<ticket>/.tix/ticket.toml`). Each is a set of sections, one table per
@@ -168,10 +168,10 @@ Diff-back is not an RPC channel. Everything else — creating worktrees,
 syncing, resolving tickets — goes directly through `tix-sdk → tix-engine` in
 your own process; git operations carry no single-writer constraint.
 
-## 4. Plugin state vs. plugin config
+## Plugin state vs. plugin config
 
 **Config** is human-editable settings: your `[<name>]` table, read via
-section accessors, written via diff-back ([§3](#3-config-access)).
+section accessors, written via diff-back ([config access](#config-access)).
 
 **State** is caches and derived data of any shape or size — plain files in a
 directory, with no document, delta, or protocol involved.
@@ -195,7 +195,7 @@ Directories are created lazily. Per-ticket state lives at
 `<ticket>/.tix/plugins/<name>/`; the cache location wraps the platform cache
 directory.
 
-## 5. Nested `tix` invocations
+## Nested `tix` invocations
 
 You may shell out to `tix`. Two hazards:
 
@@ -219,12 +219,12 @@ clearer than a binding that hides it.
 </TabItem>
 </Tabs>
 
-And `TIX_DEPTH` caps recursion at 10 ([§1](#1-the-exec-contract)).
+And `TIX_DEPTH` caps recursion at 10 ([the exec contract](#the-exec-contract)).
 
 Concurrent config writes are safe: deltas apply against fresh parses under
 the write lock, degrading to last-writer-wins at key granularity.
 
-## 6. Help integration
+## Help integration
 
 Your `--help` is your own; tix never touches it.
 

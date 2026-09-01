@@ -193,7 +193,7 @@ impl Repository {
         // The worktree must open on `branch` by that exact name. Without an
         // explicit reference, git2 would create a branch named after the
         // *worktree* — wrong the moment name and branch differ (per-worktree
-        // branches, spec §3.2).
+        // branches).
         let local_branch = match self.repo.find_branch(branch, git2::BranchType::Local) {
             Ok(existing) => existing,
             Err(_) => {

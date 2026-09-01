@@ -13,7 +13,7 @@
 //!
 //! A typed whole-document round-trip is a **data-loss bug**: deserializing
 //! into structs and re-serializing emits only what the structs model,
-//! silently dropping every `[<plugin>]` table plus all comments (spec §6.2).
+//! silently dropping every `[<plugin>]` table plus all comments.
 //! Every write in tix goes through this layer instead.
 //!
 //! Written in `tix-cli` first; promoted here (#96) so plugins parse
@@ -404,7 +404,7 @@ impl fmt::Display for TixDocument {
 /// The fresh parse inside the lock is what makes concurrent writers safe:
 /// a second writer blocks on the lock, then parses the first writer's result,
 /// so concurrency degrades to last-writer-wins at key granularity rather
-/// than lost updates (#67; complements fresh-parse-at-apply, spec §6.2).
+/// than lost updates (#67; complements fresh-parse-at-apply).
 /// A missing file starts from [`TixDocument::empty`].
 ///
 /// # Errors

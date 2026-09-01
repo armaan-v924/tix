@@ -19,7 +19,7 @@ use tix_sdk::state;
 /// and checks the protocol — all before the plugin has looked at a single
 /// argument of its own. The host resolved flag precedence before forwarding,
 /// so plugins must not reimplement it
-/// ([contract](https://tix.armaanv.dev/latest/plugins/specification/#1-the-exec-contract)).
+/// ([contract](https://tix.armaanv.dev/latest/plugins/specification/#the-exec-contract)).
 ///
 /// Paths point at the real files, not staged copies, so a plugin can be
 /// hand-run against arbitrary paths while debugging.
@@ -259,7 +259,7 @@ impl PyHostContext {
     ///
     /// State is not config: caches and derived data of any shape, part of no
     /// document, no delta, and no protocol
-    /// ([config vs state](https://tix.armaanv.dev/latest/plugins/specification/#4-plugin-state-vs-plugin-config)).
+    /// ([config vs state](https://tix.armaanv.dev/latest/plugins/specification/#plugin-state-vs-plugin-config)).
     ///
     /// Raises `TixError` without ticket context, or if creation fails.
     fn state_dir(&self, plugin: &str) -> PyResult<PathBuf> {

@@ -1,4 +1,4 @@
-//! Diff-back config deltas ([contract](https://tix.armaanv.dev/latest/plugins/specification/#3-config-access)).
+//! Diff-back config deltas ([contract](https://tix.armaanv.dev/latest/plugins/specification/#config-access)).
 //!
 //! Diff-back exists **only** because config has a single-writer constraint —
 //! the host. It is not an RPC channel: everything else a plugin does
@@ -129,7 +129,7 @@ impl Delta {
     /// format-preserving DOM.
     ///
     /// The host **never deserializes plugin tables** — a typed round-trip
-    /// would strip every `[<plugin>]` table plus comments (spec §6.2). Ops
+    /// would strip every `[<plugin>]` table plus comments. Ops
     /// navigate to the dotted path, creating intermediate tables as needed,
     /// and put the mapped value there; untouched subtrees are never
     /// interpreted. Ordered application makes overlapping keys

@@ -8,7 +8,7 @@ use tix_sdk::document::TixDocument;
 /// A parsed tix document — the global config or a ticket's `.tix/ticket.toml`.
 ///
 /// Read-only by construction, and that is the whole point: config has a single
-/// writer, the host ([contract](https://tix.armaanv.dev/latest/plugins/specification/#3-config-access)). A plugin that wants
+/// writer, the host ([contract](https://tix.armaanv.dev/latest/plugins/specification/#config-access)). A plugin that wants
 /// a change writes
 /// a [`Delta`](crate::host::delta::PyDelta) instead of editing here, so its
 /// edits land against a fresh parse after it exits cleanly, with every other

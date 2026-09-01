@@ -11,7 +11,7 @@ use clap::{Args, Subcommand};
 pub use tix_sdk::discovery::TicketRef;
 
 /// Derives the branch name seeded into a new worktree:
-/// `<prefix>/<key>-<sanitized-description>` (v2 parity, spec §3.4).
+/// `<prefix>/<key>-<sanitized-description>` (v2 parity).
 ///
 /// The prefix and the description are each optional and drop out cleanly:
 /// no prefix means no `<prefix>/`, no (or fully unsanitizable) description

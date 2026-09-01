@@ -68,7 +68,7 @@ impl WorktreeStatus {
 /// not go through the all-or-nothing [`TicketConfig::resolve`].
 ///
 /// There is deliberately no single ticket branch to print: branches are
-/// per-worktree (spec §3.2).
+/// per-worktree.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let root = require_ticket_root(&app.context, args.shared.ticket.as_ref())?;
     let ticket: TicketConfig = load_ticket_config(&root)?;
