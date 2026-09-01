@@ -1,33 +1,37 @@
 name: Docs
 
-# The documentation site tracks main: the CLI reference is generated from the
-# CLI's own definition, so publishing only at release time would leave the
-# reference describing a version nobody is running yet.
+# The only workflow that writes the `docs` branch, which GitHub Pages serves
+# at tix.armaanv.dev. The branch holds several independent site trees:
 #
-# This is the only workflow that writes the `docs` branch. The release
-# workflow builds the same site, but only to attach a snapshot to the
-# release — two publishers racing to force-push one branch is not worth the
-# freshness it would buy.
+#   /            redirect to the newest release
+#   /latest/     newest release      (published on a v* tag)
+#   /vX.Y/       that release, pinned (published on a v* tag)
+#   /dev/        main                 (published on every push to main)
+#
+# A release is *built twice* rather than copied: Astro bakes the base path
+# into every URL it generates, so a copy of /v3.1/ would still link to
+# /v3.1/. The build takes about a second, so this is cheaper than any
+# rewriting scheme.
+#
+# The release workflow builds the same site, but only to attach a snapshot to
+# the release — it never publishes, so nothing races for this branch.
 on:
   push:
     branches:
       - main
-    paths:
-      - "docs/**"
-      - "tix-cli/**"
-      - "tix-sdk/**"
-      - "tix-engine/**"
-      - "xtask/**"
-      - "justfile"
-      - ".github/workflows/docs.yml"
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Serialised rather than cancelled: two publishes touch disjoint directories,
+# but they force-push one branch, and cancelling a release publish half way
+# through is worse than waiting for it.
 concurrency:
   group: docs-publish
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -47,31 +51,129 @@ jobs:
           cache: npm
           cache-dependency-path: docs/package-lock.json
 
-      - name: Build site
-        run: just docs-deps docs-build
+      - name: Choose what to publish
+        id: targets
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            echo "targets=dev" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          version="${GITHUB_REF_NAME#v}"
+          # A patch release refreshes its minor's directory: /v3.1/ tracks
+          # the newest 3.1.x, which is what pinning a version should mean.
+          targets="v${version%.*}"
+
+          # /latest/ follows the highest released version, not whichever tag
+          # was pushed most recently. Patch releases are cut from release/X.Y
+          # branches (see cut-patch.yml), so v3.0.5 can be tagged long after
+          # 4.0 has shipped — and must not drag /latest/ back to the 3.0 line.
+          git fetch --tags --force --quiet
+          highest=$(git tag --list 'v*' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V | tail -1)
+          if [[ "$GITHUB_REF_NAME" == "$highest" ]]; then
+            targets="latest $targets"
+          else
+            echo "$GITHUB_REF_NAME is not the highest tag ($highest) — leaving /latest/ alone"
+          fi
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+
+      - name: Build each tree
+        run: |
+          set -euo pipefail
+          stage=$(mktemp -d)
+          for target in ${{ steps.targets.outputs.targets }}; do
+            DOCS_BASE="/$target/" just docs-deps docs-build
+            mkdir -p "$stage/$target"
+            cp -R docs/dist/. "$stage/$target/"
+          done
+          echo "STAGE=$stage" >> "$GITHUB_ENV"
         env:
           ASTRO_TELEMETRY_DISABLED: "1"
 
       - name: Publish to docs branch
         run: |
           set -euo pipefail
-          # Stage outside the worktree: the next step wipes the checkout, and
-          # docs/dist would go with it.
-          site=$(mktemp -d)
-          cp -R docs/dist/. "$site"/
-
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git fetch origin docs || true
-          if git show-ref --verify --quiet refs/remotes/origin/docs; then
-            git checkout -B docs origin/docs
+
+          # A worktree rather than a branch switch: the checkout is full of
+          # build output that `git add -A` would happily commit, and a
+          # worktree gives a tree containing the docs branch and nothing else.
+          # It shares .git, so pushing needs no separate credentials.
+          publish=$(mktemp -d)/site
+          if git ls-remote --exit-code --heads origin docs >/dev/null 2>&1; then
+            git fetch origin docs
+            git worktree add "$publish" -B docs origin/docs
           else
-            git checkout --orphan docs
+            git worktree add --detach "$publish"
+            git -C "$publish" checkout --orphan docs
+            git -C "$publish" rm -rf . >/dev/null 2>&1 || true
           fi
-          find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
-          # `/.` rather than `/*`: the glob misses .nojekyll, without which
-          # GitHub Pages runs Jekyll and drops the `_astro/` asset directory.
-          cp -R "$site"/. .
+
+          # Replace only the trees this run built. Every other version on the
+          # branch is left exactly as it was — that is what makes /v3.1/
+          # survive a /dev/ publish.
+          for target in ${{ steps.targets.outputs.targets }}; do
+            rm -rf "${publish:?}/$target"
+            mkdir -p "$publish/$target"
+            cp -R "$STAGE/$target/." "$publish/$target/"
+          done
+
+          # Pages serves the branch root, so these belong there and not only
+          # inside each tree. Without .nojekyll, Jekyll drops `_astro/` and
+          # every site serves unstyled.
+          touch "$publish/.nojekyll"
+          echo "tix.armaanv.dev" > "$publish/CNAME"
+
+          python3 - "$publish" <<'PY'
+          import json, os, re, sys
+
+          root = sys.argv[1]
+          versions = sorted(
+              (d for d in os.listdir(root) if re.fullmatch(r"v\d+\.\d+", d)),
+              key=lambda d: [int(p) for p in d[1:].split(".")],
+              reverse=True,
+          )
+          has = lambda name: os.path.isdir(os.path.join(root, name))
+
+          # Read by the version switcher when there is more than one release
+          # to switch between; until then it is just a manifest of what the
+          # branch holds.
+          manifest = {
+              "latest": versions[0] if versions else None,
+              "versions": versions,
+              "dev": has("dev"),
+          }
+          with open(os.path.join(root, "versions.json"), "w") as f:
+              json.dump(manifest, f, indent=2)
+              f.write("\n")
+
+          # Nothing deep-links to the root, so a redirect is enough — and it
+          # has to be a real page, because Pages has no server-side rewrites.
+          if has("latest"):
+              home = "/latest/"
+          elif versions:
+              home = f"/{versions[0]}/"
+          else:
+              home = "/dev/"
+          with open(os.path.join(root, "index.html"), "w") as f:
+              f.write(
+                  "<!DOCTYPE html>\n"
+                  '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+                  "<title>tix documentation</title>\n"
+                  f'<link rel="canonical" href="https://tix.armaanv.dev{home}">\n'
+                  f'<meta http-equiv="refresh" content="0; url={home}">\n'
+                  "</head>\n<body>\n"
+                  f'<p><a href="{home}">tix documentation</a></p>\n'
+                  "</body>\n</html>\n"
+              )
+          PY
+
+          cd "$publish"
           git add -A
-          git commit -m "Update docs for ${GITHUB_SHA:0:7}" || echo "No changes to commit"
+          git commit -m "Update ${{ steps.targets.outputs.targets }} for ${GITHUB_SHA:0:7}" \
+            || echo "No changes to commit"
           git push origin docs --force
