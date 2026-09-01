@@ -18,16 +18,34 @@ Nothing works until this file exists.
 tix config init
 ```
 
-It asks two questions, each with a default:
+It asks where things go, each with a default:
 
 ```
 Tickets directory [/home/you/tickets]:
 Code directory (where repos are cloned) [/home/you/code]:
 ```
 
+Then for the `[defaults]` seeds. Every one is optional — a blank answer
+leaves it unset:
+
+```
+[defaults] — stamped into each new ticket at creation; blank to skip.
+Branch prefix (optional):
+GitHub base URL (optional):
+Default repository owner (optional):
+Repositories a new ticket includes, comma-separated (optional):
+```
+
+Answering them now is worth the two minutes: a seed is read **once**, when a
+ticket is created, and recorded in that ticket
+([creation-time seeds](../../concepts/seeds/)). Setting `branch_prefix`
+later does not rename the branches of tickets that already exist.
+
 <Aside type="tip">
-Edit the file by hand whenever you like — tix rewrites only the values it
-touches, so comments and layout survive. Every key is listed in the
+Edit the file by hand whenever you like, or set one key at a time with
+`tix config set defaults.branch_prefix feature` — any section, any key.
+Either way tix rewrites only the value it touches, so comments and layout
+survive. Every key is listed in the
 [configuration reference](../../reference/configuration/).
 </Aside>
 

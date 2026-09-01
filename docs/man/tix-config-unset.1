@@ -1,12 +1,12 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-config-get 1  "get " 
+.TH tix-config-unset 1  "unset " 
 .SH NAME
-tix\-config\-get \- Read a value from the config document
+tix\-config\-unset \- Remove a key from the config document
 .SH SYNOPSIS
-\fBtix config get\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> 
+\fBtix config unset\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> 
 .SH DESCRIPTION
-Read a value from the config document
+Remove a key from the config document
 .SH OPTIONS
 .TP
 \fB\-\-config\fR \fI<CONFIG>\fR
@@ -40,4 +40,4 @@ Set the log level to warn (shorthand for \-\-log\-level warn)
 Print help
 .TP
 <\fIKEY\fR>
-The `<section>[.<key>]` path(s) to read (e.g. `defaults.branch_prefix`)
+The `<section>.<key>` path to remove (e.g. `defaults.branch_prefix`)

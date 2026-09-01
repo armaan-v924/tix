@@ -1,16 +1,19 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-config-get 1  "get " 
+.TH tix-config-add 1  "add " 
 .SH NAME
-tix\-config\-get \- Read a value from the config document
+tix\-config\-add \- Append a value to a list in the config document
 .SH SYNOPSIS
-\fBtix config get\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> 
+\fBtix config add\fR [\fB\-\-config\fR] [\fB\-f\fR|\fB\-\-force\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
 .SH DESCRIPTION
-Read a value from the config document
+Append a value to a list in the config document
 .SH OPTIONS
 .TP
 \fB\-\-config\fR \fI<CONFIG>\fR
 Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
+.TP
+\fB\-f\fR, \fB\-\-force\fR
+Append without confirming, even if the value is already in the list
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
 Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
@@ -40,4 +43,7 @@ Set the log level to warn (shorthand for \-\-log\-level warn)
 Print help
 .TP
 <\fIKEY\fR>
-The `<section>[.<key>]` path(s) to read (e.g. `defaults.branch_prefix`)
+The `<section>.<key>` path of the list (e.g. `defaults.repositories`)
+.TP
+<\fIVALUE\fR>
+The value to append (parsed as a TOML value when possible, else a string)

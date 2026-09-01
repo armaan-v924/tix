@@ -2,11 +2,11 @@
 .el .ds Aq '
 .TH tix-config-set 1  "set " 
 .SH NAME
-tix\-config\-set \- Set a value in the `[cli]` section
+tix\-config\-set \- Set a value in the config document
 .SH SYNOPSIS
 \fBtix config set\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
 .SH DESCRIPTION
-Set a value in the `[cli]` section
+Set a value in the config document
 .SH OPTIONS
 .TP
 \fB\-\-config\fR \fI<CONFIG>\fR
@@ -37,20 +37,10 @@ Set the log level to trace (shorthand for \-\-log\-level trace)
 Set the log level to warn (shorthand for \-\-log\-level warn)
 .TP
 \fB\-h\fR, \fB\-\-help\fR
-Print help (see a summary with \*(Aq\-h\*(Aq)
+Print help
 .TP
 <\fIKEY\fR>
-The `[cli]` key to set
-.br
-
-.br
-\fIPossible values:\fR
-.RS 14
-.IP \(bu 2
-tickets\-directory: `tickets_directory` — where ticket workspaces live
-.IP \(bu 2
-code\-directory: `code_directory` — where source repositories are cloned
-.RE
+The `<section>.<key>` path to set (e.g. `defaults.branch_prefix`)
 .TP
 <\fIVALUE\fR>
 The new value (parsed as a TOML value when possible, else a string)
