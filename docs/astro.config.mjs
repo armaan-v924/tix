@@ -43,6 +43,10 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "concepts" } }],
         },
         {
+          label: "Plugins",
+          items: [{ autogenerate: { directory: "plugins" } }],
+        },
+        {
           label: "Reference",
           items: [
             { autogenerate: { directory: "reference/cli" } },

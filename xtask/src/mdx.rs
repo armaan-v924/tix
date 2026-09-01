@@ -273,7 +273,7 @@ conflicts with `--ticket`.
 
 Any argument `tix` does not recognise is dispatched to a plugin: `tix deploy`
 execs `tix-deploy` from `PATH` with the workspace context forwarded.
-See the [plugin specification](https://github.com/armaan-v924/tix/blob/main/PLUGIN_SPEC.md).
+See the [plugin specification](../../plugins/specification/).
 "#;
 
 /// Environment and exit-status notes, appended to the overview.
