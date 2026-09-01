@@ -3,7 +3,7 @@
 //! Fetches the latest release, compares against the compiled-in version,
 //! and replaces the running binary via temp file + rename. A direct port of
 //! v2's self-updater, adjusted for the workspace and given `--dry-run` and
-//! checksum verification.
+//! mandatory checksum verification.
 
 use semver::Version;
 use serde::Deserialize;
@@ -48,10 +48,13 @@ struct Target {
 /// Checks the latest GitHub release and installs it when newer.
 ///
 /// Asset naming follows the release workflow's convention:
-/// `tix-v<version>-<os>-<arch>.<tar.gz|zip>`. If the release also carries a
-/// `<asset>.sha256` sibling, the download is verified against it; releases
-/// without checksums skip verification. The binary is replaced via temp
-/// file + rename in its own directory.
+/// `tix-v<version>-<os>-<arch>.<tar.gz|zip>`, and every archive ships a
+/// `<asset>.sha256` sibling that the download is verified against. A release
+/// missing that sibling aborts the update rather than installing unverified:
+/// the workflow always publishes one, so its absence means either a
+/// half-uploaded release or an attacker withholding the file to steer the
+/// updater onto an unchecked path. The binary is replaced via temp file +
+/// rename in its own directory.
 pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let target = detect_target()?;
     let owner = std::env::var("TIX_UPDATE_OWNER").unwrap_or_else(|_| DEFAULT_OWNER.into());
@@ -81,19 +84,24 @@ pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 release.tag_name
             ))
         })?;
+    let checksum_name = format!("{asset_name}.sha256");
     let checksum_asset = release
         .assets
         .iter()
-        .find(|a| a.name == format!("{asset_name}.sha256"));
+        .find(|asset| asset.name == checksum_name)
+        .ok_or_else(|| {
+            SdkError::Message(format!(
+                "release {} publishes no '{checksum_name}' — refusing to install \
+                 an unverified binary",
+                release.tag_name
+            ))
+        })?;
     let destination = install_destination(&target)?;
 
     if args.dry_run {
         println!("would update tix {current} -> {latest}");
         println!("  asset:       {asset_name}");
-        println!(
-            "  checksum:    {}",
-            checksum_asset.map_or("none published", |_| "verified against .sha256")
-        );
+        println!("  checksum:    {checksum_name}");
         println!("  destination: {}", destination.display());
         return Ok(());
     }
@@ -103,11 +111,7 @@ pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let archive_path = staging.path().join(&asset.name);
     download(&asset.browser_download_url, &archive_path)?;
 
-    if let Some(checksum) = checksum_asset {
-        verify_checksum(&archive_path, &checksum.browser_download_url)?;
-    } else {
-        info!("release publishes no checksum for '{asset_name}' — skipping verification");
-    }
+    verify_checksum(&archive_path, &checksum_asset.browser_download_url)?;
 
     let extracted = extract_archive(&archive_path, &target)?;
     install_binary(&extracted, &destination)?;
@@ -169,8 +173,7 @@ fn download(url: &str, dest: &Path) -> Result<(), SdkError> {
     Ok(())
 }
 
-/// Verifies the downloaded archive against the release's `.sha256` asset
-/// (`<hex digest>` optionally followed by a filename, sha256sum-style).
+/// Verifies the downloaded archive against the release's `.sha256` asset.
 fn verify_checksum(archive_path: &Path, checksum_url: &str) -> Result<(), SdkError> {
     let mut response = ureq::get(checksum_url)
         .header("User-Agent", USER_AGENT)
@@ -183,12 +186,32 @@ fn verify_checksum(archive_path: &Path, checksum_url: &str) -> Result<(), SdkErr
         .take(4096)
         .read_to_string(&mut text)
         .map_err(SdkError::from)?;
-    let expected = text
+    verify_digest(archive_path, &parse_expected_digest(&text)?)
+}
+
+/// Pulls the digest out of a sha256sum-style checksum file: `<hex digest>`
+/// optionally followed by the filename it covers.
+///
+/// The shape is checked here rather than deferred to the comparison, so a body
+/// that is not a checksum at all — a CDN error page, a truncated upload —
+/// reports what it actually is instead of a mismatch against gibberish.
+fn parse_expected_digest(text: &str) -> Result<String, SdkError> {
+    let token = text
         .split_whitespace()
         .next()
-        .ok_or_else(|| SdkError::Message("empty checksum file".to_string()))?
-        .to_lowercase();
+        .ok_or_else(|| SdkError::Message("empty checksum file".to_string()))?;
+    let digest = token.to_lowercase();
+    if digest.len() != 64 || !digest.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(SdkError::Message(format!(
+            "malformed checksum file: expected a 64-character hex digest, got '{}'",
+            token.chars().take(64).collect::<String>()
+        )));
+    }
+    Ok(digest)
+}
 
+/// Hashes the archive on disk and refuses anything but an exact match.
+fn verify_digest(archive_path: &Path, expected: &str) -> Result<(), SdkError> {
     let bytes = std::fs::read(archive_path).map_err(SdkError::from)?;
     let actual = hex(&sha2::Sha256::digest(&bytes));
     if actual != expected {
@@ -345,7 +368,7 @@ mod tests {
         }
     }
 
-    /// A checksum mismatch refuses to install.
+    /// The hex encoder agrees with the reference digest.
     #[test]
     fn test_hex_digest() {
         // sha256("") — the well-known empty digest.
@@ -353,5 +376,77 @@ mod tests {
             hex(&sha2::Sha256::digest(b"")),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
+    }
+
+    /// The digest parser accepts what the release workflow writes — the
+    /// `sha256sum`/`shasum -a 256` line and PowerShell's uppercase hex — and
+    /// rejects a body that is not a checksum file.
+    #[test]
+    fn test_parse_expected_digest() {
+        let digest = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        // GNU coreutils / shasum: two spaces, then the filename.
+        assert_eq!(
+            parse_expected_digest(&format!("{digest}  tix-v9.9.9-linux-x86_64.tar.gz\n")).unwrap(),
+            digest
+        );
+        // Get-FileHash hex, and a bare digest with no filename.
+        assert_eq!(
+            parse_expected_digest(&digest.to_uppercase()).unwrap(),
+            digest
+        );
+
+        for bogus in ["", "   \n", "<!DOCTYPE html>", "deadbeef  archive.tar.gz"] {
+            assert!(
+                parse_expected_digest(bogus).is_err(),
+                "expected '{bogus}' to be rejected"
+            );
+        }
+    }
+
+    /// End to end over HTTP: the updater fetches a real `.sha256` body, and
+    /// the same archive with one byte flipped is refused.
+    #[test]
+    fn test_verify_checksum_over_http() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive = dir.path().join("tix-v9.9.9-linux-x86_64.tar.gz");
+        std::fs::write(&archive, b"pretend this is a release archive").unwrap();
+        let digest = hex(&sha2::Sha256::digest(std::fs::read(&archive).unwrap()));
+        let body = format!("{digest}  tix-v9.9.9-linux-x86_64.tar.gz\n");
+
+        let url = serve_once(&body);
+        verify_checksum(&archive, &url).expect("untampered archive verifies");
+
+        // A download corrupted in flight — or swapped for someone else's
+        // binary — no longer matches the digest the release published.
+        std::fs::write(&archive, b"pretend this is a release archiveX").unwrap();
+        let url = serve_once(&body);
+        let err = verify_checksum(&archive, &url).expect_err("corrupted archive is refused");
+        assert!(
+            err.to_string().contains("checksum mismatch"),
+            "unexpected error: {err}"
+        );
+    }
+
+    /// Serves `body` to exactly one request and returns its URL. A whole HTTP
+    /// mock crate would be a heavier dependency than the two lines of protocol
+    /// this needs.
+    fn serve_once(body: &str) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/checksum", listener.local_addr().unwrap());
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/plain\r\n\r\n{body}",
+            body.len()
+        );
+        std::thread::spawn(move || {
+            use std::io::Write;
+            let (mut stream, _) = listener.accept().unwrap();
+            // Drain the request line/headers so the client is not writing into
+            // a socket we have already closed.
+            let mut request = [0u8; 1024];
+            let _ = std::io::Read::read(&mut stream, &mut request);
+            stream.write_all(response.as_bytes()).unwrap();
+            stream.flush().unwrap();
+        });
+        url
     }
 }
