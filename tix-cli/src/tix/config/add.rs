@@ -29,7 +29,7 @@ pub struct Args {
 ///
 /// The append matches the layout already in the file: one element per line
 /// in a multi-line array, inline in an inline one, comments where they were
-/// ([`edit::push_in_layout`]). As with `tix config set`, the edited section
+/// (`edit::push_in_layout`). As with `tix config set`, the edited section
 /// is re-deserialized before the write lands, so an element of the wrong
 /// type fails without touching the file.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
