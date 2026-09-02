@@ -212,7 +212,7 @@ fn create_ticket_root(target: &Target) -> Result<(), SdkError> {
 
 /// Creates a ticket workspace with a worktree per selected repo.
 ///
-/// The target argument is disambiguated by shape ([`resolve_target`]): a bare
+/// The target argument is disambiguated by shape (`resolve_target`): a bare
 /// key lands under `tickets_directory`, a path lands where it points. Both
 /// forms are otherwise identical — same seeds, same derivation, same
 /// document.
