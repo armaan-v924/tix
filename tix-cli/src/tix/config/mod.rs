@@ -36,8 +36,10 @@ use tix_sdk::document::TixDocument;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct CliConfig {
-    /// Where ticket workspaces are created, and where id-form `--ticket`
-    /// arguments resolve (`tickets_directory.join(id)`).
+    /// Where key-form `tix ticket setup` creates ticket workspaces, and where
+    /// id-form `--ticket` arguments resolve (`tickets_directory.join(id)`).
+    /// The default location, not a bound: a path-form `tix ticket setup`
+    /// creates outside it, and discovery finds tickets wherever they are.
     pub tickets_directory: PathBuf,
     /// Where source repositories are cloned: `tix repo add` derives a new
     /// repo's `code_path` as `code_directory/<alias>` (v2 parity).
