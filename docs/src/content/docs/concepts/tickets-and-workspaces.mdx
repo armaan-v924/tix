@@ -10,8 +10,9 @@ import { FileTree, Aside } from '@astrojs/starlight/components';
 A ticket is a directory: one piece of work, one directory, containing a
 checkout of every repository that work touches.
 
-Tickets live under the `tickets_directory` from `tix config init`.
-`tix setup JIRA-123` creates one:
+Tickets live under the `tickets_directory` from `tix config init` unless you
+[put one somewhere else](#a-ticket-somewhere-else). `tix setup JIRA-123`
+creates one:
 
 <FileTree>
 - ~/tickets
@@ -33,6 +34,37 @@ and is how you refer to the ticket from elsewhere.
 
 A key becomes the directory name, so `/` and `\` are rejected. Everything
 else is allowed — `REL-1.2.3` works.
+
+## A ticket somewhere else
+
+The tickets directory is the default, not a requirement. Give `tix setup` a
+**path** instead of a key and the ticket is created there:
+
+```sh frame="none"
+tix setup ./client-work/JIRA-123
+```
+
+Shape decides which you meant — the same rule
+[`--ticket`](../ticket-discovery/#overriding-it) reads: a bare name is a key,
+and anything with a separator, or `.` / `..`, is a path. So a ticket you want
+created in the current directory has to be written `./JIRA-123`.
+
+The key defaults to the directory name. When the two should differ — the
+directory named for you, the key named for your tracker — pass `--key`:
+
+```sh frame="none"
+tix setup ./client-work/acme-login --key JIRA-123
+```
+
+<Aside type="caution" title="The parent has to exist">
+`tix setup` creates the ticket directory, not the tree above it. A mistyped
+path fails instead of quietly growing a set of worktrees somewhere you never
+meant to put them — `mkdir -p` first if the parent is genuinely new.
+</Aside>
+
+Nothing else changes. [Discovery](../ticket-discovery/) walks up from wherever
+you are rather than searching the tickets directory, so an out-of-tree ticket
+behaves exactly like one under it.
 
 ## The ticket document
 

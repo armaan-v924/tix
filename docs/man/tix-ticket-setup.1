@@ -4,7 +4,7 @@
 .SH NAME
 tix\-ticket\-setup \- Create a new ticket workspace with worktrees
 .SH SYNOPSIS
-\fBtix ticket setup\fR [\fB\-\-config\fR] [\fB\-d\fR|\fB\-\-description\fR] [\fB\-a\fR|\fB\-\-all\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> [\fIREPO_ALIASES\fR] 
+\fBtix ticket setup\fR [\fB\-\-config\fR] [\fB\-k\fR|\fB\-\-key\fR] [\fB\-d\fR|\fB\-\-description\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-a\fR|\fB\-\-all\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> [\fIREPO_ALIASES\fR] 
 .SH DESCRIPTION
 Create a new ticket workspace with worktrees
 .SH OPTIONS
@@ -12,11 +12,11 @@ Create a new ticket workspace with worktrees
 \fB\-\-config\fR \fI<CONFIG>\fR
 Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
 .TP
+\fB\-k\fR, \fB\-\-key\fR \fI<KEY>\fR
+The key recorded for the ticket, defaulting to the directory name. Path form only — a bare key already names itself
+.TP
 \fB\-d\fR, \fB\-\-description\fR \fI<DESCRIPTION>\fR
 Human\-readable description; feeds branch name derivation
-.TP
-\fB\-a\fR, \fB\-\-all\fR
-Include every registered repository
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
 Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
@@ -33,6 +33,9 @@ toml
 default
 .RE
 .TP
+\fB\-a\fR, \fB\-\-all\fR
+Include every registered repository
+.TP
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)
 .TP
@@ -45,8 +48,8 @@ Set the log level to warn (shorthand for \-\-log\-level warn)
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .TP
-<\fIKEY\fR>
-The ticket key, e.g. JIRA\-123 (becomes the directory name; no / or \\\\)
+<\fITARGET\fR>
+Where the ticket goes: a bare key (e.g. JIRA\-123) created under the tickets directory, or a path (anything containing a separator, or `.`/`..`) created at that location
 .TP
 [\fIREPO_ALIASES\fR]
 Repositories to include (defaults to `[defaults].repositories`)
