@@ -39,6 +39,9 @@ jobs:
 
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      # `just bump` re-locks both lockfiles, and pytix's is uv's — without
+      # uv on PATH the bump dies at `uv sync` with exit 127.
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
       - name: Configure git
         run: |
@@ -55,11 +58,13 @@ jobs:
           just bump patch
           NEW=$(just _current)
           cargo update --workspace
-          # Stage the files just bump actually touched. A hardcoded list
-          # here silently drops any crate it predates: tix-sdk was bumped
-          # on disk but never staged, and v3.0.3 shipped with a tix-sdk
-          # still at 3.0.2.
-          git add $(just _version_files) Cargo.lock
+          # Stage everything `just bump` touched, rather than naming files.
+          # A hardcoded list keeps rotting as the bump grows: it dropped
+          # tix-sdk once already (v3.0.3 shipped it still at 3.0.2), and it
+          # now also misses pytix/uv.lock and the regenerated release data.
+          # Nothing else runs between checkout and here, so -u stages
+          # exactly the bump's own diff.
+          git add -u
           just check-versions
           git commit -m "chore(release): bump patch v$CURRENT → v$NEW"
           git push origin ${{ inputs.release_branch }}
