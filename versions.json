@@ -1,5 +1,7 @@
 {
-  "latest": null,
-  "versions": [],
+  "latest": "v3.1",
+  "versions": [
+    "v3.1"
+  ],
   "dev": true
 }

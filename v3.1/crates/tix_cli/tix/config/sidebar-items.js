@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ConfigCommands"],"fn":["validate_section"],"mod":["add","get","init","remove","set","show","unset"],"struct":["CliConfig","ConfigArgs","ConfigKeyPath","ConfigPath"]};
