@@ -134,7 +134,7 @@ Also available as `tix remove` — the same command, spelled without the group.
 Create a new ticket workspace with worktrees
 
 ```sh frame="none"
-tix ticket setup [OPTIONS] <KEY> [REPO_ALIASES]...
+tix ticket setup [OPTIONS] <TARGET> [REPO_ALIASES]...
 ```
 
 
@@ -144,13 +144,14 @@ Also available as `tix setup` — the same command, spelled without the group.
 
 | Argument | Description |
 | --- | --- |
-| `<KEY>` | The ticket key, e.g. JIRA-123 (becomes the directory name; no / or \\) |
+| `<TARGET>` | Where the ticket goes: a bare key (e.g. JIRA-123) created under the tickets directory, or a path (anything containing a separator, or `.`/`..`) created at that location |
 | `[REPO_ALIASES]...` | Repositories to include (defaults to `[defaults].repositories`) |
 
 ### Options
 
 | Option | Description |
 | --- | --- |
+| `-k, --key <KEY>` | The key recorded for the ticket, defaulting to the directory name. Path form only — a bare key already names itself |
 | `-d, --description <DESCRIPTION>` | Human-readable description; feeds branch name derivation |
 | `-a, --all` | Include every registered repository |
 
