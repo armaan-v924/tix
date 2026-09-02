@@ -75,7 +75,7 @@ pub fn prompt_optional(label: &str) -> Result<Option<String>, tix_sdk::SdkError>
 /// answer declines, and only `y`/`yes` accepts. A command that offers a way
 /// past the question spells it `--force`.
 ///
-/// Reads through [`ask`] rather than [`prompt`], whose own `[default]`
+/// Reads through `ask` rather than [`prompt`], whose own `[default]`
 /// suffix would print a second bracket after the `[y/N]`.
 pub fn confirm(question: &str) -> Result<bool, tix_sdk::SdkError> {
     let answer = ask(&format!("{question} [y/N]"))?;
