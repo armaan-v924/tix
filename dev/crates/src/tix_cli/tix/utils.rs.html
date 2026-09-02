@@ -75,7 +75,7 @@
 <a href=#75 id=75 data-nosnippet>75</a>/// answer declines, and only `y`/`yes` accepts. A command that offers a way
 <a href=#76 id=76 data-nosnippet>76</a>/// past the question spells it `--force`.
 <a href=#77 id=77 data-nosnippet>77</a>///
-<a href=#78 id=78 data-nosnippet>78</a>/// Reads through [`ask`] rather than [`prompt`], whose own `[default]`
+<a href=#78 id=78 data-nosnippet>78</a>/// Reads through `ask` rather than [`prompt`], whose own `[default]`
 <a href=#79 id=79 data-nosnippet>79</a>/// suffix would print a second bracket after the `[y/N]`.
 <a href=#80 id=80 data-nosnippet>80</a></span><span class="kw">pub fn </span>confirm(question: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;bool, tix_sdk::SdkError&gt; {
 <a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">let </span>answer = ask(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{question} [y/N]"</span>))<span class="question-mark">?</span>;
