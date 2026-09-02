@@ -31,6 +31,9 @@ jobs:
 
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      # `just bump` re-locks both lockfiles, and pytix's is uv's — without
+      # uv on PATH the bump dies at `uv sync` with exit 127.
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
       - name: Configure git
         run: |
@@ -57,9 +60,14 @@ jobs:
 
       - name: Commit and push main
         run: |
-          # Stage the files just bump actually touched — a hardcoded list
-          # here silently drops any crate it predates (see cut-patch.yml).
-          git add $(just _version_files) Cargo.lock
+          # Stage everything `just bump` touched, rather than naming files.
+          # A hardcoded list rots as the bump grows: it now re-locks both
+          # lockfiles (pytix/uv.lock is uv's) and regenerates the install
+          # page's release data, none of which the old list covered — a
+          # stale release.json fails `just check-docs` on the next PR to
+          # main. Nothing else runs between checkout and here, so -u stages
+          # exactly the bump's own diff.
+          git add -u
           just check-versions
           git commit -m "chore(release): cut ${{ env.RELEASE_BRANCH }}, advance main to v${{ env.NEW_VERSION }}"
           git push origin main
