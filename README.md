@@ -65,12 +65,15 @@ API documentation for every crate is published at
 ## Development
 
 ```bash
-just ci         # everything CI runs: fmt, clippy, lints, license/version checks, tests
-just docs-cli   # regenerate the CLI reference and man pages
-just docs-serve # serve the documentation site locally
+just hook-install  # one-time: point git at .githooks (pre-commit, pre-push)
+just hook-pre-push # everything CI runs: fmt, clippy, lints, license/version checks, tests
+just docs-cli      # regenerate the CLI reference and man pages
+just docs-serve    # serve the documentation site locally
 ```
 
-See the [justfile](justfile) for individual recipes. Anything under
+`just hook-install` wires up `hook-pre-commit` (fast lint/format/license/version
+checks) and `hook-pre-push` (the full local pre-flight suite above) so most
+issues surface before a PR does. See the [justfile](justfile) for individual recipes. Anything under
 `docs/man/`, `docs/src/content/docs/reference/`, or `docs/src/data/` is
 generated — edit the generator in [`xtask/`](xtask), and `just check-docs`
 will tell you when they disagree.

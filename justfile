@@ -4,10 +4,6 @@ default:
 
 # ── dev ───────────────────────────────────────────────────────────────────────
 
-# run all checks and tests (local pre-flight before pushing)
-ci: check lint test
-    @echo "all good"
-
 # upgrade all lockfiles and commit
 upgrade: upgrade-rust upgrade-python
     #!/usr/bin/env bash
@@ -24,6 +20,18 @@ upgrade-rust:
 upgrade-python:
     uv sync --upgrade
 
+# ── hooks ─────────────────────────────────────────────────────────────────────
+
+# point git at the checked-in hooks (one-time per clone)
+hook-install:
+    git config core.hooksPath .githooks
+
+# fast, non-compiling checks — every commit
+hook-pre-commit: lint-rust-format lint-python-ruff check-license check-versions
+
+# the full local pre-flight suite — once per push rather than per commit
+hook-pre-push: check lint test
+
 # ── build ─────────────────────────────────────────────────────────────────────
 
 # build the CLI binary for a given target triple
@@ -33,7 +41,7 @@ build-cli target:
 # build the pytix wheel for a given target triple
 [working-directory("pytix")]
 build-wheel target:
-    uv build --wheel --out-dir ../dist -C build-args="--release --strip --target {{ target }}"
+    uv build --wheel --out-dir ../dist -C build-args="--strip --target {{ target }}"
 
 # ── docs ──────────────────────────────────────────────────────────────────────
 
@@ -199,7 +207,7 @@ _version_files:
 bump type:
     #!/usr/bin/env bash
     set -euo pipefail
-    current=$(grep '^version' tix-engine/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+    current=$(just _current)
     IFS='.' read -r major minor patch <<< "$current"
     case "{{ type }}" in
         major) new="$((major + 1)).0.0" ;;
@@ -216,25 +224,11 @@ set-version version:
 _bump old new:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Rewrites each file's first version line whatever it currently says,
-    # rather than matching the old value — a crate that has drifted out of
-    # lockstep is pulled back in instead of being silently skipped.
     for f in $(just _version_files); do
         perl -pi -e 'if (!$done && s/^version = ".*"/version = "{{ new }}"/) { $done = 1 }' "$f"
     done
-    # Both lockfiles record the packages' own versions, so a bump that skips
-    # them leaves them stale until the next unrelated `cargo build` or
-    # `uv sync` quietly rewrites them into somebody else's diff — which is
-    # how pytix/uv.lock sat at 3.0.0 through the whole 3.1.0 cycle.
-    #
-    # Deliberately not the `upgrade-*` recipes: a re-lock at the current
-    # dependency versions, never an upgrade. Bumping tix's own version must
-    # not quietly move everything it depends on.
     cargo update --workspace --quiet
     (cd pytix && uv sync --quiet)
-    # The install page prints the version to download, so the generated
-    # release data is stale the moment a bump lands — same reason the
-    # lockfiles are refreshed here, and `just check-docs` fails without it.
     just docs-cli
     echo "bumped {{ old }} → {{ new }}"
 
@@ -244,7 +238,7 @@ _bump old new:
 tag:
     #!/usr/bin/env bash
     set -euo pipefail
-    version=$(grep '^version' tix-engine/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+    version=$(just _current)
     git tag "v$version"
     echo "tagged v$version"
 
@@ -252,6 +246,6 @@ tag:
 push-tag: tag
     #!/usr/bin/env bash
     set -euo pipefail
-    version=$(grep '^version' tix-engine/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+    version=$(just _current)
     git push origin "v$version"
     echo "pushed v$version"
