@@ -36,7 +36,7 @@ jobs:
         run: just build-wheel "$(rustc -vV | awk '/^host/ { print $2 }')"
       - name: Smoke-test wheel
         shell: bash
-        run: just smoke-wheel
+        run: just test-smoke-wheel
 
   tag:
     runs-on: ubuntu-latest

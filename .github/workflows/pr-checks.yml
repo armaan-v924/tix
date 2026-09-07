@@ -81,7 +81,7 @@ jobs:
         run: just build-wheel "$(rustc -vV | awk '/^host/ { print $2 }')"
       - name: Smoke-test wheel
         shell: bash
-        run: just smoke-wheel
+        run: just test-smoke-wheel
 
   check-docs:
     runs-on: ubuntu-latest
@@ -109,3 +109,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
       - run: just check-versions
+
+  # The single required status check for branch protection. Adding or
+  # removing a check means editing the `needs` list below, not going into
+  # the repo's branch protection settings.
+  required:
+    if: always()
+    needs:
+      - lint-rust
+      - lint-python
+      - check-license
+      - test-rust
+      - test-python
+      - smoke-wheel
+      - check-docs
+      - check-versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed or was cancelled
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]] || [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "one or more required jobs did not succeed:"
+            echo '${{ toJSON(needs) }}'
+            exit 1
+          fi

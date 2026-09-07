@@ -5,22 +5,19 @@ default:
 # ── dev ───────────────────────────────────────────────────────────────────────
 
 # run all checks and tests (local pre-flight before pushing)
-ci: check test
+ci: check lint test
     @echo "all good"
 
 # upgrade all lockfiles and commit
 upgrade: upgrade-rust upgrade-python
     #!/usr/bin/env bash
     set -euo pipefail
-    git add Cargo.lock pytix/uv.lock
+    git add -u
     git commit -m "chore: upgrade lockfiles"
 
 # upgrade the rust lockfile
 upgrade-rust:
-    cargo update --workspace
-
-# The uv project is pytix, not the repo root — there is no root
-# pyproject.toml, so uv run from the root fails outright.
+    cargo update
 
 # upgrade the python lockfile
 [working-directory("pytix")]
@@ -33,20 +30,16 @@ upgrade-python:
 build-cli target:
     cargo build --release -p tix-cli --target {{ target }}
 
-# abi3-py311 makes this one wheel per *platform*, not per Python version:
-# `pytix-<version>-cp311-abi3-<platform>.whl` installs on any Python >= 3.11.
-# uvx rather than the pytix dev group, so the wheel build does not first
-# install the extension it is about to build.
-
 # build the pytix wheel for a given target triple
+[working-directory("pytix")]
 build-wheel target:
-    uvx --from 'maturin>=1.13.3,<2' maturin build --release --strip --target {{ target }} --out dist -m pytix/Cargo.toml
-
-# build rustdoc
-build-docs:
-    cargo doc --no-deps
+    uv build --wheel --out-dir ../dist -C build-args="--release --strip --target {{ target }}"
 
 # ── docs ──────────────────────────────────────────────────────────────────────
+
+# build rustdoc
+docs-cargo:
+    cargo doc --no-deps
 
 # regenerate the CLI reference and man pages from the clap definition
 docs-cli:
@@ -60,32 +53,33 @@ docs-deps:
 docs-serve: docs-cli
     npm --prefix docs run dev
 
-# Two generators, one output tree: Astro renders the site, and `cargo doc`
-# output is grafted on at /crates afterwards so the API reference is served
-# from the same origin as everything linking to it.
-
 # build the documentation site into docs/dist, rustdoc included
-docs-build: docs-cli build-docs
+docs-build: docs-cli docs-cargo
     #!/usr/bin/env bash
     set -euo pipefail
     npm --prefix docs run build
     rm -rf docs/dist/crates
     mkdir -p docs/dist/crates
-    # `/.` rather than `/*`: the glob would miss rustdoc's dotfiles.
     cp -R target/doc/. docs/dist/crates/
-    # cargo doc emits per-crate index pages but no root, so /crates/ alone
-    # would 404.
     cp docs/crates-index.html docs/dist/crates/index.html
     echo "site built at docs/dist"
 
+# ── test ──────────────────────────────────────────────────────────────────────
+
+# run all tests
+test: test-rust test-python
+
+# run rust unit and integration tests
+test-rust:
+    cargo test --workspace
+
+# run python unit tests
+[working-directory("pytix")]
+test-python:
+    uv sync --dev && uv run pytest tests
+
 # import and exercise a built wheel from ./dist in a throwaway venv
-#
-# The wheels job builds an artifact it never loads, so a wheel that links
-# against the build machine's libraries — or that the platform's loader
-# rejects outright — ships green. Installing it away from the source tree is
-# the point: `import pytix` here can only resolve to the wheel, because the
-# repo has no importable `pytix` package of its own.
-smoke-wheel:
+test-smoke-wheel:
     #!/usr/bin/env bash
     set -euo pipefail
     shopt -s nullglob
@@ -104,19 +98,8 @@ smoke-wheel:
     "$python" -c 'import pytix, pytix.host; print("loaded", pytix.__file__)'
     "$python" -m pytest pytix/tests -q
 
-# ── test ──────────────────────────────────────────────────────────────────────
-
-# run all tests
-test: test-rust test-python
-
-# run rust unit and integration tests
-test-rust:
-    cargo test --workspace
-
-# run python unit tests
-[working-directory("pytix")]
-test-python:
-    uv sync --dev && uv run pytest tests
+test-smoke-binary:
+    @echo "Not yet implemented."
 
 # ── lint ──────────────────────────────────────────────────────────────────────
 
@@ -124,27 +107,27 @@ test-python:
 lint: lint-rust lint-python
 
 # run rust formatting and clippy
-lint-rust: check-rust-format check-rust-clippy
+lint-rust: lint-rust-format lint-rust-clippy
 
 # run python lint and formatting checks (ruff)
-lint-python: check-python-lint
+lint-python: lint-python-ruff
 
 # verify rust is formatted
-check-rust-format:
+lint-rust-format:
     cargo fmt --check
 
 # verify rust code passes clippy
-check-rust-clippy:
+lint-rust-clippy:
     cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 # verify python code in ./pytix is formatted and linted
-check-python-lint:
+lint-python-ruff:
     uvx ruff check pytix
 
 # ── checks ────────────────────────────────────────────────────────────────────
 
 # run all non-lint checks (CI entrypoint)
-check: check-license check-versions check-docs lint
+check: check-license check-versions check-docs
     @echo "all checks passed"
 
 # verify the generated CLI reference and man pages match the CLI
