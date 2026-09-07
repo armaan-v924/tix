@@ -81,7 +81,7 @@ jobs:
         run: just build-wheel "$(rustc -vV | awk '/^host/ { print $2 }')"
       - name: Smoke-test wheel
         shell: bash
-        run: just test-smoke-wheel
+        run: just smoke-wheel
 
   check-docs:
     runs-on: ubuntu-latest
@@ -110,20 +110,70 @@ jobs:
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
       - run: just check-versions
 
+  # Mirrors the justfile's `lint: lint-rust lint-python`.
+  lint:
+    if: always()
+    needs: [lint-rust, lint-python]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed or was cancelled
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]] || [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "one or more required jobs did not succeed:"
+            echo '${{ toJSON(needs) }}'
+            exit 1
+          fi
+
+  # Mirrors the justfile's `test: test-rust test-python`.
+  test:
+    if: always()
+    needs: [test-rust, test-python]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed or was cancelled
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]] || [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "one or more required jobs did not succeed:"
+            echo '${{ toJSON(needs) }}'
+            exit 1
+          fi
+
+  # Mirrors the justfile's `check: check-license check-versions check-docs`.
+  check:
+    if: always()
+    needs: [check-license, check-versions, check-docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed or was cancelled
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]] || [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "one or more required jobs did not succeed:"
+            echo '${{ toJSON(needs) }}'
+            exit 1
+          fi
+
+  # A group of its own since it's a matrix job, and the natural place to add
+  # smoke-binary once that recipe is implemented.
+  smoke:
+    if: always()
+    needs: [smoke-wheel]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed or was cancelled
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]] || [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "one or more required jobs did not succeed:"
+            echo '${{ toJSON(needs) }}'
+            exit 1
+          fi
+
   # The single required status check for branch protection. Adding or
-  # removing a check means editing the `needs` list below, not going into
-  # the repo's branch protection settings.
+  # removing a check means editing the `needs` list of the relevant group
+  # above (or adding a new group here), not going into the repo's branch
+  # protection settings.
   required:
     if: always()
-    needs:
-      - lint-rust
-      - lint-python
-      - check-license
-      - test-rust
-      - test-python
-      - smoke-wheel
-      - check-docs
-      - check-versions
+    needs: [lint, test, check, smoke]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency failed or was cancelled

@@ -86,8 +86,13 @@ test-rust:
 test-python:
     uv sync --dev && uv run pytest tests
 
+# ── smoke ─────────────────────────────────────────────────────────────────────
+
+# run all smoke tests
+smoke: smoke-wheel smoke-binary
+
 # import and exercise a built wheel from ./dist in a throwaway venv
-test-smoke-wheel:
+smoke-wheel:
     #!/usr/bin/env bash
     set -euo pipefail
     shopt -s nullglob
@@ -106,7 +111,7 @@ test-smoke-wheel:
     "$python" -c 'import pytix, pytix.host; print("loaded", pytix.__file__)'
     "$python" -m pytest pytix/tests -q
 
-test-smoke-binary:
+smoke-binary:
     @echo "Not yet implemented."
 
 # ── lint ──────────────────────────────────────────────────────────────────────
