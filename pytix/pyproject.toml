@@ -1,27 +1,25 @@
-[build-system]
-requires = ["maturin>=1.0,<2.0"]
-build-backend = "maturin"
-
 [project]
 name = "pytix"
 version = "3.2.0"
 requires-python = ">=3.11"
 description = "Python bindings for tix: the engine, and the plugin SDK"
+license = "MIT"
 dependencies = []
 
+[[project.authors]]
+name = "Armaan Vakharia"
+email = "git@mail.armaanv.dev"
+
+[project.urls]
+Home = "https://tix.armaanv.dev"
+
+[build-system]
+requires = ["maturin>=1.13.3,<2.0"]
+build-backend = "maturin"
+
 [tool.maturin]
-# One extension module named `pytix`; the `pytix.host` namespace is a submodule
-# registered from inside it, not a second artifact. The abi3-py311 feature lives
-# on the pyo3 dependency in Cargo.toml, so every wheel here is
-# `pytix-<version>-cp311-abi3-<platform>.whl` — one per platform, good for any
-# Python >= 3.11.
 module-name = "pytix"
 features = ["pyo3/extension-module"]
-# A mixed Rust/Python layout, for one reason: typing. The extension carries no
-# type information a checker can read, so `py.typed` and the `.pyi` stubs have
-# to ship as real files alongside it. Declaring a Python source root is what
-# gives them somewhere to live — and it makes maturin use the `__init__.py`
-# checked in there instead of generating the identical one itself.
 python-source = "python"
 
 [dependency-groups]
