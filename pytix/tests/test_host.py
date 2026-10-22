@@ -132,7 +132,7 @@ def test_ticket_section_maps_toml_types_like_tomllib(
         "retries": 3,
         "ratio": 1.5,
         "tags": ["a", "b"],
-        "started": dt.datetime(2026, 7, 19, 9, 0, tzinfo=dt.timezone.utc),
+        "started": dt.datetime(2026, 7, 19, 9, 0, tzinfo=dt.UTC),
         "due": dt.date(2026, 7, 20),
     }
 
@@ -168,7 +168,7 @@ def test_delta_tags_datetimes_automatically(tmp_path: Path) -> None:
     delta.set("myplugin.enabled", True)
     delta.set("myplugin.tags", ["a", "b"])
     delta.set(
-        "myplugin.started", dt.datetime(2026, 7, 19, 9, 0, tzinfo=dt.timezone.utc)
+        "myplugin.started", dt.datetime(2026, 7, 19, 9, 0, tzinfo=dt.UTC)
     )
     delta.set("myplugin.due", dt.date(2026, 7, 20))
 
