@@ -303,9 +303,9 @@ impl Repository {
             }
             let worktree_repo =
                 git2::Repository::open(worktree.path()).map_err(TixError::GitError)?;
-            let statuses = worktree_repo.statuses(None).map_err(TixError::GitError)?;
-            if !statuses.is_empty() {
-                error!(alias = %self.alias, path = %path.display(), count = statuses.len(), "worktree has uncommitted changes, use force to remove");
+            let count = uncommitted_changes(&worktree_repo)?;
+            if count > 0 {
+                error!(alias = %self.alias, path = %path.display(), count, "worktree has uncommitted changes, use force to remove");
                 return Err(TixError::from(
                     "worktree has uncommitted changes, use force to remove",
                 ));
@@ -374,12 +374,11 @@ impl Repository {
             ));
         }
 
-        // statuses() returns all files with a non-clean state (modified, untracked, etc).
         // if anything is dirty and force is not set, bail rather than silently discarding work.
         if !force {
-            let statuses = self.repo.statuses(None).map_err(TixError::GitError)?;
-            if !statuses.is_empty() {
-                error!(alias = %self.alias, count = statuses.len(), "repository has uncommitted changes");
+            let count = uncommitted_changes(&self.repo)?;
+            if count > 0 {
+                error!(alias = %self.alias, count, "repository has uncommitted changes");
                 return Err(TixError::from(
                     "repository has uncommitted changes, use force to discard them",
                 ));
@@ -479,15 +478,14 @@ impl Repository {
 
         if force {
             // checkout_head rewrites the working tree to match HEAD.
-            // force() discards modified tracked files, remove_untracked removes
-            // files git doesn't know about, remove_ignored removes ignored files.
-            // together this is a full nuke of local changes.
+            // force() discards modified tracked files and remove_untracked removes
+            // files git doesn't know about — the same set uncommitted_changes
+            // counts. Ignored files (build caches, `.env`) are deliberately kept:
+            // they were never "changes", so forcing past a dirty check must not
+            // delete them (#175).
             warn!(alias = %self.alias, "force flag set — discarding all local changes");
             let mut clean_opts = git2::build::CheckoutBuilder::new();
-            clean_opts
-                .force()
-                .remove_untracked(true)
-                .remove_ignored(true);
+            clean_opts.force().remove_untracked(true);
             self.repo
                 .checkout_head(Some(&mut clean_opts))
                 .map_err(TixError::GitError)?;
@@ -527,6 +525,25 @@ impl Repository {
         debug!(alias = %self.alias, branch, "sync complete");
         Ok(())
     }
+}
+
+/// Counts the working-tree entries that would be lost by discarding local
+/// changes: modified, staged, and untracked files.
+///
+/// Ignored files are excluded on purpose. Build output, dependency caches, and
+/// `.env` files are routinely present in a clean checkout, and `git status`
+/// does not report them either. Passing explicit options matters: with
+/// `statuses(None)`, libgit2 falls back to defaults that include ignored files.
+fn uncommitted_changes(repo: &git2::Repository) -> Result<usize, TixError> {
+    let mut options = git2::StatusOptions::new();
+    options
+        .include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false);
+    let statuses = repo
+        .statuses(Some(&mut options))
+        .map_err(TixError::GitError)?;
+    Ok(statuses.len())
 }
 
 /// The repo-unique name a worktree is registered under: the branch with path
@@ -815,6 +832,24 @@ mod tests {
         );
     }
 
+    /// Ignored files are not uncommitted work: a worktree holding only build
+    /// output or `.env`-style files is clean and removes without `force`.
+    #[test]
+    fn test_remove_worktree_ignored_files_no_force() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::add_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
+        test_helpers::make_ignored(&local, &dir.path().join("worktrees/feature"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(
+            repo.remove_worktree(&dir.path().join("worktrees/feature"), false)
+                .is_ok()
+        );
+    }
+
     /// Removing a valid worktree succeeds and returns `Ok(())`.
     #[test]
     fn test_remove_worktree_valid() {
@@ -870,6 +905,20 @@ mod tests {
         ));
     }
 
+    /// Ignored files in the main checkout (build output, `.env`) don't block a
+    /// sync — they are what `create_worktree` used to trip over (#175).
+    #[test]
+    fn test_sync_base_ignored_files_no_force() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::make_ignored(&local, &dir.path().join("local"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(repo.sync_base("main", false).is_ok());
+    }
+
     /// A dirty working tree with `force` discards changes and syncs successfully.
     #[test]
     fn test_sync_base_dirty_force() {
@@ -881,6 +930,23 @@ mod tests {
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
         assert!(repo.sync_base("main", true).is_ok());
+    }
+
+    /// `force` discards untracked work but keeps ignored files: build caches
+    /// and `.env` files are not changes, so forcing must not delete them.
+    #[test]
+    fn test_sync_base_force_keeps_ignored_files() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::make_dirty(&local);
+        test_helpers::make_ignored(&local, &dir.path().join("local"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(repo.sync_base("main", true).is_ok());
+        assert!(!dir.path().join("local/dirty.txt").exists());
+        assert!(dir.path().join("local/build/artifact.o").exists());
     }
 
     /// A repository with no `origin` remote returns `TixError::GitError` on fetch.
@@ -1081,6 +1147,17 @@ pub(crate) mod test_helpers {
             .commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)
             .unwrap();
         repo.find_commit(oid).unwrap()
+    }
+
+    /// Ignores `build/` via `info/exclude` (shared by every worktree of
+    /// `repo`) and writes a file under it in `workdir` — present on disk, but
+    /// not a change git would report.
+    pub fn make_ignored(repo: &git2::Repository, workdir: &Path) {
+        let exclude = repo.commondir().join("info/exclude");
+        std::fs::create_dir_all(exclude.parent().unwrap()).unwrap();
+        std::fs::write(&exclude, "build/\n").unwrap();
+        std::fs::create_dir_all(workdir.join("build")).unwrap();
+        std::fs::write(workdir.join("build/artifact.o"), "compiled").unwrap();
     }
 
     /// Writes an untracked file to the working directory so `repo.statuses()` is non-empty.
