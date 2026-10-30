@@ -52,7 +52,7 @@ repository = pytix.RepositoryConfig(
 worktree = repository.create_worktree(
     "api", "feature/JIRA-123", "/home/me/tickets/JIRA-123/api"
 )
-print(worktree.branch, worktree.path)
+print(worktree.branch, worktree.base, worktree.path)  # … origin/main …
 ```
 
 `RepositoryConfig` describes a repository without touching disk. Nothing is

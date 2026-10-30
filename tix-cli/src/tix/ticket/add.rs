@@ -26,6 +26,12 @@ pub struct Args {
     #[arg(long = "as", value_name = "NAME")]
     pub name: Option<String>,
 
+    /// What a new branch is cut from: a branch name (local or origin's,
+    /// whichever is ahead), or any ref, tag, or SHA. Defaults to each
+    /// repository's own default branch on origin
+    #[arg(long, value_name = "REFISH")]
+    pub base: Option<String>,
+
     /// Registered repository aliases to add
     #[arg(required = true)]
     pub repo_aliases: Vec<RepoAlias>,
@@ -73,6 +79,11 @@ impl Branch<'_> {
 /// `<branch_prefix>/<key>-<sanitized-description>` — but evaluated **at add
 /// time** against the *current* `[defaults].branch_prefix` and the ticket's
 /// recorded key/description.
+///
+/// A new branch is cut from `--base`, or from each repository's default
+/// branch on origin when omitted; the resolved base is recorded alongside
+/// the branch. The source checkout is never touched — see
+/// [`Repository::create_worktree`](tix_sdk::Repository::create_worktree).
 ///
 /// The ticket document is updated per successful worktree through the
 /// format-preserving layer, so plugin tables and comments in
@@ -131,9 +142,9 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     for worktree in &planned {
         let repo_config = engine.configured_repositories[&worktree.alias].clone();
         let path = root.join(&worktree.name);
-        let created = repo_config
-            .ensure(&worktree.alias)
-            .and_then(|repo| repo.create_worktree(&worktree.name, &branch_name, &path, false));
+        let created = repo_config.ensure(&worktree.alias).and_then(|repo| {
+            repo.create_worktree(&worktree.name, &branch_name, &path, args.base.as_deref())
+        });
         match created {
             Ok(created) => {
                 info!(name = %worktree.name, alias = %worktree.alias, branch = %created.branch, "worktree added");
@@ -147,6 +158,9 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                     let mut entry = toml_edit::Table::new();
                     entry["repo"] = toml_edit::value(worktree.alias.as_str());
                     entry["branch"] = toml_edit::value(created.branch.as_str());
+                    if let Some(base) = &created.base {
+                        entry["base"] = toml_edit::value(base.as_str());
+                    }
                     doc.table_at(&["ticket", "worktrees"])?
                         .insert(&worktree.name, toml_edit::Item::Table(entry));
                     Ok(())
@@ -302,6 +316,7 @@ mod plan_tests {
                         WorktreeConfig {
                             repo: repo.to_string(),
                             branch: branch.to_string(),
+                            base: None,
                         },
                     )
                 })

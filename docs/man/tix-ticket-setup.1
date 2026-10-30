@@ -4,7 +4,7 @@
 .SH NAME
 tix\-ticket\-setup \- Create a new ticket workspace with worktrees
 .SH SYNOPSIS
-\fBtix ticket setup\fR [\fB\-\-config\fR] [\fB\-k\fR|\fB\-\-key\fR] [\fB\-d\fR|\fB\-\-description\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-a\fR|\fB\-\-all\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> [\fIREPO_ALIASES\fR] 
+\fBtix ticket setup\fR [\fB\-\-config\fR] [\fB\-k\fR|\fB\-\-key\fR] [\fB\-d\fR|\fB\-\-description\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-base\fR] [\fB\-\-log\-level\fR] [\fB\-a\fR|\fB\-\-all\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> [\fIREPO_ALIASES\fR] 
 .SH DESCRIPTION
 Create a new ticket workspace with worktrees
 .SH OPTIONS
@@ -33,11 +33,14 @@ toml
 default
 .RE
 .TP
-\fB\-a\fR, \fB\-\-all\fR
-Include every registered repository
+\fB\-\-base\fR \fI<REFISH>\fR
+What each new branch is cut from: a branch name (local or origin\*(Aqs, whichever is ahead), or any ref, tag, or SHA. Defaults to each repository\*(Aqs own default branch on origin
 .TP
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)
+.TP
+\fB\-a\fR, \fB\-\-all\fR
+Include every registered repository
 .TP
 \fB\-v\fR, \fB\-\-verbose\fR
 Set the log level to trace (shorthand for \-\-log\-level trace)

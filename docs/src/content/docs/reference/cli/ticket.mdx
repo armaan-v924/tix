@@ -41,6 +41,7 @@ Also available as `tix add` — the same command, spelled without the group.
 | `-t, --ticket <TICKET>` | The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted |
 | `-b, --branch <BRANCH>` | Branch for the new worktree(s); derived from `[defaults]` + ticket context when omitted, and required when the derived branch is taken |
 | `--as <NAME>` | Directory name for the new worktree, defaulting to the repository alias; required when a worktree already holds that name |
+| `--base <REFISH>` | What a new branch is cut from: a branch name (local or origin's, whichever is ahead), or any ref, tag, or SHA. Defaults to each repository's own default branch on origin |
 
 
 ## `tix ticket destroy`
@@ -153,5 +154,6 @@ Also available as `tix setup` — the same command, spelled without the group.
 | --- | --- |
 | `-k, --key <KEY>` | The key recorded for the ticket, defaulting to the directory name. Path form only — a bare key already names itself |
 | `-d, --description <DESCRIPTION>` | Human-readable description; feeds branch name derivation |
+| `--base <REFISH>` | What each new branch is cut from: a branch name (local or origin's, whichever is ahead), or any ref, tag, or SHA. Defaults to each repository's own default branch on origin |
 | `-a, --all` | Include every registered repository |
 

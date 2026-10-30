@@ -27,6 +27,12 @@ pub struct Args {
     #[arg(short, long)]
     pub description: Option<String>,
 
+    /// What each new branch is cut from: a branch name (local or origin's,
+    /// whichever is ahead), or any ref, tag, or SHA. Defaults to each
+    /// repository's own default branch on origin
+    #[arg(long, value_name = "REFISH")]
+    pub base: Option<String>,
+
     /// Include every registered repository
     #[arg(short, long, group = "repos")]
     pub all: bool,
@@ -226,6 +232,12 @@ fn create_ticket_root(target: &Target) -> Result<(), SdkError> {
 /// Repo selection: explicit aliases win, `--all` takes every registered
 /// repo, and neither falls back to the `defaults.repositories` seed list.
 ///
+/// Each branch is cut from `--base`, or from its own repository's default
+/// branch on origin — so one ticket can span a `main` repo and a `master`
+/// repo without flags. The resolved base is recorded per worktree, the same
+/// stamp-once discipline the branch name gets; source checkouts are never
+/// touched.
+///
 /// Partial failure leaves successfully created worktrees in place and
 /// records only them in `.tix/ticket.toml`; the command then errors naming
 /// the repos that failed.
@@ -292,9 +304,14 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let mut failures: Vec<(String, TixError)> = Vec::new();
     for alias in &selected {
         let repo_config = engine.configured_repositories[alias].clone();
-        let result = repo_config
-            .ensure(alias)
-            .and_then(|repo| repo.create_worktree(alias, &branch, &ticket_root.join(alias), false));
+        let result = repo_config.ensure(alias).and_then(|repo| {
+            repo.create_worktree(
+                alias,
+                &branch,
+                &ticket_root.join(alias),
+                args.base.as_deref(),
+            )
+        });
         match result {
             Ok(worktree) => {
                 info!(alias = %alias, branch = %worktree.branch, "worktree created");
@@ -303,6 +320,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                     WorktreeConfig {
                         repo: alias.clone(),
                         branch: worktree.branch,
+                        base: worktree.base,
                     },
                 );
             }

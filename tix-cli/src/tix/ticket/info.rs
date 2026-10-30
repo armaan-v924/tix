@@ -21,6 +21,7 @@ struct WorktreeRow {
     name: String,
     repo: String,
     branch: String,
+    base: Option<String>,
     path: PathBuf,
     status: WorktreeStatus,
 }
@@ -68,7 +69,8 @@ impl WorktreeStatus {
 /// not go through the all-or-nothing [`TicketConfig::resolve`].
 ///
 /// There is deliberately no single ticket branch to print: branches are
-/// per-worktree.
+/// per-worktree. Each worktree's recorded base — what its branch was cut
+/// from — follows its branch when there is one.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let root = require_ticket_root(&app.context, args.shared.ticket.as_ref())?;
     let ticket: TicketConfig = load_ticket_config(&root)?;
@@ -83,6 +85,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 name: name.clone(),
                 repo: entry.repo.clone(),
                 branch: entry.branch.clone(),
+                base: entry.base.clone(),
                 status: WorktreeStatus::of(&path),
                 path,
             }
@@ -103,15 +106,26 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             } else {
                 let name_width = rows.iter().map(|r| r.name.len()).max().unwrap_or(0);
                 let repo_width = rows.iter().map(|r| r.repo.len()).max().unwrap_or(0);
+                // Padded only when some row has a base to show after it, so
+                // a ticket without bases renders exactly as it always has.
+                let branch_width = if rows.iter().any(|r| r.base.is_some()) {
+                    rows.iter().map(|r| r.branch.len()).max().unwrap_or(0)
+                } else {
+                    0
+                };
                 println!();
                 for row in &rows {
-                    println!(
-                        "{:name_width$}  {:repo_width$}  {}{}",
+                    let line = format!(
+                        "{:name_width$}  {:repo_width$}  {:branch_width$}{}",
                         row.name,
                         row.repo,
                         row.branch,
-                        row.status.marker()
+                        row.base
+                            .as_deref()
+                            .map(|base| format!("  ← {base}"))
+                            .unwrap_or_default(),
                     );
+                    println!("{}{}", line.trim_end(), row.status.marker());
                 }
             }
         }
@@ -123,6 +137,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                         "name": row.name,
                         "repo": row.repo,
                         "branch": row.branch,
+                        "base": row.base,
                         "path": row.path,
                         "status": row.status.label(),
                     })

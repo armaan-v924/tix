@@ -154,15 +154,31 @@ impl Repository {
     /// appear at. The engine takes both as given; deriving them from a ticket
     /// is the frontend's job.
     ///
-    /// Syncs the repository first (fetches and fast-forwards). Pass `force: true` to discard
-    /// local changes before syncing. If `branch` exists locally the worktree
-    /// checks it out; otherwise the branch is created at the synced HEAD and
-    /// the worktree opens on it — the branch name is always `branch`, never
-    /// the worktree name.
+    /// A new `branch` is cut from `base`, a refish resolved as
+    /// [`Self::resolve_base`] describes: `None` means origin's default branch, a bare
+    /// branch name is picked between local and `origin` by ancestry, and
+    /// anything qualified (`origin/main`, `refs/heads/main`, a tag, a SHA)
+    /// resolves literally. The resolved ref name is returned as
+    /// [`Worktree::base`] so the caller can record it.
+    ///
+    /// The source checkout at [`RepositoryConfig::code_path`] is never
+    /// touched: its HEAD, working tree, and local branches stay as they are,
+    /// and whether it is dirty, diverged, or on some other branch does not
+    /// matter. A worktree needs a commit, not a checkout.
+    ///
+    /// If `branch` already exists locally the worktree checks it out as-is.
+    /// With no `base` the worktree records none — tix did not cut the branch,
+    /// so it cannot say what from. With an explicit `base`, the branch must
+    /// already contain it; otherwise this errors rather than reuse a branch
+    /// under a base it was not cut from. Existing branches are never moved.
+    ///
+    /// The branch name is always `branch`, never the worktree name.
     ///
     /// # Errors
     ///
-    /// Returns [`TixError::GitError`] if the sync or worktree creation fails.
+    /// - [`TixError::Message`] if the base cannot be resolved, or an existing
+    ///   `branch` does not contain an explicit `base`
+    /// - [`TixError::GitError`] if worktree creation fails
     ///
     /// # Examples
     ///
@@ -173,11 +189,19 @@ impl Repository {
     ///     "https://github.com/owner/repo.git".to_string(),
     ///     PathBuf::from("/home/user/code/repo"),
     /// ).resolve("my-repo").unwrap();
+    /// // Cut from origin's default branch.
     /// let worktree = repo.create_worktree(
     ///     "my-repo",
     ///     "feature/JIRA-123-fix-login",
     ///     &PathBuf::from("/home/user/tickets/JIRA-123/my-repo"),
-    ///     false,
+    ///     None,
+    /// );
+    /// // Stacked on a sibling branch.
+    /// let stacked = repo.create_worktree(
+    ///     "my-repo-part2",
+    ///     "stack/JIRA-123-part-2",
+    ///     &PathBuf::from("/home/user/tickets/JIRA-123/my-repo-part2"),
+    ///     Some("feature/JIRA-123-fix-login"),
     /// );
     /// ```
     pub fn create_worktree(
@@ -185,27 +209,54 @@ impl Repository {
         name: &str,
         branch: &str,
         path: &Path,
-        force: bool,
+        base: Option<&str>,
     ) -> Result<Worktree, TixError> {
-        info!(alias = %self.alias, name, branch, "creating worktree");
-        self.sync(force)?;
+        info!(alias = %self.alias, name, branch, base, "creating worktree");
 
         // The worktree must open on `branch` by that exact name. Without an
         // explicit reference, git2 would create a branch named after the
         // *worktree* — wrong the moment name and branch differ (per-worktree
         // branches).
-        let local_branch = match self.repo.find_branch(branch, git2::BranchType::Local) {
-            Ok(existing) => existing,
+        let (local_branch, recorded_base) = match self
+            .repo
+            .find_branch(branch, git2::BranchType::Local)
+        {
+            Ok(existing) => {
+                let recorded = match base {
+                    None => None,
+                    Some(spec) => {
+                        let resolved = self.resolve_base_commit(Some(spec))?;
+                        let tip = existing
+                            .get()
+                            .peel_to_commit()
+                            .map_err(TixError::GitError)?
+                            .id();
+                        if !self.contains(tip, resolved.commit)? {
+                            error!(alias = %self.alias, branch, base = %resolved.name, "existing branch does not contain base");
+                            return Err(TixError::from(format!(
+                                "branch '{branch}' already exists and does not contain '{}' — \
+                                     reuse it without a base, or pick another branch",
+                                resolved.name
+                            )));
+                        }
+                        Some(resolved.name)
+                    }
+                };
+                debug!(alias = %self.alias, branch, "reusing existing local branch");
+                (existing, recorded)
+            }
             Err(_) => {
-                debug!(alias = %self.alias, branch, "branch not found locally, creating at synced HEAD");
-                let head = self
+                let resolved = self.resolve_base_commit(base)?;
+                debug!(alias = %self.alias, branch, base = %resolved.name, commit = %resolved.commit, "creating branch at base");
+                let commit = self
                     .repo
-                    .head()
-                    .and_then(|h| h.peel_to_commit())
+                    .find_commit(resolved.commit)
                     .map_err(TixError::GitError)?;
-                self.repo
-                    .branch(branch, &head, false)
-                    .map_err(TixError::GitError)?
+                let created = self
+                    .repo
+                    .branch(branch, &commit, false)
+                    .map_err(TixError::GitError)?;
+                (created, Some(resolved.name))
             }
         };
         let reference = Some(local_branch.into_reference());
@@ -229,6 +280,7 @@ impl Repository {
             .map(|_| Worktree {
                 name: name.to_string(),
                 branch: branch.to_string(),
+                base: recorded_base,
                 repo_alias: self.alias.clone(),
                 path: path.to_path_buf(),
             })
@@ -236,8 +288,245 @@ impl Repository {
                 error!(alias = %self.alias, name, error = %e, "failed to create worktree");
                 TixError::GitError(e)
             })?;
-        info!(alias = %self.alias, name, path = %path.display(), "worktree created");
+        info!(alias = %self.alias, name, path = %path.display(), base = worktree.base.as_deref(), "worktree created");
         Ok(worktree)
+    }
+
+    /// Resolves `base` to the ref a new branch should be cut from, returning
+    /// the ref's name and the commit it points at.
+    ///
+    /// - **`None`** — origin's default branch, as `origin/<default>`. Read
+    ///   from `refs/remotes/origin/HEAD` when present (no network); otherwise
+    ///   asked of origin and cached there. Per repository, so a ticket
+    ///   spanning a `main` repo and a `master` repo needs no flags.
+    /// - **Qualified** (`origin/<b>`, `refs/...`) — resolved literally. An
+    ///   `origin/<b>` is fetched first, so it means origin's `<b>` now.
+    /// - **A bare branch name** — fetched, then picked between
+    ///   `refs/heads/<b>` and `refs/remotes/origin/<b>` by ancestry:
+    ///
+    ///   | local vs `origin/<b>` | base |
+    ///   |---|---|
+    ///   | behind or equal | `origin/<b>` |
+    ///   | ahead | `<b>` — unpushed commits are the base (stacking) |
+    ///   | only one exists | that one |
+    ///   | diverged | error naming both |
+    ///
+    /// - **Anything else** (a tag, a SHA, `HEAD~2`) — resolved literally.
+    ///
+    /// A failed fetch is a warning, not an error: the base resolves against
+    /// whatever refs are already local, so offline work stays possible.
+    ///
+    /// Never touches the source checkout's HEAD, working tree, or branches.
+    ///
+    /// # Errors
+    ///
+    /// [`TixError::Message`] if the default branch cannot be determined, a
+    /// bare name has diverged from origin, or `base` names no commit.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use tix_engine::RepositoryConfig;
+    /// # use std::path::PathBuf;
+    /// let repo = RepositoryConfig::new(
+    ///     "https://github.com/owner/repo.git".to_string(),
+    ///     PathBuf::from("/home/user/code/repo"),
+    /// ).resolve("my-repo").unwrap();
+    /// assert_eq!(repo.resolve_base(None).unwrap(), "origin/main");
+    /// ```
+    pub fn resolve_base(&self, base: Option<&str>) -> Result<String, TixError> {
+        self.resolve_base_commit(base).map(|resolved| resolved.name)
+    }
+
+    /// [`Self::resolve_base`], keeping the commit for the caller.
+    fn resolve_base_commit(&self, base: Option<&str>) -> Result<ResolvedBase, TixError> {
+        let Some(spec) = base else {
+            let default = self.default_branch()?;
+            self.fetch_or_warn(&default);
+            let commit = self.commit_at(&format!("refs/remotes/origin/{default}"))?.ok_or_else(|| {
+                TixError::from(format!(
+                    "origin's default branch is '{default}', but refs/remotes/origin/{default} does not exist — \
+                     fetch it, or pass an explicit base"
+                ))
+            })?;
+            return Ok(ResolvedBase {
+                name: format!("origin/{default}"),
+                commit,
+            });
+        };
+
+        if let Some(branch) = spec
+            .strip_prefix("refs/remotes/origin/")
+            .or_else(|| spec.strip_prefix("origin/"))
+        {
+            self.fetch_or_warn(branch);
+            return self.resolve_literal(spec);
+        }
+        if spec.starts_with("refs/") || !git2::Branch::name_is_valid(spec).unwrap_or(false) {
+            return self.resolve_literal(spec);
+        }
+
+        // A bare name. Fetch it, then let ancestry decide between local and
+        // origin — preferring either unconditionally is wrong one way or the
+        // other: remote cuts a stacked branch from an older commit, local
+        // reintroduces a stale base.
+        self.fetch_or_warn(spec);
+        let local = self.commit_at(&format!("refs/heads/{spec}"))?;
+        let remote = self.commit_at(&format!("refs/remotes/origin/{spec}"))?;
+        let remote_name = format!("origin/{spec}");
+        let resolved = match (local, remote) {
+            // Neither is a branch: a tag or a SHA, which a bare name may also be.
+            (None, None) => return self.resolve_literal(spec),
+            (Some(commit), None) => ResolvedBase {
+                name: spec.to_string(),
+                commit,
+            },
+            (None, Some(commit)) => ResolvedBase {
+                name: remote_name,
+                commit,
+            },
+            (Some(local), Some(remote)) if self.contains(remote, local)? => ResolvedBase {
+                name: remote_name,
+                commit: remote,
+            },
+            (Some(local), Some(remote)) if self.contains(local, remote)? => ResolvedBase {
+                name: spec.to_string(),
+                commit: local,
+            },
+            (Some(_), Some(_)) => {
+                error!(alias = %self.alias, base = spec, "local and origin have diverged");
+                return Err(TixError::from(format!(
+                    "'{spec}' has diverged from 'origin/{spec}' — name the one to branch from: \
+                     'refs/heads/{spec}' or 'origin/{spec}'"
+                )));
+            }
+        };
+        debug!(alias = %self.alias, base = spec, resolved = %resolved.name, "resolved bare base by ancestry");
+        Ok(resolved)
+    }
+
+    /// Resolves `spec` exactly as git would, to a commit.
+    fn resolve_literal(&self, spec: &str) -> Result<ResolvedBase, TixError> {
+        let commit = self
+            .repo
+            .revparse_single(spec)
+            .and_then(|object| object.peel_to_commit())
+            .map_err(|e| {
+                debug!(alias = %self.alias, base = spec, error = %e, "base did not resolve");
+                TixError::from(format!(
+                    "base '{spec}' does not resolve to a commit in '{}'",
+                    self.alias
+                ))
+            })?;
+        Ok(ResolvedBase {
+            name: spec.to_string(),
+            commit: commit.id(),
+        })
+    }
+
+    /// The commit `reference` points at, or `None` if no such reference
+    /// exists.
+    fn commit_at(&self, reference: &str) -> Result<Option<git2::Oid>, TixError> {
+        match self.repo.find_reference(reference) {
+            Ok(found) => Ok(Some(
+                found.peel_to_commit().map_err(TixError::GitError)?.id(),
+            )),
+            Err(e) if e.code() == git2::ErrorCode::NotFound => Ok(None),
+            Err(e) => Err(TixError::GitError(e)),
+        }
+    }
+
+    /// Whether `commit` contains `ancestor` — is it, or descends from it.
+    fn contains(&self, commit: git2::Oid, ancestor: git2::Oid) -> Result<bool, TixError> {
+        Ok(commit == ancestor
+            || self
+                .repo
+                .graph_descendant_of(commit, ancestor)
+                .map_err(TixError::GitError)?)
+    }
+
+    /// Fetches `branch` from origin, updating its remote-tracking ref.
+    ///
+    /// A failure is logged and swallowed: the caller resolves against local
+    /// refs either way, and being offline should not stop work that a local
+    /// ref can satisfy.
+    fn fetch_or_warn(&self, branch: &str) {
+        debug!(alias = %self.alias, branch, "fetching from origin");
+        let fetched = self.repo.find_remote("origin").and_then(|mut remote| {
+            remote.fetch(&[branch], Some(&mut crate::auth::fetch_options()), None)
+        });
+        if let Err(e) = fetched {
+            warn!(alias = %self.alias, branch, error = %e, "fetch failed, resolving against local refs");
+        }
+    }
+
+    /// The name of origin's default branch (`main`, `master`, …).
+    ///
+    /// `refs/remotes/origin/HEAD` answers without the network after a normal
+    /// clone. Absent that, origin is asked and the answer cached as that ref,
+    /// so the next call is local again.
+    ///
+    /// # Errors
+    ///
+    /// [`TixError::Message`] if there is no cached answer and origin cannot
+    /// be asked.
+    fn default_branch(&self) -> Result<String, TixError> {
+        const ORIGIN_HEAD: &str = "refs/remotes/origin/HEAD";
+        const ORIGIN_PREFIX: &str = "refs/remotes/origin/";
+
+        if let Ok(head) = self.repo.find_reference(ORIGIN_HEAD)
+            && let Ok(Some(target)) = head.symbolic_target()
+            && let Some(branch) = target.strip_prefix(ORIGIN_PREFIX)
+        {
+            debug!(alias = %self.alias, branch, "default branch from origin/HEAD");
+            return Ok(branch.to_string());
+        }
+
+        let unknown = |reason: String| {
+            error!(alias = %self.alias, reason = %reason, "cannot determine default branch");
+            TixError::from(format!(
+                "cannot determine the default branch of '{}' ({reason}) — pass an explicit base",
+                self.alias
+            ))
+        };
+        debug!(alias = %self.alias, "no origin/HEAD, asking origin for its default branch");
+        let mut remote = self
+            .repo
+            .find_remote("origin")
+            .map_err(|e| unknown(e.message().to_string()))?;
+        // connect_auth, not connect: plain connect() passes no credential
+        // callbacks and fails on every private or SSH remote.
+        let head = {
+            let connection = remote
+                .connect_auth(
+                    git2::Direction::Fetch,
+                    Some(crate::auth::remote_callbacks()),
+                    None,
+                )
+                .map_err(|e| unknown(e.message().to_string()))?;
+            let head = connection
+                .default_branch()
+                .map_err(|e| unknown(e.message().to_string()))?;
+            head.as_str().ok().map(str::to_string)
+        };
+        let branch = head
+            .as_deref()
+            .and_then(|head| head.strip_prefix("refs/heads/"))
+            .ok_or_else(|| unknown(format!("origin reported HEAD as {head:?}")))?
+            .to_string();
+
+        // Cache, so the next resolution needs no network. Not fatal: the
+        // answer is already in hand.
+        if let Err(e) = self.repo.reference_symbolic(
+            ORIGIN_HEAD,
+            &format!("{ORIGIN_PREFIX}{branch}"),
+            true,
+            "tix: cache origin's default branch",
+        ) {
+            warn!(alias = %self.alias, error = %e, "could not cache origin/HEAD");
+        }
+        debug!(alias = %self.alias, branch, "default branch from origin");
+        Ok(branch)
     }
 
     /// Finds the registered worktree whose recorded path is `path`, if any.
@@ -323,7 +612,12 @@ impl Repository {
         Ok(())
     }
 
-    /// Syncs the repository against the `main` branch. See [`Self::sync_base`].
+    /// Syncs the source checkout against origin's default branch (`main`,
+    /// `master`, … — discovered per repository, see
+    /// [`Self::resolve_base`]). See [`Self::sync_base`].
+    ///
+    /// Worktree creation does not call this: it never touches the source
+    /// checkout. This is the explicit way to bring that checkout up to date.
     ///
     /// # Examples
     ///
@@ -337,7 +631,8 @@ impl Repository {
     /// repo.sync(false);
     /// ```
     pub fn sync(&self, force: bool) -> Result<(), TixError> {
-        self.sync_base("main", force)
+        let branch = self.default_branch()?;
+        self.sync_base(&branch, force)
     }
 
     /// Fetches and fast-forwards `branch` from `origin`.
@@ -527,6 +822,13 @@ impl Repository {
     }
 }
 
+/// A resolved base: the ref name recorded in the ticket document, and the
+/// commit a new branch is cut at.
+struct ResolvedBase {
+    name: String,
+    commit: git2::Oid,
+}
+
 /// Counts the working-tree entries that would be lost by discarding local
 /// changes: modified, staged, and untracked files.
 ///
@@ -654,65 +956,244 @@ mod tests {
 
     // --- create_worktree ---
 
-    /// A ticket whose branch doesn't exist locally creates a new branch and returns the correct `Worktree`.
+    /// A remote with one commit on `main`, cloned, wrapped as a `Repository`.
+    fn fixture(dir: &Path) -> (git2::Repository, Repository) {
+        let remote = test_helpers::init_bare_repo(&dir.join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.join("remote"), &dir.join("local"));
+        let repo = test_helpers::tix_repo(&dir.join("remote"), local);
+        (remote, repo)
+    }
+
+    /// The commit a worktree's HEAD sits on.
+    fn head_of(path: &Path) -> git2::Oid {
+        git2::Repository::open(path)
+            .unwrap()
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+    }
+
+    /// The tip of `branch` in the bare remote.
+    fn remote_tip(remote: &git2::Repository, branch: &str) -> git2::Oid {
+        remote
+            .find_reference(&format!("refs/heads/{branch}"))
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+    }
+
+    /// A ticket whose branch doesn't exist locally creates a new branch at
+    /// origin's default branch, and records that as its base.
     #[test]
     fn test_create_worktree_new_branch() {
         let dir = tempdir().unwrap();
-        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        let (remote, repo) = fixture(dir.path());
+
+        let path = dir.path().join("worktrees/feature");
+        let worktree = repo
+            .create_worktree("feature", "feature", &path, None)
+            .unwrap();
+
+        assert_eq!(worktree.name, "feature");
+        assert_eq!(worktree.branch, "feature");
+        assert_eq!(worktree.base.as_deref(), Some("origin/main"));
+        assert_eq!(worktree.path, path);
+        assert!(path.exists());
+        assert_eq!(head_of(&path), remote_tip(&remote, "main"));
+    }
+
+    /// With no base, the branch is cut from origin as it is *now* — fetched,
+    /// not the stale remote-tracking ref of the last fetch.
+    #[test]
+    fn test_create_worktree_default_base_is_fetched() {
+        let dir = tempdir().unwrap();
+        let (remote, repo) = fixture(dir.path());
+        test_helpers::add_commit_to_bare(&remote, "landed after clone");
+
+        let path = dir.path().join("worktrees/feature");
+        repo.create_worktree("feature", "feature", &path, None)
+            .unwrap();
+
+        assert_eq!(head_of(&path), remote_tip(&remote, "main"));
+    }
+
+    /// The source checkout is never touched: a dirty, mid-merge root sitting
+    /// on another branch keeps its HEAD, its files, and its local `main`.
+    #[test]
+    fn test_create_worktree_leaves_source_checkout_alone() {
+        let dir = tempdir().unwrap();
+        let (remote, repo) = fixture(dir.path());
+        test_helpers::add_commit_to_bare(&remote, "landed after clone");
+        let stale_main = repo.repo.refname_to_id("refs/heads/main").unwrap();
+        {
+            let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+            repo.repo.branch("elsewhere", &head, false).unwrap();
+        }
+        repo.repo.set_head("refs/heads/elsewhere").unwrap();
+        test_helpers::make_dirty(&repo.repo);
+        test_helpers::make_mid_operation(&repo.repo);
+
+        let path = dir.path().join("worktrees/feature");
+        repo.create_worktree("feature", "feature", &path, None)
+            .unwrap();
+
+        assert_eq!(head_of(&path), remote_tip(&remote, "main"));
+        assert_eq!(repo.repo.head().unwrap().shorthand(), Ok("elsewhere"));
+        assert!(dir.path().join("local/dirty.txt").exists());
+        assert_eq!(repo.repo.state(), RepositoryState::Merge);
+        assert_eq!(
+            repo.repo.refname_to_id("refs/heads/main").unwrap(),
+            stale_main
+        );
+    }
+
+    /// A local `main` that has diverged from origin does not block the
+    /// default base, which is origin's branch — not the local one.
+    #[test]
+    fn test_create_worktree_diverged_local_main_does_not_block() {
+        let dir = tempdir().unwrap();
+        let (remote, repo) = fixture(dir.path());
+        test_helpers::add_commit_to_bare(&remote, "remote commit");
+        test_helpers::add_commit(&repo.repo, "main", "local commit");
+
+        let path = dir.path().join("worktrees/feature");
+        let worktree = repo
+            .create_worktree("feature", "feature", &path, None)
+            .unwrap();
+
+        assert_eq!(worktree.base.as_deref(), Some("origin/main"));
+        assert_eq!(head_of(&path), remote_tip(&remote, "main"));
+    }
+
+    /// A repository whose default branch is `master` works with no base
+    /// given — the default is discovered, never assumed to be `main`.
+    #[test]
+    fn test_create_worktree_master_default_branch() {
+        let dir = tempdir().unwrap();
+        let remote = git2::Repository::init_bare(dir.path().join("remote")).unwrap();
+        remote.set_head("refs/heads/master").unwrap();
         test_helpers::add_commit_to_bare(&remote, "initial commit");
         let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
         let path = dir.path().join("worktrees/feature");
         let worktree = repo
-            .create_worktree("feature", "feature", &path, false)
+            .create_worktree("feature", "feature", &path, None)
             .unwrap();
 
-        assert_eq!(worktree.name, "feature");
-        assert_eq!(worktree.branch, "feature");
-        assert_eq!(worktree.path, path);
-        assert!(path.exists());
+        assert_eq!(worktree.base.as_deref(), Some("origin/master"));
+        assert_eq!(head_of(&path), remote_tip(&remote, "master"));
     }
 
-    /// A ticket whose branch already exists locally reuses it and returns the correct `Worktree`.
+    /// Without `refs/remotes/origin/HEAD`, origin is asked for its default
+    /// branch, and the answer is cached as that ref.
     #[test]
-    fn test_create_worktree_existing_local() {
+    fn test_default_branch_discovered_and_cached() {
         let dir = tempdir().unwrap();
-        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        let remote = git2::Repository::init_bare(dir.path().join("remote")).unwrap();
+        remote.set_head("refs/heads/trunk").unwrap();
         test_helpers::add_commit_to_bare(&remote, "initial commit");
         let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
-        {
-            let oid = local.head().unwrap().target().unwrap();
-            let commit = local.find_commit(oid).unwrap();
-            local.branch("feature", &commit, false).unwrap();
+        if let Ok(mut head) = local.find_reference("refs/remotes/origin/HEAD") {
+            head.delete().unwrap();
         }
         let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
 
+        assert_eq!(repo.resolve_base(None).unwrap(), "origin/trunk");
+        let cached = repo
+            .repo
+            .find_reference("refs/remotes/origin/HEAD")
+            .unwrap();
+        assert_eq!(
+            cached.symbolic_target().unwrap(),
+            Some("refs/remotes/origin/trunk")
+        );
+    }
+
+    /// No cached default and no origin to ask is an error, not a guess.
+    #[test]
+    fn test_default_branch_unknown_errors() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
+        if let Ok(mut head) = repo.repo.find_reference("refs/remotes/origin/HEAD") {
+            head.delete().unwrap();
+        }
+        repo.repo.remote_delete("origin").unwrap();
+
+        assert!(matches!(repo.resolve_base(None), Err(TixError::Message(_))));
+    }
+
+    /// A ticket whose branch already exists locally reuses it untouched, and
+    /// records no base — tix did not cut it.
+    #[test]
+    fn test_create_worktree_existing_local() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
+        let tip = test_helpers::add_branch_commit(&repo.repo, "feature", "work");
+
         let path = dir.path().join("worktrees/feature");
         let worktree = repo
-            .create_worktree("feature", "feature", &path, false)
+            .create_worktree("feature", "feature", &path, None)
             .unwrap();
 
         assert_eq!(worktree.name, "feature");
         assert_eq!(worktree.branch, "feature");
+        assert_eq!(worktree.base, None);
         assert_eq!(worktree.path, path);
+        assert_eq!(head_of(&path), tip);
+    }
+
+    /// An existing branch that contains an explicit base is reused, and the
+    /// base recorded.
+    #[test]
+    fn test_create_worktree_existing_local_contains_base() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
+        let tip = test_helpers::add_branch_commit(&repo.repo, "feature", "work");
+
+        let path = dir.path().join("worktrees/feature");
+        let worktree = repo
+            .create_worktree("feature", "feature", &path, Some("main"))
+            .unwrap();
+
+        assert_eq!(worktree.base.as_deref(), Some("origin/main"));
+        assert_eq!(head_of(&path), tip);
+    }
+
+    /// An existing branch that does not contain an explicit base errors —
+    /// and is not moved to it, which would be destructive.
+    #[test]
+    fn test_create_worktree_existing_local_lacks_base() {
+        let dir = tempdir().unwrap();
+        let (remote, repo) = fixture(dir.path());
+        let tip = test_helpers::add_branch_commit(&repo.repo, "feature", "work");
+        test_helpers::add_commit_to_bare(&remote, "main moved on");
+
+        let path = dir.path().join("worktrees/feature");
+        assert!(matches!(
+            repo.create_worktree("feature", "feature", &path, Some("main")),
+            Err(TixError::Message(_))
+        ));
+        assert!(!path.exists());
+        assert_eq!(repo.repo.refname_to_id("refs/heads/feature").unwrap(), tip);
     }
 
     /// Creating a worktree with a name that already exists returns `TixError::GitError`.
     #[test]
     fn test_create_worktree_duplicate_name() {
         let dir = tempdir().unwrap();
-        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
-        test_helpers::add_commit_to_bare(&remote, "initial commit");
-        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
-        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+        let (_remote, repo) = fixture(dir.path());
 
         let path = dir.path().join("worktrees/feature");
-        repo.create_worktree("feature", "feature", &path, false)
+        repo.create_worktree("feature", "feature", &path, None)
             .unwrap();
 
         assert!(matches!(
-            repo.create_worktree("feature", "feature", &path, false),
+            repo.create_worktree("feature", "feature", &path, None),
             Err(TixError::GitError(_))
         ));
     }
@@ -723,14 +1204,11 @@ mod tests {
     #[test]
     fn test_create_worktree_name_differs_from_branch() {
         let dir = tempdir().unwrap();
-        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
-        test_helpers::add_commit_to_bare(&remote, "initial commit");
-        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
-        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+        let (_remote, repo) = fixture(dir.path());
 
         let path = dir.path().join("worktrees/my-repo");
         let worktree = repo
-            .create_worktree("my-repo", "feature/JIRA-1-fix", &path, false)
+            .create_worktree("my-repo", "feature/JIRA-1-fix", &path, None)
             .unwrap();
 
         assert_eq!(worktree.name, "my-repo");
@@ -739,25 +1217,145 @@ mod tests {
         assert_eq!(opened.head().unwrap().shorthand(), Ok("feature/JIRA-1-fix"));
     }
 
-    /// A sync failure propagates as an error before the worktree is created.
+    /// The stacked case: a base checked out in a sibling worktree, with
+    /// unpushed commits, is accepted, and those commits are the base.
     #[test]
-    fn test_create_worktree_sync_error() {
+    fn test_create_worktree_stacked_on_sibling() {
         let dir = tempdir().unwrap();
-        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
-        test_helpers::add_commit_to_bare(&remote, "initial commit");
-        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
-        test_helpers::make_mid_operation(&local);
-        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+        let (_remote, repo) = fixture(dir.path());
+        let part1 = dir.path().join("worktrees/part1");
+        repo.create_worktree("part1", "stack/part-1", &part1, None)
+            .unwrap();
+        let part1_tip = test_helpers::add_branch_commit(&repo.repo, "stack/part-1", "part 1");
+
+        let part2 = dir.path().join("worktrees/part2");
+        let worktree = repo
+            .create_worktree("part2", "stack/part-2", &part2, Some("stack/part-1"))
+            .unwrap();
+
+        assert_eq!(worktree.base.as_deref(), Some("stack/part-1"));
+        assert_eq!(head_of(&part2), part1_tip);
+    }
+
+    // --- resolve_base ---
+
+    /// A bare name whose local branch is behind origin resolves to origin —
+    /// always cut from fresh.
+    #[test]
+    fn test_resolve_base_bare_local_behind() {
+        let dir = tempdir().unwrap();
+        let (remote, repo) = fixture(dir.path());
+        test_helpers::add_commit_to_bare(&remote, "remote commit");
+
+        assert_eq!(repo.resolve_base(Some("main")).unwrap(), "origin/main");
+    }
+
+    /// Equal local and origin resolve to origin.
+    #[test]
+    fn test_resolve_base_bare_equal() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
+
+        assert_eq!(repo.resolve_base(Some("main")).unwrap(), "origin/main");
+    }
+
+    /// A bare name whose local branch is ahead resolves to the local branch:
+    /// the unpushed commits are the base.
+    #[test]
+    fn test_resolve_base_bare_local_ahead() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
+        test_helpers::add_commit(&repo.repo, "main", "local commit");
+
+        assert_eq!(repo.resolve_base(Some("main")).unwrap(), "main");
+    }
+
+    /// A bare name that exists only on origin — never fetched before —
+    /// resolves to origin.
+    #[test]
+    fn test_resolve_base_bare_only_remote() {
+        let dir = tempdir().unwrap();
+        let (remote, repo) = fixture(dir.path());
+        test_helpers::add_remote_branch(&remote, "release");
+
+        assert_eq!(
+            repo.resolve_base(Some("release")).unwrap(),
+            "origin/release"
+        );
+    }
+
+    /// A bare name that exists only locally resolves to the local branch.
+    #[test]
+    fn test_resolve_base_bare_only_local() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
+        test_helpers::add_branch_commit(&repo.repo, "local-only", "work");
+
+        assert_eq!(repo.resolve_base(Some("local-only")).unwrap(), "local-only");
+    }
+
+    /// Diverged local and origin are an error naming both — either guess
+    /// would be wrong.
+    #[test]
+    fn test_resolve_base_bare_diverged() {
+        let dir = tempdir().unwrap();
+        let (remote, repo) = fixture(dir.path());
+        test_helpers::add_commit_to_bare(&remote, "remote commit");
+        test_helpers::add_commit(&repo.repo, "main", "local commit");
+
+        let error = repo.resolve_base(Some("main")).unwrap_err().to_string();
+        assert!(error.contains("refs/heads/main"), "{error}");
+        assert!(error.contains("origin/main"), "{error}");
+        // Qualifying it is the way out.
+        assert_eq!(
+            repo.resolve_base(Some("refs/heads/main")).unwrap(),
+            "refs/heads/main"
+        );
+        assert_eq!(
+            repo.resolve_base(Some("origin/main")).unwrap(),
+            "origin/main"
+        );
+    }
+
+    /// Qualified bases, tags, and SHAs resolve literally.
+    #[test]
+    fn test_resolve_base_literal() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
+        let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+        repo.repo
+            .tag_lightweight("v1.2.0", head.as_object(), false)
+            .unwrap();
+        let sha = head.id().to_string();
+
+        assert_eq!(repo.resolve_base(Some("v1.2.0")).unwrap(), "v1.2.0");
+        assert_eq!(repo.resolve_base(Some(&sha)).unwrap(), sha);
+        assert_eq!(repo.resolve_base(Some(&sha[..10])).unwrap(), &sha[..10]);
+        assert_eq!(repo.resolve_base(Some("HEAD")).unwrap(), "HEAD");
+    }
+
+    /// A base that names nothing is an error.
+    #[test]
+    fn test_resolve_base_unknown() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
 
         assert!(matches!(
-            repo.create_worktree(
-                "feature",
-                "feature",
-                &dir.path().join("worktrees/feature"),
-                false
-            ),
+            repo.resolve_base(Some("no-such-branch")),
             Err(TixError::Message(_))
         ));
+    }
+
+    /// A failed fetch does not stop a base that resolves locally — offline
+    /// work stays possible.
+    #[test]
+    fn test_resolve_base_fetch_failure_falls_back_to_local() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
+        std::fs::remove_dir_all(dir.path().join("remote")).unwrap();
+
+        assert_eq!(repo.resolve_base(Some("main")).unwrap(), "origin/main");
+        assert_eq!(repo.resolve_base(None).unwrap(), "origin/main");
     }
 
     // --- remove_worktree ---
@@ -1190,6 +1788,16 @@ pub(crate) mod test_helpers {
 
         std::fs::remove_dir_all(path).unwrap();
         worktree
+    }
+
+    /// Commits onto local `branch`, creating it at HEAD first if absent, and
+    /// returns the new tip. Leaves HEAD and the working tree alone.
+    pub fn add_branch_commit(repo: &git2::Repository, branch: &str, message: &str) -> git2::Oid {
+        if repo.find_branch(branch, git2::BranchType::Local).is_err() {
+            let head = repo.head().unwrap().peel_to_commit().unwrap();
+            repo.branch(branch, &head, false).unwrap();
+        }
+        add_commit(repo, branch, message).id()
     }
 
     /// Creates `branch` on the bare remote without creating it locally,

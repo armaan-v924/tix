@@ -144,22 +144,25 @@ impl PyRepository {
     }
 
     /// Creates a worktree directory named `name` at `path`, checked out on
-    /// `branch`, creating the branch at the synced head if it does not exist.
+    /// `branch`, creating the branch at `base` if it does not exist.
     ///
     /// `path` is the full, already-resolved directory — the engine derives no
-    /// paths of its own. Syncs first; pass `force=True` to discard local
-    /// changes before syncing.
+    /// paths of its own. `base` is a refish, defaulting to origin's default
+    /// branch; see `resolve_base`. The source checkout is never touched. The
+    /// resolved base is on the returned `Worktree`.
     ///
-    /// Raises `TixError` if the sync or the worktree creation fails.
-    #[pyo3(signature = (name, branch, path, force = false))]
+    /// Raises `TixError` if the base does not resolve, if an existing
+    /// `branch` does not contain an explicit `base`, or if the worktree
+    /// creation fails.
+    #[pyo3(signature = (name, branch, path, base = None))]
     fn create_worktree(
         &self,
         name: &str,
         branch: &str,
         path: PathBuf,
-        force: bool,
+        base: Option<&str>,
     ) -> PyResult<PyWorktree> {
-        self.with(|repo| repo.create_worktree(name, branch, &path, force))
+        self.with(|repo| repo.create_worktree(name, branch, &path, base))
             .map(PyWorktree::from_inner)
             .map_err(engine_error)
     }
@@ -176,7 +179,22 @@ impl PyRepository {
             .map_err(engine_error)
     }
 
-    /// Fetches and fast-forwards `main`. See `sync_base`.
+    /// Resolves `base` to the ref name a new branch would be cut from.
+    ///
+    /// `None` is origin's default branch (`origin/main`, `origin/master`, …);
+    /// a bare branch name picks local or `origin/` by whichever is ahead; and
+    /// anything qualified, a tag, or a SHA resolves literally.
+    ///
+    /// Raises `TixError` if the default branch cannot be determined, a bare
+    /// name has diverged from origin, or `base` names no commit.
+    #[pyo3(signature = (base = None))]
+    fn resolve_base(&self, base: Option<&str>) -> PyResult<String> {
+        self.with(|repo| repo.resolve_base(base))
+            .map_err(engine_error)
+    }
+
+    /// Fetches and fast-forwards origin's default branch in the source
+    /// checkout. See `sync_base`.
     #[pyo3(signature = (force = false))]
     fn sync(&self, force: bool) -> PyResult<()> {
         self.with(|repo| repo.sync(force)).map_err(engine_error)
