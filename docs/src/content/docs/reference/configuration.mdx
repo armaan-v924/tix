@@ -109,6 +109,7 @@ Each entry is a table of its own:
 | --- | --- | --- |
 | `branch` | string | The branch checked out in this worktree. |
 | `repo` | string | The alias of the repository this worktree belongs to. |
+| `base` | string | The ref `branch` was cut from, as resolved at creation — a name such as `origin/main` or a sibling's `stack/JIRA-1-part-1`, never a SHA.<br /><br />A name is what a pull request's base takes, and it is what makes stack topology recoverable from disk: git itself only remembers the merge-base. Absent when tix did not cut the branch (it already existed) or the entry predates the field.<br />Optional. |
 
 ## Plugin tables
 

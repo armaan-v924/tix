@@ -21,8 +21,12 @@ branch in `~/code/api`. They do not share the checkout — different branch,
 different index, different uncommitted changes.
 
 So starting a ticket never switches branches in your main checkout, never
-stashes, and does not care whether it is dirty. Several tickets can hold
-branches of the same repository at once.
+stashes, and does not care whether it is dirty, diverged, or on some other
+branch. Several tickets can hold branches of the same repository at once.
+
+The flip side: nothing fast-forwards your main checkout either. Its local
+`main` goes as stale as you leave it — tix branches from what it fetches,
+not from what you have checked out.
 
 ## Each worktree has its own branch
 
@@ -47,6 +51,70 @@ not a branch.
 `tix ticket add` derives the name at *add* time, against whatever
 `branch_prefix` says then. Pass `--branch` to say exactly what you want.
 </Aside>
+
+## Where a branch starts
+
+A new branch is cut from a **base**. Left alone, that is the repository's own
+default branch on origin — `origin/main`, `origin/master`, `origin/trunk`,
+whatever origin's `HEAD` points at — fetched first, so it is fresh. Each
+repository answers for itself, so one ticket can span a `main` repo and a
+`master` repo with no flags.
+
+`--base` on `tix setup` and `tix add` picks something else:
+
+```sh
+tix add api --base release/2.4            # a branch, local or origin's
+tix add api --base origin/release/2.4     # exactly origin's
+tix add api --base v2.4.0                 # a tag, a SHA, any ref
+```
+
+A bare branch name is fetched, then resolved between your local branch and
+origin's by which one is ahead:
+
+| local vs `origin/<b>` | base |
+| --- | --- |
+| behind or equal | `origin/<b>` — always cut from fresh |
+| ahead | `<b>` — the unpushed commits *are* the base |
+| only one exists | that one |
+| diverged | an error naming both; qualify it |
+
+Anything qualified — `origin/<b>`, `refs/heads/<b>`, a tag, a SHA — resolves
+literally. If the fetch fails (offline, say), tix warns and resolves against
+the refs you already have.
+
+The base is recorded beside the branch, as a ref name rather than a SHA,
+because a name is what a pull request's base takes:
+
+```toml
+[ticket.worktrees.api]
+repo = "api"
+branch = "feature/JIRA-123-fix-the-login-bug"
+base = "origin/main"
+```
+
+A branch that already exists is checked out as it is, never moved. Without
+`--base` it records no base — tix did not cut it, so it cannot say from what.
+With `--base`, the branch must already contain that base, or the add errors.
+
+### Stacking
+
+A base can be a branch checked out in a sibling worktree, unpushed commits
+and all — which is what a stacked change is:
+
+```sh
+tix add api --as api-part2 --branch stack/JIRA-123-part-2 \
+    --base feature/JIRA-123-fix-the-login-bug
+```
+
+```toml
+[ticket.worktrees.api-part2]
+repo = "api"
+branch = "stack/JIRA-123-part-2"
+base = "feature/JIRA-123-fix-the-login-bug"
+```
+
+Git only remembers the merge-base; the recorded `base` is what lets a plugin
+tell this branch from one cut off `main`.
 
 ## How the name is derived
 

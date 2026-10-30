@@ -90,13 +90,18 @@ def test_worktree_lifecycle(tmp_path: Path, clone: Path) -> None:
     assert worktree.name == "api"
     assert worktree.repo_alias == "api"
     assert worktree.branch == "feature/JIRA-123-fix-login"
+    assert worktree.base == "origin/main"
     assert worktree.path == ticket_root / "api"
     assert worktree.path.is_dir()
 
     ticket = pytix.TicketConfig(
         "JIRA-123",
         "Fix the login bug",
-        {"api": pytix.WorktreeConfig("api", "feature/JIRA-123-fix-login")},
+        {
+            "api": pytix.WorktreeConfig(
+                "api", "feature/JIRA-123-fix-login", worktree.base
+            )
+        },
     ).resolve(ticket_root)
 
     assert ticket.key == "JIRA-123"
@@ -104,6 +109,7 @@ def test_worktree_lifecycle(tmp_path: Path, clone: Path) -> None:
     assert ticket.path == ticket_root
     assert [w.name for w in ticket.worktrees] == ["api"]
     assert not hasattr(ticket, "branch")
+    assert ticket.worktrees[0].base == "origin/main"
 
     repository.remove_worktree(ticket_root / "api")
     with pytest.raises(pytix.TixError):

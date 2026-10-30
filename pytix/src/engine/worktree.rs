@@ -5,8 +5,8 @@ use pyo3::prelude::*;
 use std::path::PathBuf;
 use tix_engine::{Worktree, WorktreeConfig};
 
-/// One worktree's entry in a ticket document: which repository it belongs to
-/// and which branch it has checked out.
+/// One worktree's entry in a ticket document: which repository it belongs to,
+/// which branch it has checked out, and what that branch was cut from.
 ///
 /// Mirrors [`tix_engine::WorktreeConfig`]. Frozen because a config value that
 /// has already been handed to the engine must not mutate underneath it —
@@ -26,11 +26,12 @@ impl PyWorktreeConfig {
 
 #[pymethods]
 impl PyWorktreeConfig {
-    /// Records a worktree of `repo` sitting on `branch`.
+    /// Records a worktree of `repo` sitting on `branch`, cut from `base`.
     #[new]
-    fn new(repo: String, branch: String) -> Self {
+    #[pyo3(signature = (repo, branch, base = None))]
+    fn new(repo: String, branch: String, base: Option<String>) -> Self {
         Self {
-            inner: WorktreeConfig { repo, branch },
+            inner: WorktreeConfig { repo, branch, base },
         }
     }
 
@@ -46,11 +47,23 @@ impl PyWorktreeConfig {
         &self.inner.branch
     }
 
+    /// The ref the branch was cut from, or `None` if tix did not cut it.
+    #[getter]
+    fn base(&self) -> Option<&str> {
+        self.inner.base.as_deref()
+    }
+
     fn __repr__(&self) -> String {
-        format!(
-            "WorktreeConfig(repo={:?}, branch={:?})",
-            self.inner.repo, self.inner.branch
-        )
+        match &self.inner.base {
+            Some(base) => format!(
+                "WorktreeConfig(repo={:?}, branch={:?}, base={:?})",
+                self.inner.repo, self.inner.branch, base
+            ),
+            None => format!(
+                "WorktreeConfig(repo={:?}, branch={:?})",
+                self.inner.repo, self.inner.branch
+            ),
+        }
     }
 }
 
@@ -96,6 +109,12 @@ impl PyWorktree {
     #[getter]
     fn branch(&self) -> &str {
         &self.inner.branch
+    }
+
+    /// The ref the branch was cut from, or `None` if tix did not cut it.
+    #[getter]
+    fn base(&self) -> Option<&str> {
+        self.inner.base.as_deref()
     }
 
     fn __repr__(&self) -> String {

@@ -49,6 +49,17 @@ tix add web --as web-spike --branch spike/JIRA-123-auth
 See [several worktrees of one
 repository](../../concepts/worktrees-and-branches/#several-worktrees-of-one-repository).
 
+A new branch starts from the repository's default branch on origin. To start
+it somewhere else — a release branch, or a sibling worktree's branch for a
+stacked change — pass `--base`:
+
+```sh
+tix add web --as web-part2 --branch stack/JIRA-123-part-2 --base fix/JIRA-123-retry
+```
+
+See [where a branch
+starts](../../concepts/worktrees-and-branches/#where-a-branch-starts).
+
 And drop one without touching the rest:
 
 ```sh
@@ -73,9 +84,9 @@ tix info
 ```
 
 Prints the key, description, path, and a row per worktree with its
-repository, branch, and whether it still resolves on disk. A worktree that
-has been deleted or is no longer a git checkout is flagged rather than
-failing the command.
+repository, branch, the base that branch was cut from, and whether it still
+resolves on disk. A worktree that has been deleted or is no longer a git
+checkout is flagged rather than failing the command.
 
 ## New repositories
 

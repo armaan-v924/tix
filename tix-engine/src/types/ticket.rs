@@ -161,6 +161,7 @@ impl TicketConfig {
                 name: name.clone(),
                 repo_alias: entry.repo.clone(),
                 branch: entry.branch.clone(),
+                base: entry.base.clone(),
                 path: worktree_path,
             });
         }
@@ -246,6 +247,7 @@ mod tests {
                         WorktreeConfig {
                             repo: repo.to_string(),
                             branch: branch.to_string(),
+                            base: None,
                         },
                     )
                 })
@@ -353,6 +355,7 @@ mod tests {
             WorktreeConfig {
                 repo: "backend".to_string(),
                 branch: "feature/JIRA-123-fix-login".to_string(),
+                base: None,
             },
         );
         worktrees.insert(
@@ -360,6 +363,7 @@ mod tests {
             WorktreeConfig {
                 repo: "frontend".to_string(),
                 branch: "feature/JIRA-123-fix-login-ui".to_string(),
+                base: None,
             },
         );
         TicketConfig {

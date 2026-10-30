@@ -37,9 +37,10 @@ A live repository, obtained from one of the resolution methods above.
 | --- | --- | --- |
 | `alias` | `str` | The alias it is registered under. |
 | `config` | `RepositoryConfig` | The config it was resolved from. |
-| `create_worktree(name, branch, path, force=False)` | `Worktree` | Creates a worktree at `path` on `branch`, creating the branch at the synced head if absent. |
+| `create_worktree(name, branch, path, base=None)` | `Worktree` | Creates a worktree at `path` on `branch`, creating the branch at `base` if absent. Never touches the source checkout. |
+| `resolve_base(base=None)` | `str` | The ref name a new branch would be cut from: origin's default branch for `None`, local-or-origin by ancestry for a bare branch name, literal otherwise. |
 | `remove_worktree(path, force=False)` | `None` | Prunes the worktree at `path`. Without `force`, refuses one with uncommitted changes. |
-| `sync(force=False)` | `None` | Fast-forwards the default branch from the remote. |
+| `sync(force=False)` | `None` | Fast-forwards origin's default branch in the source checkout. |
 | `sync_base(branch, force=False)` | `None` | Fast-forwards `branch` from the remote. |
 
 ### `TicketConfig(key, description, worktrees=None)`
@@ -73,12 +74,13 @@ A validated ticket workspace.
 | `path` | `Path` | The ticket workspace directory. |
 | `worktrees` | `list[Worktree]` | Verified live worktrees, in name order. |
 
-### `WorktreeConfig(repo, branch)`
+### `WorktreeConfig(repo, branch, base=None)`
 
 | Member | Returns | Description |
 | --- | --- | --- |
 | `repo` | `str` | Alias of the repository it belongs to. |
 | `branch` | `str` | The branch checked out in it. |
+| `base` | `str \| None` | The ref the branch was cut from, or `None` if tix did not cut it. |
 
 ### `Worktree`
 
@@ -91,6 +93,7 @@ A live worktree. Cannot be constructed from Python — it comes from
 | `repo_alias` | `str` | Alias of the repository it belongs to. |
 | `path` | `Path` | Full path to the worktree directory. |
 | `branch` | `str` | The branch checked out in it. |
+| `base` | `str \| None` | The ref the branch was cut from, or `None` if tix did not cut it. |
 
 ### `TixError`
 

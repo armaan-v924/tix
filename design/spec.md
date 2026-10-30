@@ -97,7 +97,7 @@ Each document is a set of sections, one table per consumer:
 - `TicketConfig` (`tix-engine/src/types/ticket.rs`) is the `[ticket]`
   section type, not the whole ticket document. Worktree state is keyed
   by **worktree directory name**, not repo alias:
-  `worktrees: HashMap<name, { repo, branch }>` — the key is the
+  `worktrees: HashMap<name, { repo, branch, base? }>` — the key is the
   directory under the ticket root, the single-worktree case degenerates
   to `name == alias`, and multiple worktrees of one repo (#85) need no
   schema change. The current `Ticket.branch: String` single shared

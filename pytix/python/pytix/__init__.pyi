@@ -83,14 +83,15 @@ class Repository:
         name: str,
         branch: str,
         path: _StrPath,
-        force: bool = False,
+        base: str | None = None,
     ) -> Worktree:
         """Creates a worktree directory named `name` at `path`, checked out on
-        `branch`, creating the branch at the synced head if it does not exist.
+        `branch`, creating the branch at `base` if it does not exist.
 
         `path` is the full, already-resolved directory — the engine derives no
-        paths of its own. Syncs first; pass `force=True` to discard local
-        changes before syncing.
+        paths of its own. `base` is a refish, defaulting to origin's default
+        branch; see `resolve_base`. The source checkout is never touched. The
+        resolved base is on the returned `Worktree`.
         """
 
     def remove_worktree(self, path: _StrPath, force: bool = False) -> None:
@@ -99,8 +100,17 @@ class Repository:
         Pass `force=True` to remove one that is dirty or structurally broken.
         """
 
+    def resolve_base(self, base: str | None = None) -> str:
+        """Resolves `base` to the ref name a new branch would be cut from.
+
+        `None` is origin's default branch (`origin/main`, `origin/master`, …);
+        a bare branch name picks local or `origin/` by whichever is ahead; and
+        anything qualified, a tag, or a SHA resolves literally.
+        """
+
     def sync(self, force: bool = False) -> None:
-        """Fetches and fast-forwards `main`. See `sync_base`."""
+        """Fetches and fast-forwards origin's default branch in the source
+        checkout. See `sync_base`."""
 
     def sync_base(self, branch: str, force: bool = False) -> None:
         """Fetches and fast-forwards `branch` from `origin`.
@@ -176,14 +186,14 @@ class Ticket:
 
 class WorktreeConfig:
     """One worktree's entry in a ticket document: which repository it belongs
-    to and which branch it has checked out.
+    to, which branch it has checked out, and what that branch was cut from.
 
     Frozen because a config value that has already been handed to the engine
     must not mutate underneath it — build a new one instead.
     """
 
-    def __init__(self, repo: str, branch: str) -> None:
-        """Records a worktree of `repo` sitting on `branch`."""
+    def __init__(self, repo: str, branch: str, base: str | None = None) -> None:
+        """Records a worktree of `repo` sitting on `branch`, cut from `base`."""
 
     @property
     def repo(self) -> str:
@@ -192,6 +202,10 @@ class WorktreeConfig:
     @property
     def branch(self) -> str:
         """The branch checked out in this worktree."""
+
+    @property
+    def base(self) -> str | None:
+        """The ref the branch was cut from, or `None` if tix did not cut it."""
 
 class Worktree:
     """A live git worktree: one that existed on disk at the moment it was
@@ -216,3 +230,7 @@ class Worktree:
     @property
     def branch(self) -> str:
         """The branch checked out in this worktree."""
+
+    @property
+    def base(self) -> str | None:
+        """The ref the branch was cut from, or `None` if tix did not cut it."""
