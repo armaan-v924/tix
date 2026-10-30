@@ -24,7 +24,7 @@ jobs:
           matrix<<JSON
           {"include": [
             {"os": "ubuntu-latest",  "target": "x86_64-unknown-linux-gnu", "suffix": "linux-x86_64.tar.gz",   "binary": "tix",     "format": "tar"},
-            {"os": "macos-14",       "target": "aarch64-apple-darwin",     "suffix": "macos-aarch64.tar.gz",  "binary": "tix",     "format": "tar"},
+            {"os": "macos-latest",   "target": "aarch64-apple-darwin",     "suffix": "macos-aarch64.tar.gz",  "binary": "tix",     "format": "tar"},
             {"os": "windows-latest", "target": "x86_64-pc-windows-msvc",   "suffix": "windows-x86_64.zip",    "binary": "tix.exe", "format": "zip"}
           ]}
           JSON
