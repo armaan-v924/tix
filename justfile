@@ -61,11 +61,14 @@ docs-deps:
 docs-serve: docs-cli
     npm --prefix docs run dev
 
+# build the documentation site into docs/dist, without rustdoc
+docs-site: docs-cli
+    npm --prefix docs run build
+
 # build the documentation site into docs/dist, rustdoc included
-docs-build: docs-cli docs-cargo
+docs-build: docs-site docs-cargo
     #!/usr/bin/env bash
     set -euo pipefail
-    npm --prefix docs run build
     rm -rf docs/dist/crates
     mkdir -p docs/dist/crates
     cp -R target/doc/. docs/dist/crates/
