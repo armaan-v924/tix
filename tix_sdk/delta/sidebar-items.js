@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["DeltaTarget"],"struct":["Delta","DeltaOp"]};

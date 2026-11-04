@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["WorktreeStatus"],"fn":["run"],"struct":["Args","WorktreeRow"]};

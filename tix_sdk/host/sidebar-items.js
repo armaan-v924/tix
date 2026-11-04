@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["PROTOCOL","PROTOCOL_MISMATCH_EXIT"],"fn":["prescan_globals"],"struct":["HostContext","PrescannedGlobals"]};

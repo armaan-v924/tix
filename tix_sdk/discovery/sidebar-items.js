@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["TicketRef"],"fn":["discover_ticket_root","discover_ticket_root_from","is_ticket_root","logical_cwd","resolve_override","resolve_ticket_root"]};

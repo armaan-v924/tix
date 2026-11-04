@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["TixError"],"fn":["opens_as_git_repository"],"struct":["Defaults","EngineConfig","Repository","RepositoryConfig","Ticket","TicketConfig","Worktree","WorktreeConfig"]};

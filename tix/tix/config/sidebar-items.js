@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ConfigCommands","ConfigKey"],"mod":["get","init","set","show"],"struct":["CliConfig","ConfigArgs"]};

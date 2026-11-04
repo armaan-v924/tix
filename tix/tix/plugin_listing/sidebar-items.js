@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["DESCRIPTION_CAP","HANDSHAKE_DEADLINE"],"fn":["discover_plugins","handshake_description","is_executable_file","plugins_help_section","sanitize"]};
