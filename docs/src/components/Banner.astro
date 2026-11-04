@@ -6,15 +6,29 @@
 //
 // A page-level `banner` still wins, so this stays available for one-off
 // notices later.
+//
+// A pull request preview (built at /pr/<number>/ by docs-preview.yml) gets
+// one too, naming the commit it was built from: previews are overwritten on
+// every push and Pages takes a minute to deploy, so a reader needs a way to
+// tell whether the page in front of them is the one they just pushed.
 const { banner } = Astro.locals.starlightRoute.entry.data;
-const isDevelopment = process.env.DOCS_BASE === "/dev/";
+const base = process.env.DOCS_BASE ?? "/";
+const isDevelopment = base === "/dev/";
+const previewNumber = base.match(/^\/pr\/(\d+)\/$/)?.[1];
+const previewSha = process.env.DOCS_PREVIEW_SHA?.match(/^[0-9a-f]{7,40}$/)?.[0];
+
+const preview = previewNumber
+  ? `This is a preview of <a href="https://github.com/armaan-v924/tix/pull/${previewNumber}">pull request #${previewNumber}</a>` +
+    (previewSha ? ` at <code>${previewSha.slice(0, 7)}</code>` : "") +
+    '. <a href="/dev/">Read the published documentation</a>.'
+  : null;
 
 const content =
   banner?.content ??
   (isDevelopment
     ? 'You are reading documentation for the in-development version. ' +
       '<a href="/latest/">Switch to the latest release</a>.'
-    : null);
+    : preview);
 ---
 
 {content && <div class="sl-banner" data-pagefind-ignore set:html={content} />}

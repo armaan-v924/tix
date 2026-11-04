@@ -1,0 +1,120 @@
+name: Docs Preview
+
+# Builds the documentation site for a pull request and publishes it at
+# tix.armaanv.dev/pr/<number>/, beside the trees docs.yml owns, then comments
+# the link on the PR. docs-preview-cleanup.yml removes the tree again when the
+# PR closes.
+#
+# One tree per PR, overwritten on every push, rather than one per commit:
+# per-commit trees would let revisions be compared, but every push would add a
+# full copy of the site to the branch that only a cleanup could take away.
+# The comment and the banner on every page name the commit a preview shows.
+#
+# Rustdoc is not rebuilt for previews. It is most of the published output and
+# most of the build time, and crate docs are reviewed as code, not prose; the
+# preview's /crates/ redirects to /dev/crates/ instead. A PR whose point is a
+# rustdoc change has to be read locally with `just docs-build`.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # The site's own inputs. CLI and config reference pages are generated from
+    # the Rust code, but `just check-docs` fails a PR whose generated pages
+    # are stale, so any change that moves them also touches docs/.
+    paths:
+      - "docs/**"
+      - "justfile"
+      - ".github/scripts/publish-docs.sh"
+      - ".github/scripts/docs-preview-comment.sh"
+      - ".github/workflows/docs-preview.yml"
+
+permissions:
+  contents: read
+
+# Shared with docs-preview-cleanup.yml, so closing a PR cancels a preview of it
+# that is still being built, and a newer push replaces an older build. It is
+# deliberately not docs-publish: see the comment on that group in docs.yml.
+# Two writers of the docs branch are safe without it, because publish-docs.sh
+# fast-forwards and redoes its update when it loses a race.
+concurrency:
+  group: docs-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    # Same-repository branches only. A fork's pull_request run gets a
+    # read-only token and cannot push the preview; pull_request_target could,
+    # but it would run the fork's code with write access to the repository,
+    # which is not worth it for a preview. Dependabot's runs are read-only for
+    # the same reason, so they are skipped rather than left to fail.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      # The PR's head rather than the default merge commit, so the preview is
+      # exactly the commit the comment names.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: just@1.59.0
+          fallback: none
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Build the preview
+        run: |
+          set -euo pipefail
+          DOCS_BASE="/pr/$PR/" DOCS_PREVIEW_SHA="$HEAD_SHA" just docs-deps docs-site
+
+          # Stand-in for the rustdoc that previews skip, so the sidebar's
+          # Crate Docs link lands somewhere rather than on a 404.
+          mkdir -p docs/dist/crates
+          cat > docs/dist/crates/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <title>tix crate documentation</title>
+          <meta http-equiv="refresh" content="0; url=/dev/crates/">
+          </head>
+          <body>
+          <p>Previews do not rebuild crate docs.
+          <a href="/dev/crates/">Read them on the development site</a>.</p>
+          </body>
+          </html>
+          HTML
+        env:
+          ASTRO_TELEMETRY_DISABLED: "1"
+
+      - name: Publish to docs branch
+        run: |
+          .github/scripts/publish-docs.sh \
+            -m "Preview #$PR at ${HEAD_SHA:0:7}" \
+            --put "pr/$PR" docs/dist
+
+      - name: Comment the preview link
+        run: |
+          set -euo pipefail
+          url="https://tix.armaanv.dev/pr/$PR/"
+          commit="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$HEAD_SHA"
+          cat > "$RUNNER_TEMP/comment.md" <<EOF
+          **Docs preview:** $url
+
+          Built from [\`${HEAD_SHA:0:7}\`]($commit). Pages takes a minute or two to deploy after each push; the banner on every page names the commit it shows. Crate docs are not rebuilt for previews, so \`/crates/\` points at the development site.
+          EOF
+          .github/scripts/docs-preview-comment.sh "$PR" "$RUNNER_TEMP/comment.md"
+        env:
+          GH_TOKEN: ${{ github.token }}
