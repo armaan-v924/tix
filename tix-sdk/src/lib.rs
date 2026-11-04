@@ -12,6 +12,8 @@
 //! - [`context`] — global config path resolution
 //!   (`--config` > `TIX_CONFIG_PATH` > platform default).
 //! - [`discovery`] — the ticket walk and `--ticket` override semantics.
+//! - [`project`] — projects: the `.tix/project.toml` marker, implicit
+//!   creation, and the flag → inferred → loose scope resolution.
 //! - [`document`] — the format-preserving TOML document layer: generic
 //!   parse, typed section extraction, atomic locked writes.
 //! - [`delta`] — diff-back config deltas: the plugin write helper and the
@@ -37,6 +39,7 @@ pub mod document;
 /// The SDK's error type.
 pub mod error;
 pub mod host;
+pub mod project;
 pub mod spawn;
 pub mod state;
 

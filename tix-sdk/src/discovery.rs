@@ -101,24 +101,76 @@ pub fn discover_ticket_root() -> Result<Option<PathBuf>, SdkError> {
 ///   coupling was rejected because a moved or symlinked ticket would fail
 ///   with no visible cause.
 pub fn discover_ticket_root_from(start: &Path) -> Option<PathBuf> {
-    let start_device = device_of(start);
-    let mut current = start;
-    loop {
-        if is_ticket_root(current) {
-            debug!(path = %current.display(), "ticket root found");
-            return Some(current.to_path_buf());
+    let found = ancestors_on_device(start).find(|dir| is_ticket_root(dir))?;
+    debug!(path = %found.display(), "ticket root found");
+    Some(found.to_path_buf())
+}
+
+/// What one upward walk found: the nearest ticket, and the nearest project
+/// above it.
+///
+/// Either may be absent independently — a loose ticket has no project, and
+/// a cwd at project level (above every ticket) has a project but no ticket.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Discovered {
+    /// The nearest ticket root at or above the start.
+    pub ticket: Option<PathBuf>,
+    /// The nearest project root above the ticket (or at or above the start,
+    /// when there is no ticket).
+    pub project: Option<PathBuf>,
+}
+
+/// Walks upward from the logical cwd, collecting ticket and project.
+///
+/// Equivalent to [`discover_from`] starting at [`logical_cwd`].
+pub fn discover() -> Result<Discovered, SdkError> {
+    Ok(discover_from(&logical_cwd()?))
+}
+
+/// Walks upward from `start` once, collecting the nearest ticket root
+/// (`.tix/ticket.toml`) and the nearest project root
+/// ([`.tix/project.toml`](crate::project::is_project_root)) above it.
+///
+/// Same walk as [`discover_ticket_root_from`] — logical path, device-boundary
+/// ceiling, **not** bounded by the configured tickets directory — except that
+/// it carries on past the ticket to find the project. The project marker is
+/// what makes this possible without config: from inside
+/// `<tickets>/acme/JIRA-1/api` nothing but the marker says `acme` is a
+/// project rather than any other ancestor.
+///
+/// A directory that is a ticket root is only ever the ticket, even if it
+/// also carries a project marker; and the walk ends at the first project, so
+/// a ticket *above* a project is never reported.
+pub fn discover_from(start: &Path) -> Discovered {
+    let mut found = Discovered::default();
+    for dir in ancestors_on_device(start) {
+        if found.ticket.is_none() && is_ticket_root(dir) {
+            debug!(path = %dir.display(), "ticket root found");
+            found.ticket = Some(dir.to_path_buf());
+        } else if crate::project::is_project_root(dir) {
+            debug!(path = %dir.display(), "project root found");
+            found.project = Some(dir.to_path_buf());
+            break;
         }
-        let parent = current.parent()?;
-        // Stop early at a device boundary: only when both devices are known
-        // and differ. An unreadable directory does not end the walk.
-        if let (Some(a), Some(b)) = (start_device, device_of(parent))
-            && a != b
-        {
-            debug!(path = %parent.display(), "stopping discovery at device boundary");
-            return None;
-        }
-        current = parent;
     }
+    found
+}
+
+/// `start` and its ancestors, nearest first, ending at the filesystem root
+/// or just before the first directory on a different device (matching git's
+/// `GIT_DISCOVERY_ACROSS_FILESYSTEM` default).
+///
+/// The boundary only stops the walk when both devices are known and differ;
+/// an unreadable directory does not end it.
+fn ancestors_on_device(start: &Path) -> impl Iterator<Item = &Path> {
+    let start_device = device_of(start);
+    start.ancestors().take_while(move |dir| {
+        let crossed = matches!((start_device, device_of(dir)), (Some(a), Some(b)) if a != b);
+        if crossed {
+            debug!(path = %dir.display(), "stopping discovery at device boundary");
+        }
+        !crossed
+    })
 }
 
 /// Resolves an explicit `--ticket` override, skipping the discovery walk.
@@ -183,7 +235,7 @@ pub fn resolve_ticket_root(
 /// Returns true when two paths name the same directory (same device+inode on
 /// Unix; canonical-path equality elsewhere).
 #[cfg(unix)]
-fn same_directory(a: &Path, b: &Path) -> bool {
+pub(crate) fn same_directory(a: &Path, b: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
     match (std::fs::metadata(a), std::fs::metadata(b)) {
         (Ok(ma), Ok(mb)) => ma.dev() == mb.dev() && ma.ino() == mb.ino(),
@@ -192,7 +244,7 @@ fn same_directory(a: &Path, b: &Path) -> bool {
 }
 
 #[cfg(not(unix))]
-fn same_directory(a: &Path, b: &Path) -> bool {
+pub(crate) fn same_directory(a: &Path, b: &Path) -> bool {
     match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
         (Ok(ca), Ok(cb)) => ca == cb,
         _ => false,
@@ -300,6 +352,73 @@ mod tests {
         // From the project level (above the ticket): nothing — the project's
         // bare .tix/ is not a ticket root.
         assert_eq!(discover_ticket_root_from(&project), None);
+    }
+
+    // --- discover_from ---
+
+    /// Creates `.tix/project.toml` under `root`, making it a project root.
+    fn make_project_root(root: &Path) {
+        std::fs::create_dir_all(root.join(".tix")).unwrap();
+        std::fs::write(root.join(".tix/project.toml"), "").unwrap();
+    }
+
+    /// One walk from deep inside a project ticket finds both the ticket and
+    /// the project above it.
+    #[test]
+    fn test_discover_inside_project_ticket() {
+        let dir = tempdir().unwrap();
+        let project = dir.path().join("tickets/acme");
+        make_project_root(&project);
+        let ticket = project.join("JIRA-1");
+        make_ticket_root(&ticket);
+        let deep = ticket.join("api/src");
+        std::fs::create_dir_all(&deep).unwrap();
+
+        let found = discover_from(&deep);
+        assert_eq!(found.ticket, Some(ticket));
+        assert_eq!(found.project, Some(project));
+    }
+
+    /// At project level, above every ticket, there is a project and no
+    /// ticket.
+    #[test]
+    fn test_discover_at_project_level() {
+        let dir = tempdir().unwrap();
+        let project = dir.path().join("acme");
+        make_project_root(&project);
+
+        let found = discover_from(&project);
+        assert_eq!(found.ticket, None);
+        assert_eq!(found.project, Some(project));
+    }
+
+    /// A loose ticket has no project — and an unmarked directory above it is
+    /// not mistaken for one.
+    #[test]
+    fn test_discover_loose_ticket() {
+        let dir = tempdir().unwrap();
+        let ticket = dir.path().join("stray/JIRA-1");
+        make_ticket_root(&ticket);
+
+        let found = discover_from(&ticket);
+        assert_eq!(found.ticket, Some(ticket));
+        assert_eq!(found.project, None);
+    }
+
+    /// A ticket root carrying a project marker is still only the ticket; the
+    /// project is the nearest one *above* it.
+    #[test]
+    fn test_ticket_root_is_never_its_own_project() {
+        let dir = tempdir().unwrap();
+        let project = dir.path().join("acme");
+        make_project_root(&project);
+        let ticket = project.join("JIRA-1");
+        make_ticket_root(&ticket);
+        make_project_root(&ticket);
+
+        let found = discover_from(&ticket);
+        assert_eq!(found.ticket, Some(ticket));
+        assert_eq!(found.project, Some(project));
     }
 
     // --- resolve_override ---
