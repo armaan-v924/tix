@@ -44,7 +44,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
 
         validate_section(document, args.key.section())
     })?;
-    println!(
+    tracing::info!(
         "{} = {} ({})",
         args.key,
         args.value,

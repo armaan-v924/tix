@@ -56,12 +56,18 @@ put comments.
 
 ## Streams
 
-Results go to standard output. Diagnostics, warnings, and log output go to
-standard error, at every log level, so this stays parseable:
+Results go to standard output: listings, `--output json`/`toml` documents,
+and the paths `tix setup` and `tix add` create, so `cd "$(tix setup PROJ-1 api)"`
+works. Everything else goes to standard error, at every log level: status
+lines such as `created worktree api on PROJ-1-fix-login` or `removed worktree
+api`, warnings (`warning: …`), and errors (`error: …`). This stays parseable:
 
 ```sh
 tix list --output json --verbose | jq '.[].key'
 ```
+
+`-q` / `--quiet` drops the status lines and keeps warnings and errors, for
+scripts that only want to hear about problems.
 
 ## Exit codes
 

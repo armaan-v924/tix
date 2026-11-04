@@ -51,7 +51,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             root.display()
         ))?
     {
-        println!("aborted");
+        info!("aborted");
         return Ok(());
     }
 
@@ -76,7 +76,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
 
         match (pruned, args.force) {
             (Ok(()), _) => {
-                info!(name = %name, "worktree pruned");
+                info!("pruned worktree {name}");
                 // Keep the document agreeing with disk so an abort partway
                 // leaves the ticket resolvable for a retry.
                 with_write(&ticket_document_path, |doc| {
@@ -104,7 +104,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     }
 
     std::fs::remove_dir_all(&root).map_err(SdkError::from)?;
-    println!("destroyed {} ({})", ticket.key, root.display());
+    info!("destroyed {} ({})", ticket.key, root.display());
 
     if !leftovers.is_empty() {
         warn!(

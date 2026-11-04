@@ -69,7 +69,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     validate_section(&document, "defaults")?;
     document.save(path)?;
 
-    println!("Wrote {}", path.display());
+    tracing::info!("wrote {}", path.display());
     Ok(())
 }
 

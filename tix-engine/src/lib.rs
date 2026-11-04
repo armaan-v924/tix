@@ -19,6 +19,13 @@
 //!   subscriber the frontend wired up. Enforced by audit:
 //!   `grep -r "process::exit\|println!\|eprintln!\|env::var\|tracing_subscriber" src/`
 //!   must return nothing.
+//! - **Log for the frontend, not over it.** The frontend shows `info` and
+//!   above by default, so `info` is reserved for progress on slow work the
+//!   user would otherwise wait on in silence (a clone); `warn` is for a
+//!   degraded path the operation recovered from. Step-by-step detail is
+//!   `debug`. A failure the engine *returns* is logged at `debug` at most:
+//!   the frontend reports the returned error, and an `error` event here
+//!   would print it twice.
 //! - **Runtime dependencies are `git2`, `serde`, and `tracing` — only.**
 //!   No `clap` (arg parsing), no `dirs` (config location), no `toml`
 //!   (document parsing): those concerns are all SDK-side. `toml` appears as

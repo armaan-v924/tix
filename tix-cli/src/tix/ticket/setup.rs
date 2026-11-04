@@ -314,7 +314,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         });
         match result {
             Ok(worktree) => {
-                info!(alias = %alias, branch = %worktree.branch, "worktree created");
+                info!("created worktree {alias} on {}", worktree.branch);
                 worktrees.insert(
                     alias.clone(),
                     WorktreeConfig {
@@ -325,7 +325,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 );
             }
             Err(e) => {
-                error!(alias = %alias, error = %e, "failed to create worktree");
+                error!("{alias}: could not create worktree: {e}");
                 failures.push((alias.clone(), e));
             }
         }

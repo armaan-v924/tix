@@ -147,7 +147,10 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         });
         match created {
             Ok(created) => {
-                info!(name = %worktree.name, alias = %worktree.alias, branch = %created.branch, "worktree added");
+                info!(
+                    "added worktree {} ({}) on {}",
+                    worktree.name, worktree.alias, created.branch
+                );
                 // Record each success immediately — a later failure must not
                 // lose the worktrees that already exist on disk.
                 with_write(&ticket_document_path, |doc| {
@@ -168,7 +171,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 println!("{}", path.display());
             }
             Err(e) => {
-                error!(name = %worktree.name, error = %e, "failed to add worktree");
+                error!("{}: could not add worktree: {e}", worktree.name);
                 failures.push((worktree.name.clone(), e));
             }
         }
