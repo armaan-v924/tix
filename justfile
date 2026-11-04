@@ -257,3 +257,106 @@ push-tag: tag
     version=$(just _current)
     git push origin "v$version"
     echo "pushed v$version"
+
+# print a release's notes from its Conventional Commits; no tag previews HEAD (needs git-cliff)
+release-notes tag="":
+    #!/usr/bin/env bash
+    # Build Release runs this with the pushed tag and uses the output as the
+    # GitHub release body. Every tag must be present locally
+    # (`git fetch --tags`), including tags on other release branches.
+    #
+    # The range starts at the highest tag below this version, on any branch,
+    # rather than at the nearest ancestor tag. v3.0.0 is not an ancestor of
+    # main, so `git describe` would go back to v2.1.0 and repeat all of 3.0
+    # in v3.1.0's notes.
+    #
+    # A fix ends up on two branches with different SHAs. Either it is made on
+    # release/X.Y and cascaded to main, or made on main and backported. So the
+    # next minor release's range holds a copy of something a patch release
+    # already shipped. A commit in the range is skipped when:
+    #   - it was cherry-picked from a commit an earlier tag shipped,
+    #   - a commit an earlier tag shipped was cherry-picked from it, or
+    #   - its diff is identical to one an earlier tag shipped (patch-id).
+    # The first two use the `(cherry picked from commit …)` line that
+    # `cherry-pick -x` adds, and cascade-merge.yml always passes -x. They still
+    # match when the subject was reworded on the way across. The third catches
+    # a backport made without -x.
+    set -euo pipefail
+    tag="{{ tag }}"
+    if [[ -n "$tag" ]]; then
+        if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "error: no tag $tag — run \`git fetch --tags\`?" >&2
+            exit 1
+        fi
+        end="$tag"
+        version="${tag#v}"
+    else
+        end=HEAD
+        version=$(just _current)
+    fi
+
+    # Every release before this one, from any branch. When previewing HEAD,
+    # the declared version counts if it is already tagged: HEAD's notes are
+    # then whatever came after that tag.
+    older=()
+    for t in $(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true); do
+        v="${t#v}"
+        if [[ "$v" == "$version" ]]; then
+            [[ "$end" == HEAD ]] && older+=("$t")
+        elif [[ "$(printf '%s\n%s\n' "$v" "$version" | sort -V | head -1)" == "$v" ]]; then
+            older+=("$t")
+        fi
+    done
+    prev=""
+    if [[ ${#older[@]} -gt 0 ]]; then
+        prev=$(printf '%s\n' "${older[@]}" | sort -V | tail -1)
+    fi
+    range="${prev:+$prev..}$end"
+    echo "release notes for ${tag:-HEAD (v$version, unreleased)}: $range" >&2
+
+    # What earlier releases shipped that this range cannot see: commits on
+    # other release branches.
+    skips=()
+    if [[ -n "$prev" ]]; then
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        picked='cherry picked from commit [0-9a-f]{40}'
+        git rev-list "${older[@]}" --not "$end" > "$tmp/shipped"
+        # "<source> <shipped commit>" for each shipped cherry-pick.
+        while read -r s; do
+            git log -1 --format=%B "$s" | { grep -oE "$picked" || true; } \
+                | awk -v s="$s" '{ print $NF, s }'
+        done < "$tmp/shipped" > "$tmp/picked-into"
+        # "<patch-id> <commit>" for both sides.
+        git log -p --no-merges --no-color "${older[@]}" --not "$end" \
+            | git patch-id --stable > "$tmp/shipped-patches"
+        git log -p --no-merges --no-color "$range" \
+            | git patch-id --stable > "$tmp/range-patches"
+
+        for c in $(git rev-list "$range"); do
+            twin=$(awk -v c="$c" '$1 == c { print $2; exit }' "$tmp/picked-into")
+            if [[ -z "$twin" ]]; then
+                for src in $(git log -1 --format=%B "$c" | { grep -oE "$picked" || true; } | awk '{ print $NF }'); do
+                    if grep -qxF "$src" "$tmp/shipped"; then twin="$src"; break; fi
+                done
+            fi
+            if [[ -z "$twin" ]]; then
+                pid=$(awk -v c="$c" '$2 == c { print $1; exit }' "$tmp/range-patches")
+                if [[ -n "$pid" ]]; then
+                    twin=$(awk -v p="$pid" '$1 == p { print $2; exit }' "$tmp/shipped-patches")
+                fi
+            fi
+            if [[ -n "$twin" ]]; then
+                shipped_in=$(git tag --contains "$twin" -l 'v*' --sort=v:refname | head -1)
+                echo "  skip ${c:0:7} $(git log -1 --format=%s "$c")" >&2
+                echo "       already shipped in $shipped_in as ${twin:0:7}" >&2
+                skips+=(--skip-commit "$c")
+            fi
+        done
+    fi
+
+    if [[ -n "$tag" && -n "$prev" ]]; then
+        export TIX_NOTES_COMPARE="$prev...$tag"
+    fi
+    # sed drops the blank line git-cliff prints before the body.
+    git-cliff --config cliff.toml ${skips[@]+"${skips[@]}"} -- "$range" | sed '/./,$!d'

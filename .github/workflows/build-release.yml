@@ -251,11 +251,46 @@ jobs:
           name: wheel-${{ matrix.target }}
           path: dist/*.whl
 
+  # The release body. It replaces `generate_release_notes`, which listed the
+  # merged PRs since the previous tag with no grouping, and listed a cascaded
+  # fix in both the patch release and the next minor. The justfile's
+  # release-notes recipe explains the range and the dedupe, and cliff.toml
+  # sets the format.
+  notes:
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.render.outputs.body }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every branch and tag. The range starts at the previous version,
+          # which can be on another release branch, and the dedupe reads
+          # what the other release branches shipped.
+          fetch-depth: 0
+
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: just@1.59.0,git-cliff@2.14.2
+          fallback: none
+
+      - name: Render release notes
+        id: render
+        run: |
+          just release-notes "$GITHUB_REF_NAME" > release-notes.md
+          cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+          # A random delimiter, so no line of the notes can end the value early.
+          delimiter="notes_$(openssl rand -hex 16)"
+          {
+            echo "body<<$delimiter"
+            cat release-notes.md
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    needs: [docs, build, wheels]
+    needs: [docs, build, wheels, notes]
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -267,6 +302,6 @@ jobs:
         with:
           files: artifacts/**/*.*
           overwrite_files: true
-          generate_release_notes: true
+          body: ${{ needs.notes.outputs.body }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
