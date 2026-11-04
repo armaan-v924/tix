@@ -4,7 +4,7 @@
 .SH NAME
 tix\-ticket\-setup \- Create a new ticket workspace with worktrees
 .SH SYNOPSIS
-\fBtix ticket setup\fR [\fB\-\-config\fR] [\fB\-k\fR|\fB\-\-key\fR] [\fB\-d\fR|\fB\-\-description\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-base\fR] [\fB\-\-log\-level\fR] [\fB\-a\fR|\fB\-\-all\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> [\fIREPO_ALIASES\fR] 
+\fBtix ticket setup\fR [\fB\-\-config\fR] [\fB\-k\fR|\fB\-\-key\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-d\fR|\fB\-\-description\fR] [\fB\-\-log\-level\fR] [\fB\-\-base\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-a\fR|\fB\-\-all\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> [\fIREPO_ALIASES\fR] 
 .SH DESCRIPTION
 Create a new ticket workspace with worktrees
 .SH OPTIONS
@@ -14,9 +14,6 @@ Path to the global config file (overrides TIX_CONFIG_PATH and the platform defau
 .TP
 \fB\-k\fR, \fB\-\-key\fR \fI<KEY>\fR
 The key recorded for the ticket, defaulting to the directory name. Path form only — a bare key already names itself
-.TP
-\fB\-d\fR, \fB\-\-description\fR \fI<DESCRIPTION>\fR
-Human\-readable description; feeds branch name derivation
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
 Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
@@ -33,17 +30,23 @@ toml
 default
 .RE
 .TP
-\fB\-\-base\fR \fI<REFISH>\fR
-What each new branch is cut from: a branch name (local or origin\*(Aqs, whichever is ahead), or any ref, tag, or SHA. Defaults to each repository\*(Aqs own default branch on origin
+\fB\-p\fR, \fB\-\-project\fR \fI<NAME>\fR
+The project to create the ticket in, created on first use. Inferred from the current directory when omitted; outside any project the ticket is loose. Key form only — a path already says where it goes
+.TP
+\fB\-d\fR, \fB\-\-description\fR \fI<DESCRIPTION>\fR
+Human\-readable description; feeds branch name derivation
 .TP
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)
 .TP
-\fB\-a\fR, \fB\-\-all\fR
-Include every registered repository
+\fB\-\-base\fR \fI<REFISH>\fR
+What each new branch is cut from: a branch name (local or origin\*(Aqs, whichever is ahead), or any ref, tag, or SHA. Defaults to each repository\*(Aqs own default branch on origin
 .TP
 \fB\-v\fR, \fB\-\-verbose\fR
 Set the log level to trace (shorthand for \-\-log\-level trace)
+.TP
+\fB\-a\fR, \fB\-\-all\fR
+Include every registered repository
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)

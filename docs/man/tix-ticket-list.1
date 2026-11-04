@@ -4,7 +4,7 @@
 .SH NAME
 tix\-ticket\-list \- List all tickets in the tickets directory
 .SH SYNOPSIS
-\fBtix ticket list\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBtix ticket list\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 List all tickets in the tickets directory
 .SH OPTIONS
@@ -26,6 +26,9 @@ toml
 .IP \(bu 2
 default
 .RE
+.TP
+\fB\-p\fR, \fB\-\-project\fR \fI<NAME>\fR
+Show only this project\*(Aqs tickets
 .TP
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)

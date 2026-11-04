@@ -1,0 +1,106 @@
+---
+title: Projects
+description: Grouping tickets by project, and how tix works out which project you are in.
+sidebar:
+  order: 1.5
+---
+
+import { FileTree, Aside } from '@astrojs/starlight/components';
+
+A project is a named directory of tickets, one level above them. Tickets
+that belong to no project are **loose**, and sit directly in your tickets
+directory. The two kinds live side by side:
+
+<FileTree>
+- ~/tickets
+  - JIRA-7          a loose ticket
+    - .tix
+      - ticket.toml
+  - acme            a project
+    - .tix
+      - project.toml   empty — marks `acme` as a project
+    - JIRA-123      a ticket in `acme`
+      - .tix
+        - ticket.toml
+      - api
+</FileTree>
+
+## Making a project
+
+You don't make one. Name it when you create a ticket and it is created on
+first use:
+
+```sh frame="none"
+tix setup JIRA-123 --project acme
+```
+
+That creates `~/tickets/acme/` and its `.tix/project.toml` if they don't
+exist yet, then the ticket inside. There is no `tix project create`.
+
+Without `--project`, and outside any project, `tix setup` creates a loose
+ticket, exactly as before projects existed.
+
+## What makes a directory a project
+
+The file `.tix/project.toml`, created empty. A directory under your tickets
+directory without one is just a directory: `tix list` doesn't show it as a
+project and doesn't look inside it for tickets.
+
+The file is there so tix can recognise a project from inside it without
+reading your config. It holds nothing yet.
+
+## Which project a command uses
+
+Every ticket command accepts `--project <name>`. When you leave it off, tix
+works the project out the same way it [finds the
+ticket](../ticket-discovery/), by walking up from where you are:
+
+1. `--project <name>`, if given.
+2. The nearest project above the working directory, found by looking for
+   `.tix/project.toml`. This works at the project level, or at any depth
+   inside one of its tickets.
+3. Otherwise none: loose.
+
+So from anywhere inside `acme`, bare keys and ids mean tickets in `acme`:
+
+```sh
+cd ~/tickets/acme/JIRA-123/api
+tix setup JIRA-124             # creates ~/tickets/acme/JIRA-124
+tix info --ticket JIRA-124     # reads it
+```
+
+<Aside type="caution" title="Reaching a loose ticket from inside a project">
+Inside a project, a bare id is looked up in that project. To reach a loose
+ticket from there, use its path: `--ticket ~/tickets/JIRA-7`.
+</Aside>
+
+## With a path, `--project` is a check
+
+A path, whether given to `tix setup` or `--ticket`, already says exactly
+where the ticket is. So:
+
+- `tix setup ./JIRA-9 --project acme` is an error. Pass a bare key to
+  create the ticket in the project.
+- `tix info --project acme` from inside a ticket, or with `--ticket <path>`,
+  checks that the ticket is in `acme` and errors if it isn't.
+
+## Listing
+
+`tix list` puts loose tickets first, then each project's tickets under its
+name:
+
+```text frame="none"
+JIRA-7    Fix the login bug
+
+acme
+  JIRA-123  Rate limiting
+  JIRA-124
+
+billing
+  no tickets
+```
+
+`tix list --project acme` shows one project only. With no projects at all,
+the listing is the flat list it always was. In `--output json` and
+`--output toml`, every ticket carries a `project` field (`null` or absent
+when loose).
