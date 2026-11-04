@@ -18,13 +18,7 @@ use tix_engine::{Ticket, TicketConfig};
 ///
 /// There is likewise no single `branch`: worktrees in one ticket share a
 /// branch *prefix*, not a branch, so each entry carries its own.
-#[pyclass(
-    name = "TicketConfig",
-    module = "pytix",
-    frozen,
-    eq,
-    skip_from_py_object
-)]
+#[pyclass(name = "TicketConfig", module = "pytix", frozen, eq)]
 #[derive(Clone, PartialEq)]
 pub struct PyTicketConfig {
     inner: TicketConfig,

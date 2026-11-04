@@ -15,13 +15,7 @@ use tix_engine::{Repository, RepositoryConfig};
 /// differ only in what they do when the clone is missing:
 /// [`resolve`](Self::resolve) fails, [`clone_remote`](Self::clone_remote)
 /// always clones, and [`ensure`](Self::ensure) clones only as a fallback.
-#[pyclass(
-    name = "RepositoryConfig",
-    module = "pytix",
-    frozen,
-    eq,
-    skip_from_py_object
-)]
+#[pyclass(name = "RepositoryConfig", module = "pytix", frozen, eq)]
 #[derive(Clone, PartialEq)]
 pub struct PyRepositoryConfig {
     pub(crate) inner: RepositoryConfig,

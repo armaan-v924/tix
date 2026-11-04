@@ -273,7 +273,10 @@ fn extract_zip(archive_path: &Path, out_dir: &Path, exe: &str) -> Result<PathBuf
         let mut entry = archive
             .by_index(index)
             .map_err(|e| SdkError::Message(format!("could not read zip entry: {e}")))?;
-        let is_exe = Path::new(entry.name())
+        let name = entry
+            .name()
+            .map_err(|e| SdkError::Message(format!("could not read zip entry name: {e}")))?;
+        let is_exe = Path::new(name.as_ref())
             .file_name()
             .is_some_and(|name| name == exe);
         if is_exe {
