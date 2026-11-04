@@ -14,7 +14,7 @@ email = "git@mail.armaanv.dev"
 Home = "https://tix.armaanv.dev"
 
 [build-system]
-requires = ["maturin>=1.13.3,<2.0"]
+requires = ["maturin>=1.16.0,<2.0"]
 build-backend = "maturin"
 
 [tool.maturin]
@@ -24,6 +24,6 @@ python-source = "python"
 
 [dependency-groups]
 dev = [
-    "maturin>=1.13.3",
-    "pytest>=9.0.3",
+    "maturin>=1.16.0",
+    "pytest>=9.2.0",
 ]
