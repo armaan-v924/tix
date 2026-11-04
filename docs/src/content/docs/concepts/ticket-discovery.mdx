@@ -22,6 +22,16 @@ symlinks, so tix agrees with git about where you are. It matches the file,
 not the `.tix/` directory. It stops at a filesystem boundary. It is not
 limited to your tickets directory — a ticket found elsewhere still works.
 
+The same walk carries on above the ticket to find its
+[project](../projects/): the nearest directory with a
+`.tix/project.toml`.
+
+```
+~/tickets/acme/.tix/project.toml        ← project
+~/tickets/acme/JIRA-123/.tix/ticket.toml ← ticket
+~/tickets/acme/JIRA-123/api/            ← you are here
+```
+
 ## Overriding it
 
 `--ticket` skips the walk. Its argument is read as one of two forms, by
@@ -29,12 +39,17 @@ shape:
 
 | You write | Read as | Resolves to |
 | --- | --- | --- |
-| `JIRA-123` | id | `tickets_directory/JIRA-123` |
+| `JIRA-123` | id | `tickets_directory/JIRA-123`, or `tickets_directory/<project>/JIRA-123` in a project |
 | `./JIRA-123` | path | that directory, relative to where you are |
 | `../other`, `/abs/path`, `.` | path | that directory |
 
 A bare name is **always** an id. Anything with a path separator, or `.` /
 `..`, is a path.
+
+An id resolves inside the current project: the one `--project` names, or
+else the one you are standing in. Outside any project it resolves to a loose
+ticket. See [which project a command
+uses](../projects/#which-project-a-command-uses).
 
 <Aside type="caution" title="The one that catches people">
 A ticket directory sitting in your working directory still has to be written

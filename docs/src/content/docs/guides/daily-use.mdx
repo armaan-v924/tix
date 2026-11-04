@@ -30,6 +30,20 @@ tix info --ticket JIRA-456
 tix add web --ticket JIRA-456
 ```
 
+## Grouping tickets by project
+
+Tickets for the same client or product can share a
+[project](../../concepts/projects/), created the first time you name it:
+
+```sh
+tix setup JIRA-789 --project acme   # ~/tickets/acme/JIRA-789
+tix list                            # loose tickets, then each project
+tix list --project acme             # just acme's
+```
+
+Inside a project, bare keys and ids mean that project's tickets, so
+`tix setup` and `--ticket` need no `--project` there.
+
 ## Repositories in a ticket
 
 Work spreads. Add a repository to a ticket that already exists:

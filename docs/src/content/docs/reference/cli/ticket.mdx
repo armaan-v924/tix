@@ -39,6 +39,7 @@ Also available as `tix add` — the same command, spelled without the group.
 | Option | Description |
 | --- | --- |
 | `-t, --ticket <TICKET>` | The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted |
+| `-p, --project <NAME>` | The project a bare ticket id resolves in. Inferred from the current directory when omitted; with a path or a discovered ticket, asserts the ticket belongs to it |
 | `-b, --branch <BRANCH>` | Branch for the new worktree(s); derived from `[defaults]` + ticket context when omitted, and required when the derived branch is taken |
 | `--as <NAME>` | Directory name for the new worktree, defaulting to the repository alias; required when a worktree already holds that name |
 | `--base <REFISH>` | What a new branch is cut from: a branch name (local or origin's, whichever is ahead), or any ref, tag, or SHA. Defaults to each repository's own default branch on origin |
@@ -66,6 +67,7 @@ Also available as `tix destroy` — the same command, spelled without the group.
 | Option | Description |
 | --- | --- |
 | `-t, --ticket <TICKET>` | The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted |
+| `-p, --project <NAME>` | The project a bare ticket id resolves in. Inferred from the current directory when omitted; with a path or a discovered ticket, asserts the ticket belongs to it |
 | `-f, --force` | Skip confirmation, force-prune (discarding uncommitted changes), and delete the ticket directory even if pruning fails |
 
 
@@ -85,6 +87,7 @@ Also available as `tix info` — the same command, spelled without the group.
 | Option | Description |
 | --- | --- |
 | `-t, --ticket <TICKET>` | The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted |
+| `-p, --project <NAME>` | The project a bare ticket id resolves in. Inferred from the current directory when omitted; with a path or a discovered ticket, asserts the ticket belongs to it |
 | `-o, --output <OUTPUT>` | Output format<br />Accepts: `json`, `toml`, `default` |
 
 
@@ -104,6 +107,7 @@ Also available as `tix list` — the same command, spelled without the group.
 | Option | Description |
 | --- | --- |
 | `-o, --output <OUTPUT>` | Output format<br />Accepts: `json`, `toml`, `default` |
+| `-p, --project <NAME>` | Show only this project's tickets |
 
 
 ## `tix ticket remove`
@@ -128,6 +132,7 @@ Also available as `tix remove` — the same command, spelled without the group.
 | Option | Description |
 | --- | --- |
 | `-t, --ticket <TICKET>` | The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted |
+| `-p, --project <NAME>` | The project a bare ticket id resolves in. Inferred from the current directory when omitted; with a path or a discovered ticket, asserts the ticket belongs to it |
 
 
 ## `tix ticket setup`
@@ -153,6 +158,7 @@ Also available as `tix setup` — the same command, spelled without the group.
 | Option | Description |
 | --- | --- |
 | `-k, --key <KEY>` | The key recorded for the ticket, defaulting to the directory name. Path form only — a bare key already names itself |
+| `-p, --project <NAME>` | The project to create the ticket in, created on first use. Inferred from the current directory when omitted; outside any project the ticket is loose. Key form only — a path already says where it goes |
 | `-d, --description <DESCRIPTION>` | Human-readable description; feeds branch name derivation |
 | `--base <REFISH>` | What each new branch is cut from: a branch name (local or origin's, whichever is ahead), or any ref, tag, or SHA. Defaults to each repository's own default branch on origin |
 | `-a, --all` | Include every registered repository |
