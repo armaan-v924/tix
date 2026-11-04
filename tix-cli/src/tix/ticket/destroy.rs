@@ -38,7 +38,7 @@ pub struct Args {
 /// pointer at `git worktree prune`.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let selector = args.target.as_ref().or(args.shared.ticket.as_ref());
-    let root = require_ticket_root(&app.context, selector)?;
+    let root = require_ticket_root(&app.context, selector, args.shared.project.as_deref())?;
     let ticket = load_ticket_config(&root)?;
 
     let document = TixDocument::load(&app.context.config_path)?;
