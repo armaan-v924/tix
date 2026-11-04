@@ -168,6 +168,65 @@ impl TixDocument {
         table_at(self.doc.as_item_mut(), path)
     }
 
+    /// Rewrites the whole document in tix's house style: every table a
+    /// headered `[section]` block, none written inline.
+    ///
+    /// This is the on-demand counterpart to the opportunistic repair in
+    /// [`Self::table_at`], and the engine behind `tix config fmt` (#150).
+    /// Where `table_at` touches only the path a write traverses, this walks
+    /// every table in the document, and where `table_at` expands only the
+    /// *dotted* inline shape auto-vivification leaves behind, this expands
+    /// **every** table rendered inside another table's body:
+    ///
+    /// - inline tables, including ones written deliberately
+    ///   (`alpha = { remote = "…" }`), at any depth;
+    /// - dotted-key tables (`alpha.remote = "…"` under a header).
+    ///
+    /// One house style, no exceptions — which is why this is a separate,
+    /// explicitly requested pass and never something an ordinary write does.
+    /// Ordinary writes keep the format-preservation contract.
+    ///
+    /// What stays as written:
+    ///
+    /// - **Data.** The document deserializes to exactly the same values
+    ///   before and after, and nothing is added — in particular, no version
+    ///   key is stamped. Reformatting is not a declaration that a document is
+    ///   current.
+    /// - **Plugin tables** stay untyped DOM items, never deserialized; their
+    ///   inline tables are expanded like everyone else's, because the whole
+    ///   document is being rewritten.
+    /// - **Inline tables inside arrays** (`hooks = [{ run = "…" }]`): an
+    ///   array element has no header to expand into.
+    /// - **Everything already in house style**, byte for byte: the pass
+    ///   rewrites only the tables it expands (and drops a header left with
+    ///   nothing but sub-tables under it). Spacing elsewhere is untouched.
+    ///
+    /// Comments are kept on a best-effort basis. One above an expanded line
+    /// moves above the header it became; a trailing one joins it there. A
+    /// comment above a level whose header is suppressed (it holds only
+    /// sub-tables) moves down to the first header that does render. There
+    /// is no promise beyond that, which is why the CLI confirms first.
+    ///
+    /// Idempotent: normalizing a normalized document changes nothing, and
+    /// [`Self::is_normalized`] is defined by exactly that.
+    pub fn normalize(&mut self) {
+        let root = self.doc.as_table_mut();
+        normalize_table(root, Header::Root, false);
+        separate_sections(root);
+    }
+
+    /// Whether [`Self::normalize`] would leave this document byte-identical.
+    ///
+    /// Defined as "normalize a copy and compare the rendered text", not as
+    /// a separate structural check, so the two cannot disagree: a document
+    /// that passes here is one `normalize` would not change (what
+    /// `tix config fmt --check` promises).
+    pub fn is_normalized(&self) -> bool {
+        let mut formatted = self.clone();
+        formatted.normalize();
+        formatted.to_string() == self.to_string()
+    }
+
     /// Replaces the section `name` with the serialization of `value`.
     ///
     /// This rewrites *that section only* — the owner of a type replacing its
@@ -390,6 +449,312 @@ fn carries_comment(decor: &toml_edit::Decor) -> bool {
             Some(text) => text.contains('#'),
             None => true,
         })
+}
+
+/// Where a table being normalized sits, which decides whether its header
+/// may be suppressed.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Header {
+    /// The document root: never has a header.
+    Root,
+    /// A standard `[table]`: its header may be made implicit.
+    Standard,
+    /// An `[[array.of.tables]]` element: its header always renders.
+    ArrayElement,
+}
+
+/// Normalizes `table`'s subtree in place — the walk behind
+/// [`TixDocument::normalize`].
+///
+/// Every child rendered in this table's body (an inline table, a dotted-key
+/// table) becomes a headered table; then every sub-table is normalized in
+/// turn.
+///
+/// `converted` says `table` itself was just turned into a headered table by
+/// its parent: its header is then suppressed only when it holds nothing but
+/// sub-tables. An empty one keeps its header, since a hidden empty table
+/// would vanish from the document, and that would change its data.
+fn normalize_table(table: &mut toml_edit::Table, header: Header, converted: bool) {
+    let had_values = !table.get_values().is_empty();
+
+    let flattened: Vec<String> = table
+        .iter()
+        .filter(|(_, item)| renders_in_body(item))
+        .map(|(name, _)| name.to_string())
+        .collect();
+    let mut pending = Vec::with_capacity(flattened.len());
+    for name in flattened {
+        let mut comment = String::new();
+        if let Some(mut key) = table.key_mut(&name) {
+            comment.push_str(&comment_lines(key.leaf_decor().prefix()));
+            // The key is about to live inside `[…]`; its body-form spacing
+            // (`alpha = `) would render as `[a.alpha ]`.
+            key.leaf_decor_mut().clear();
+            key.dotted_decor_mut().clear();
+        }
+        let item = table.get_mut(&name).expect("collected from this table");
+        match item {
+            toml_edit::Item::Value(toml_edit::Value::InlineTable(inline)) => {
+                // `into_table` drops the value's own decor, which is where a
+                // trailing `# comment` on the line lives.
+                comment.push_str(&comment_lines(inline.decor().suffix()));
+                *item = toml_edit::Item::Table(std::mem::take(inline).into_table());
+            }
+            toml_edit::Item::Table(dotted) => {
+                dotted.set_dotted(false);
+                restyle_values(dotted);
+            }
+            _ => unreachable!("renders_in_body admits only tables"),
+        }
+        pending.push((name, comment));
+    }
+
+    // This table's own header, now that its body holds only real values.
+    let valueless = table.get_values().is_empty();
+    if header == Header::Standard {
+        if converted {
+            table.set_implicit(valueless && !table.is_empty());
+        } else if had_values && !pending.is_empty() && valueless && !carries_comment(table.decor())
+        {
+            // A header the user wrote whose every value was just expanded
+            // into a sub-table now introduces nothing
+            // (`[engine.configured_repositories]` directly above
+            // `[engine.configured_repositories.alpha]`). Drop it, unless a
+            // comment hangs on it.
+            table.set_implicit(true);
+        }
+    }
+
+    for (key, item) in table.iter_mut() {
+        let was_converted = pending.iter().any(|(name, _)| name == key.get());
+        match item {
+            toml_edit::Item::Table(child) => {
+                normalize_table(child, Header::Standard, was_converted);
+            }
+            toml_edit::Item::ArrayOfTables(array) => {
+                for child in array.iter_mut() {
+                    normalize_table(child, Header::ArrayElement, false);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Comments wait for the recursion: which header they land on depends on
+    // which of the converted subtree's headers ended up suppressed.
+    for (name, comment) in &pending {
+        if comment.is_empty() {
+            continue;
+        }
+        let child = table[name.as_str()]
+            .as_table_mut()
+            .expect("converted above");
+        attach_comment(child, comment);
+    }
+}
+
+/// Whether `item` is a table rendered inside its parent's body rather than
+/// under a header of its own: an inline table, or a dotted-key table.
+fn renders_in_body(item: &toml_edit::Item) -> bool {
+    match item {
+        toml_edit::Item::Value(toml_edit::Value::InlineTable(_)) => true,
+        toml_edit::Item::Table(table) => table.is_dotted(),
+        _ => false,
+    }
+}
+
+/// Resets the spacing of a converted dotted table's own key/value lines to
+/// toml_edit's defaults, as `into_table` does for an inline one. Comments
+/// on those lines are kept ([`tidy`]).
+fn restyle_values(table: &mut toml_edit::Table) {
+    for (mut key, item) in table.iter_mut() {
+        if let toml_edit::Item::Value(value) = item {
+            tidy(key.leaf_decor_mut());
+            tidy(key.dotted_decor_mut());
+            tidy(value.decor_mut());
+        }
+    }
+}
+
+/// The comment lines in a decor fragment, each trimmed and newline-ended,
+/// with the blank lines between them kept: `"\n# a\n\n  # b\n  "` becomes
+/// `"\n# a\n\n# b\n"`. Empty when the fragment holds no comment.
+fn comment_lines(raw: Option<&toml_edit::RawString>) -> String {
+    let Some(text) = raw.and_then(toml_edit::RawString::as_str) else {
+        return String::new();
+    };
+    if !text.contains('#') {
+        return String::new();
+    }
+    let mut out = String::new();
+    for line in text.lines() {
+        out.push_str(line.trim());
+        out.push('\n');
+    }
+    // A trailing fragment (`  # note`) has no newline of its own, and a
+    // leading one may end in indentation past its last; neither is a line.
+    while out.ends_with("\n\n") {
+        out.pop();
+    }
+    out
+}
+
+/// Re-homes `comment` above the first header in `table`'s subtree that
+/// actually renders: `table`'s own, or, when that one is suppressed, the
+/// first descendant's. A comment hung on a suppressed header would be
+/// dropped on encode.
+fn attach_comment(table: &mut toml_edit::Table, comment: &str) {
+    if table.is_implicit() && table.get_values().is_empty() {
+        let first = table.iter_mut().find_map(|(_, item)| match item {
+            toml_edit::Item::Table(child) => Some(child),
+            toml_edit::Item::ArrayOfTables(array) => array.get_mut(0),
+            _ => None,
+        });
+        if let Some(child) = first {
+            attach_comment(child, comment);
+            return;
+        }
+    }
+    let existing = prefix_text(table).to_string();
+    table.decor_mut().set_prefix(format!("{comment}{existing}"));
+}
+
+/// One step from a table to a sub-table: a key, or an element of the
+/// array of tables the previous key named.
+#[derive(Clone)]
+enum Step {
+    Key(String),
+    Element(usize),
+}
+
+/// Puts the blank line above every header the pass created, and above the
+/// header that now follows one, unless that header opens the file.
+///
+/// A created header carries over no spacing of its own. A comment moved onto
+/// it starts flush against whatever renders above. The header *after* a
+/// created section often has no separator either: in the source it
+/// directly followed the collapsed line (`engine = { … }` then `[cli]`). A
+/// header that opens the file keeps no blank line above it.
+///
+/// Only those headers are touched. Spacing between sections the pass did
+/// not create is the user's, so a document in house style comes through
+/// byte-identical. A second run finds no table without a position, so it
+/// changes nothing.
+fn separate_sections(root: &mut toml_edit::Table) {
+    let mut order = Vec::new();
+    collect_headers(root, &mut Vec::new(), Header::Root, &mut 0, &mut order);
+    // The encoder's own order: root first, then by document position, with
+    // ties (every created table inherits the one before it) in visit order.
+    order.sort_by_key(|(position, path, _)| (!path.is_empty(), *position));
+
+    let mut opens_file = root.get_values().is_empty();
+    let mut after_created = false;
+    for (_, path, created) in order {
+        let Some(created) = created else {
+            continue;
+        };
+        let table = table_by_path(root, &path);
+        // A header with no prefix of its own renders at the encoder's
+        // default, which is already the right spacing in both positions.
+        if (created || after_created)
+            && let Some(text) = table
+                .decor()
+                .prefix()
+                .and_then(toml_edit::RawString::as_str)
+        {
+            let wanted = if opens_file {
+                text.trim_start_matches('\n').to_string()
+            } else if text.starts_with('\n') {
+                text.to_string()
+            } else {
+                format!("\n{text}")
+            };
+            if wanted != text {
+                table.decor_mut().set_prefix(wanted);
+            }
+        }
+        opens_file = false;
+        after_created = created;
+    }
+}
+
+/// Lists every table the encoder visits under `table` as
+/// `(position, path, rendered)`, in visit order, with position inherited
+/// the way the encoder inherits it. `rendered` is `None` for a table whose
+/// header is not written, else whether the pass created the table (it has
+/// no document position of its own).
+fn collect_headers(
+    table: &toml_edit::Table,
+    path: &mut Vec<Step>,
+    header: Header,
+    last_position: &mut isize,
+    out: &mut Vec<(isize, Vec<Step>, Option<bool>)>,
+) {
+    if let Some(position) = table.position() {
+        *last_position = position;
+    }
+    let renders = match header {
+        Header::Root => false,
+        Header::Standard => !(table.is_implicit() && table.get_values().is_empty()),
+        Header::ArrayElement => true,
+    };
+    out.push((
+        *last_position,
+        path.clone(),
+        renders.then(|| table.position().is_none()),
+    ));
+    for (key, item) in table.iter() {
+        match item {
+            toml_edit::Item::Table(child) => {
+                path.push(Step::Key(key.to_string()));
+                collect_headers(child, path, Header::Standard, last_position, out);
+                path.pop();
+            }
+            toml_edit::Item::ArrayOfTables(array) => {
+                path.push(Step::Key(key.to_string()));
+                for (index, child) in array.iter().enumerate() {
+                    path.push(Step::Element(index));
+                    collect_headers(child, path, Header::ArrayElement, last_position, out);
+                    path.pop();
+                }
+                path.pop();
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The table at `path`, which [`collect_headers`] just found there.
+fn table_by_path<'a>(
+    mut table: &'a mut toml_edit::Table,
+    path: &[Step],
+) -> &'a mut toml_edit::Table {
+    let mut steps = path.iter().peekable();
+    while let Some(step) = steps.next() {
+        let Step::Key(key) = step else {
+            unreachable!("an element index always follows its key");
+        };
+        let item = table.get_mut(key).expect("collected from this document");
+        table = match (item, steps.peek()) {
+            (toml_edit::Item::ArrayOfTables(array), Some(Step::Element(index))) => {
+                let index = *index;
+                steps.next();
+                array.get_mut(index).expect("collected from this document")
+            }
+            (toml_edit::Item::Table(child), _) => child,
+            _ => unreachable!("collected from this document"),
+        };
+    }
+    table
+}
+
+/// `table`'s header prefix as text: empty when unset or unreadable.
+fn prefix_text(table: &toml_edit::Table) -> &str {
+    table
+        .decor()
+        .prefix()
+        .and_then(toml_edit::RawString::as_str)
+        .unwrap_or_default()
 }
 
 impl fmt::Display for TixDocument {
@@ -717,6 +1082,214 @@ retries = 3
             .table_at(&["engine", "configured_repositories"])
             .unwrap_err();
         assert!(err.to_string().contains("not a table"), "{err}");
+    }
+
+    // --- whole-document normalize (#150) ---
+
+    /// The #146 shape: a collapsed `[engine]`, a header comment, a plugin.
+    const COLLAPSED: &str = "# global tix config\n\
+        engine = { configured_repositories = { framework.remote = \"f.git\", \
+        framework.code_path = \"/code/framework\" , infra.remote = \"i.git\", \
+        infra.code_path = \"/code/infra\" } }\n\
+        [cli]\ntickets_directory = \"/t\"\ncode_directory = \"/code\"\n\n\
+        # a plugin table\n[myplugin]\nretries = 3\n";
+
+    /// Documents that stress the pass: every inline and dotted shape, the
+    /// decor that sits around them, and things that must stay put.
+    const FIXTURES: &[&str] = &[
+        COLLAPSED,
+        DOCUMENT,
+        // Comments above, beside, and after a collapsed line.
+        "# header\n\n# where the repos live\n\
+         engine = { configured_repositories = { alpha.remote = \"a.git\" } } # trailing\n\
+         \n[cli]\ntickets_directory = \"/t\"\n",
+        // Deliberate (non-dotted) inline tables under a header, one with a
+        // trailing comment, one with a comment above.
+        "[engine.configured_repositories]\n\
+         alpha = { remote = \"a.git\", code_path = \"/a\" } # primary\n\
+         # the other one\n\
+         beta = { remote = \"b.git\", code_path = \"/b\" }\n",
+        // Dotted keys under a header, across several lines.
+        "[engine]\n\
+         configured_repositories.alpha.remote = \"a.git\"\n\
+         # its checkout\n\
+         configured_repositories.alpha.code_path = \"/a\"\n",
+        // No spacing at all.
+        "engine={configured_repositories={alpha={remote=\"a.git\",code_path=\"/a\"}}}\n",
+        // A collapsed ticket document.
+        "[ticket]\nkey = \"T-1\"\ndescription = \"d\"\n\
+         worktrees = { api.repo = \"api\", api.branch = \"T-1\", web.repo = \"web\", \
+         web.branch = \"T-1\" }\n",
+        // Plugin data: nested inline tables, an empty one, and an array of
+        // inline tables, which has no headered form.
+        "[myplugin]\nretries = 3\n\
+         opts = { mode = \"fast\", nested = { list = [1, 2] }, empty = {} }\n\
+         hooks = [{ run = \"a\" }, { run = \"b\" }]\n\
+         [[myplugin.jobs]]\nname = \"j\"\nenv = { A = \"1\" }\n",
+        // Indented, with comments between headers.
+        "  # indented\n  [defaults]\n  branch_prefix = \"feature\"\n\n\
+         # a plugin\n[other]\nx = { y = 1 }\n",
+    ];
+
+    fn normalized(text: &str) -> String {
+        let mut doc = TixDocument::parse(text).unwrap();
+        doc.normalize();
+        doc.to_string()
+    }
+
+    /// No table in `item`'s subtree is written inline or dotted (arrays
+    /// excepted: their elements have no headered form).
+    fn assert_house_style(item: &toml_edit::Item, path: &str, out: &str) {
+        let Some(table) = item.as_table_like() else {
+            return;
+        };
+        for (key, child) in table.iter() {
+            let here = format!("{path}.{key}");
+            assert!(!child.is_inline_table(), "{here} is inline in:\n{out}");
+            if let Some(child_table) = child.as_table() {
+                assert!(!child_table.is_dotted(), "{here} is dotted in:\n{out}");
+            }
+            if let Some(array) = child.as_array_of_tables() {
+                for element in array.iter() {
+                    assert_house_style(&toml_edit::Item::Table(element.clone()), &here, out);
+                }
+            }
+            assert_house_style(child, &here, out);
+        }
+    }
+
+    /// Normalizing twice equals normalizing once — on the live DOM, and
+    /// across a save/reparse, which is what a second `tix config fmt` sees.
+    /// Decor carried over from the inline form is where this breaks first.
+    #[test]
+    fn test_normalize_is_idempotent() {
+        for fixture in FIXTURES {
+            let once = normalized(fixture);
+            assert_eq!(normalized(&once), once, "reparsed, from:\n{fixture}");
+
+            let mut doc = TixDocument::parse(fixture).unwrap();
+            doc.normalize();
+            doc.normalize();
+            assert_eq!(doc.to_string(), once, "same DOM, from:\n{fixture}");
+        }
+    }
+
+    /// The pass changes rendering only: every fixture holds the same data
+    /// after as before. Nothing is added either, so no version is stamped.
+    #[test]
+    fn test_normalize_preserves_data() {
+        for fixture in FIXTURES {
+            let out = normalized(fixture);
+            let before: toml::Table = toml::from_str(fixture).unwrap();
+            let after: toml::Table =
+                toml::from_str(&out).unwrap_or_else(|e| panic!("invalid output {e}:\n{out}"));
+            assert_eq!(before, after, "data changed:\n{fixture}\n---\n{out}");
+        }
+    }
+
+    /// No inline or dotted table survives, deliberate ones included.
+    #[test]
+    fn test_normalize_expands_every_table() {
+        for fixture in FIXTURES {
+            let out = normalized(fixture);
+            let doc = TixDocument::parse(&out).unwrap();
+            assert_house_style(doc.doc().as_item(), "", &out);
+        }
+    }
+
+    /// `is_normalized` is exactly "normalize would not change it".
+    #[test]
+    fn test_is_normalized_agrees_with_normalize() {
+        for fixture in FIXTURES {
+            let doc = TixDocument::parse(fixture).unwrap();
+            assert_eq!(
+                doc.is_normalized(),
+                normalized(fixture) == *fixture,
+                "{fixture}"
+            );
+            let formatted = TixDocument::parse(&normalized(fixture)).unwrap();
+            assert!(formatted.is_normalized(), "{formatted}");
+        }
+        // And the ones that need work are reported as such.
+        assert!(!TixDocument::parse(COLLAPSED).unwrap().is_normalized());
+    }
+
+    /// A document already in house style is left byte-identical, its
+    /// comments and spacing included.
+    #[test]
+    fn test_normalize_leaves_house_style_alone() {
+        assert_eq!(normalized(DOCUMENT), DOCUMENT);
+        assert!(TixDocument::parse(DOCUMENT).unwrap().is_normalized());
+    }
+
+    /// The #146 config comes out as headered sections in place, and every
+    /// other line is untouched.
+    #[test]
+    fn test_normalize_repairs_collapsed_config() {
+        let out = normalized(COLLAPSED);
+        assert_eq!(
+            out,
+            "# global tix config\n\
+             [engine.configured_repositories.framework]\n\
+             remote = \"f.git\"\ncode_path = \"/code/framework\"\n\n\
+             [engine.configured_repositories.infra]\n\
+             remote = \"i.git\"\ncode_path = \"/code/infra\"\n\n\
+             [cli]\ntickets_directory = \"/t\"\ncode_directory = \"/code\"\n\n\
+             # a plugin table\n[myplugin]\nretries = 3\n"
+        );
+    }
+
+    /// Comments around an expanded line survive, re-homed above the first
+    /// header that renders.
+    #[test]
+    fn test_normalize_keeps_comments() {
+        for fixture in FIXTURES {
+            let out = normalized(fixture);
+            for line in fixture.lines().filter_map(|line| line.split_once('#')) {
+                let comment = format!("#{}", line.1);
+                assert!(out.contains(&comment), "lost {comment:?}:\n{out}");
+            }
+        }
+        let out = normalized(FIXTURES[2]);
+        assert!(
+            out.contains(
+                "# where the repos live\n# trailing\n[engine.configured_repositories.alpha]"
+            ),
+            "{out}"
+        );
+    }
+
+    /// A moved comment is separated from the section above it by a blank
+    /// line, like any header, but never opens the file with one.
+    #[test]
+    fn test_normalize_spaces_moved_comments() {
+        let out = normalized(FIXTURES[3]);
+        assert!(
+            out.starts_with("# primary\n[engine.configured_repositories.alpha]\n"),
+            "{out}"
+        );
+        assert!(
+            out.contains(
+                "code_path = \"/a\"\n\n# the other one\n[engine.configured_repositories.beta]"
+            ),
+            "{out}"
+        );
+        assert!(normalized(COLLAPSED).starts_with("# global tix config\n["));
+    }
+
+    /// A header left introducing only sub-tables is dropped; an empty table
+    /// keeps its header, since hiding it would drop it from the data.
+    #[test]
+    fn test_normalize_headers() {
+        let out = normalized(FIXTURES[3]);
+        assert!(!out.contains("[engine.configured_repositories]\n"), "{out}");
+        assert!(
+            out.contains("[engine.configured_repositories.alpha]"),
+            "{out}"
+        );
+
+        let out = normalized("[p]\nempty = {}\n");
+        assert!(out.contains("[p.empty]"), "{out}");
     }
 
     // --- atomic writes ---
