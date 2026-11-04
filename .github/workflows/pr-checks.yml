@@ -101,6 +101,33 @@ jobs:
         shell: bash
         run: just smoke-wheel
 
+  smoke-binary:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: just@1.59.0
+          fallback: none
+      # Same reasoning as smoke-wheel: without a PR leg, the binary and its
+      # packaging would first be executed during a release. Each leg builds
+      # for its host triple, so the archive is natively runnable on the
+      # runner that made it, and packaging goes through the same recipe the
+      # release uses — tar on Linux and macOS, zip on Windows.
+      - name: Build release binary
+        shell: bash
+        run: just build-cli "$(rustc -vV | awk '/^host/ { print $2 }')"
+      - name: Package binary
+        shell: bash
+        run: just package-cli "$(rustc -vV | awk '/^host/ { print $2 }')"
+      - name: Smoke-test binary
+        shell: bash
+        run: just smoke-binary
+
   check-docs:
     runs-on: ubuntu-latest
     steps:
@@ -176,11 +203,11 @@ jobs:
             exit 1
           fi
 
-  # A group of its own since it's a matrix job, and the natural place to add
-  # smoke-binary once that recipe is implemented.
+  # Mirrors the justfile's `smoke: smoke-wheel smoke-binary`. A group of its
+  # own since both are matrix jobs.
   smoke:
     if: always()
-    needs: [smoke-wheel]
+    needs: [smoke-wheel, smoke-binary]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency failed or was cancelled
