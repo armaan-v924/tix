@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["is_project_root","list_projects","marker_path","project_of","resolve_project","tickets_home"],"struct":["Project"]};

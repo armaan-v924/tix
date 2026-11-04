@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["OutputType"],"fn":["confirm","prompt","prompt_optional","styles"],"struct":["App"]};

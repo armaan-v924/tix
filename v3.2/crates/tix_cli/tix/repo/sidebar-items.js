@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["RepoCommands"],"mod":["add","clone"],"struct":["RepoAlias","RepoArgs","RepoRef"]};

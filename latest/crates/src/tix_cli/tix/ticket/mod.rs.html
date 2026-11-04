@@ -149,44 +149,214 @@
 <a href=#149 id=149 data-nosnippet>149</a><span class="doccomment">/// Resolves the ticket a command operates on — `--ticket` override or the
 <a href=#150 id=150 data-nosnippet>150</a>/// discovery walk — and errors clearly when neither yields one.
 <a href=#151 id=151 data-nosnippet>151</a>///
-<a href=#152 id=152 data-nosnippet>152</a>/// The error is the "requires ticket context" message every ticket-scoped
-<a href=#153 id=153 data-nosnippet>153</a>/// command shares; commands that merely prefer context call the discovery
-<a href=#154 id=154 data-nosnippet>154</a>/// layer directly.
-<a href=#155 id=155 data-nosnippet>155</a></span><span class="kw">pub fn </span>require_ticket_root(
-<a href=#156 id=156 data-nosnippet>156</a>    context: <span class="kw-2">&amp;</span>tix_sdk::context::Context,
-<a href=#157 id=157 data-nosnippet>157</a>    ticket: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TicketRef&gt;,
-<a href=#158 id=158 data-nosnippet>158</a>) -&gt; <span class="prelude-ty">Result</span>&lt;std::path::PathBuf, tix_sdk::SdkError&gt; {
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">let </span>cli = load_cli_config(context)<span class="question-mark">?</span>;
-<a href=#160 id=160 data-nosnippet>160</a>    tix_sdk::discovery::resolve_ticket_root(ticket, <span class="kw-2">&amp;</span>cli.tickets_directory)<span class="question-mark">?</span>.ok_or_else(|| {
-<a href=#161 id=161 data-nosnippet>161</a>        tix_sdk::SdkError::Engine(tix_sdk::TixError::TicketNotFound(
-<a href=#162 id=162 data-nosnippet>162</a>            <span class="string">"not inside a ticket — cd into one or pass --ticket &lt;path|id&gt;"</span>.to_string(),
-<a href=#163 id=163 data-nosnippet>163</a>        ))
-<a href=#164 id=164 data-nosnippet>164</a>    })
-<a href=#165 id=165 data-nosnippet>165</a>}
-<a href=#166 id=166 data-nosnippet>166</a>
-<a href=#167 id=167 data-nosnippet>167</a><span class="doccomment">/// Create, inspect, and manage ticket workspaces
-<a href=#168 id=168 data-nosnippet>168</a></span><span class="attr">#[derive(Args)]
-<a href=#169 id=169 data-nosnippet>169</a></span><span class="kw">pub struct </span>TicketArgs {
-<a href=#170 id=170 data-nosnippet>170</a>    <span class="attr">#[command(subcommand)]
-<a href=#171 id=171 data-nosnippet>171</a>    </span><span class="kw">pub </span>command: TicketCommands,
-<a href=#172 id=172 data-nosnippet>172</a>}
-<a href=#173 id=173 data-nosnippet>173</a>
-<a href=#174 id=174 data-nosnippet>174</a><span class="attr">#[derive(Args, Debug)]
-<a href=#175 id=175 data-nosnippet>175</a></span><span class="kw">pub struct </span>TicketSharedArgs {
-<a href=#176 id=176 data-nosnippet>176</a>    <span class="doccomment">/// The ticket to act on: a bare id resolved under the tickets
-<a href=#177 id=177 data-nosnippet>177</a>    /// directory, or a path (anything containing a separator, or `.`/`..`).
-<a href=#178 id=178 data-nosnippet>178</a>    /// Discovered by walking up from the current directory when omitted
-<a href=#179 id=179 data-nosnippet>179</a>    </span><span class="attr">#[arg(short, long, value_hint = clap::ValueHint::DirPath)]
-<a href=#180 id=180 data-nosnippet>180</a>    </span><span class="kw">pub </span>ticket: <span class="prelude-ty">Option</span>&lt;TicketRef&gt;,
-<a href=#181 id=181 data-nosnippet>181</a>}
-<a href=#182 id=182 data-nosnippet>182</a>
-<a href=#183 id=183 data-nosnippet>183</a><span class="attr">#[derive(Subcommand)]
-<a href=#184 id=184 data-nosnippet>184</a></span><span class="kw">pub enum </span>TicketCommands {
-<a href=#185 id=185 data-nosnippet>185</a>    Add(add::Args),
-<a href=#186 id=186 data-nosnippet>186</a>    Destroy(destroy::Args),
-<a href=#187 id=187 data-nosnippet>187</a>    Info(info::Args),
-<a href=#188 id=188 data-nosnippet>188</a>    List(list::Args),
-<a href=#189 id=189 data-nosnippet>189</a>    Remove(remove::Args),
-<a href=#190 id=190 data-nosnippet>190</a>    Setup(setup::Args),
-<a href=#191 id=191 data-nosnippet>191</a>}
+<a href=#152 id=152 data-nosnippet>152</a>/// `project` is the `--project` flag, and it means one thing whichever way
+<a href=#153 id=153 data-nosnippet>153</a>/// the ticket is named:
+<a href=#154 id=154 data-nosnippet>154</a>///
+<a href=#155 id=155 data-nosnippet>155</a>/// - **Id form** (`--ticket JIRA-1`): the id resolves inside the command's
+<a href=#156 id=156 data-nosnippet>156</a>///   project — the flag, else the project inferred from cwd, else loose
+<a href=#157 id=157 data-nosnippet>157</a>///   (directly in the tickets directory). From inside `acme/JIRA-1`,
+<a href=#158 id=158 data-nosnippet>158</a>///   `--ticket JIRA-2` therefore means `acme/JIRA-2`.
+<a href=#159 id=159 data-nosnippet>159</a>/// - **Path form or discovery**: the ticket is already pinned down, so the
+<a href=#160 id=160 data-nosnippet>160</a>///   flag is an assertion that it belongs to that project, and a mismatch
+<a href=#161 id=161 data-nosnippet>161</a>///   errors — in keeping with `--ticket` being an assertion itself.
+<a href=#162 id=162 data-nosnippet>162</a>///
+<a href=#163 id=163 data-nosnippet>163</a>/// The error for "no ticket" is the "requires ticket context" message every
+<a href=#164 id=164 data-nosnippet>164</a>/// ticket-scoped command shares; commands that merely prefer context call
+<a href=#165 id=165 data-nosnippet>165</a>/// the discovery layer directly.
+<a href=#166 id=166 data-nosnippet>166</a></span><span class="kw">pub fn </span>require_ticket_root(
+<a href=#167 id=167 data-nosnippet>167</a>    context: <span class="kw-2">&amp;</span>tix_sdk::context::Context,
+<a href=#168 id=168 data-nosnippet>168</a>    ticket: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TicketRef&gt;,
+<a href=#169 id=169 data-nosnippet>169</a>    project: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+<a href=#170 id=170 data-nosnippet>170</a>) -&gt; <span class="prelude-ty">Result</span>&lt;std::path::PathBuf, tix_sdk::SdkError&gt; {
+<a href=#171 id=171 data-nosnippet>171</a>    <span class="kw">let </span>cli = load_cli_config(context)<span class="question-mark">?</span>;
+<a href=#172 id=172 data-nosnippet>172</a>    resolve_ticket_in(
+<a href=#173 id=173 data-nosnippet>173</a>        ticket,
+<a href=#174 id=174 data-nosnippet>174</a>        project,
+<a href=#175 id=175 data-nosnippet>175</a>        <span class="kw-2">&amp;</span>cli.tickets_directory,
+<a href=#176 id=176 data-nosnippet>176</a>        <span class="kw-2">&amp;</span>tix_sdk::discovery::logical_cwd()<span class="question-mark">?</span>,
+<a href=#177 id=177 data-nosnippet>177</a>    )
+<a href=#178 id=178 data-nosnippet>178</a>}
+<a href=#179 id=179 data-nosnippet>179</a>
+<a href=#180 id=180 data-nosnippet>180</a><span class="doccomment">/// [`require_ticket_root`] over an explicit tickets directory and (logical)
+<a href=#181 id=181 data-nosnippet>181</a>/// cwd — the part that needs no config.
+<a href=#182 id=182 data-nosnippet>182</a></span><span class="kw">fn </span>resolve_ticket_in(
+<a href=#183 id=183 data-nosnippet>183</a>    ticket: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TicketRef&gt;,
+<a href=#184 id=184 data-nosnippet>184</a>    project: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+<a href=#185 id=185 data-nosnippet>185</a>    tickets_directory: <span class="kw-2">&amp;</span>std::path::Path,
+<a href=#186 id=186 data-nosnippet>186</a>    cwd: <span class="kw-2">&amp;</span>std::path::Path,
+<a href=#187 id=187 data-nosnippet>187</a>) -&gt; <span class="prelude-ty">Result</span>&lt;std::path::PathBuf, tix_sdk::SdkError&gt; {
+<a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">use </span>tix_sdk::project::{Project, resolve_project, tickets_home};
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">use </span>tix_sdk::{SdkError, TixError};
+<a href=#190 id=190 data-nosnippet>190</a>
+<a href=#191 id=191 data-nosnippet>191</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(id_form @ TicketRef::Id(id)) = ticket {
+<a href=#192 id=192 data-nosnippet>192</a>        <span class="kw">let </span>scope = resolve_project(project, tickets_directory, cwd)<span class="question-mark">?</span>;
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">let </span>home = tickets_home(scope.as_ref(), tickets_directory);
+<a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">return </span>tix_sdk::discovery::resolve_override(id_form, home).map_err(|e| <span class="kw">match </span><span class="kw-2">&amp;</span>scope {
+<a href=#195 id=195 data-nosnippet>195</a>            <span class="comment">// Inferred, not asked for: say where the id was looked up and
+<a href=#196 id=196 data-nosnippet>196</a>            // how to reach the loose ticket it may have meant.
+<a href=#197 id=197 data-nosnippet>197</a>            </span><span class="prelude-val">Some</span>(inferred) <span class="kw">if </span>project.is_none() &amp;&amp; tickets_directory.join(id).is_dir() =&gt; {
+<a href=#198 id=198 data-nosnippet>198</a>                SdkError::Message(<span class="macro">format!</span>(
+<a href=#199 id=199 data-nosnippet>199</a>                    <span class="string">"{e} — inside project '{}', ids resolve within it; pass the path \
+<a href=#200 id=200 data-nosnippet>200</a>                         (e.g. '{}') for the loose ticket"</span>,
+<a href=#201 id=201 data-nosnippet>201</a>                    inferred.name,
+<a href=#202 id=202 data-nosnippet>202</a>                    tickets_directory.join(id).display()
+<a href=#203 id=203 data-nosnippet>203</a>                ))
+<a href=#204 id=204 data-nosnippet>204</a>            }
+<a href=#205 id=205 data-nosnippet>205</a>            <span class="kw">_ </span>=&gt; e,
+<a href=#206 id=206 data-nosnippet>206</a>        });
+<a href=#207 id=207 data-nosnippet>207</a>    }
+<a href=#208 id=208 data-nosnippet>208</a>
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">let </span>root = <span class="kw">match </span>ticket {
+<a href=#210 id=210 data-nosnippet>210</a>        <span class="prelude-val">Some</span>(path_form) =&gt; tix_sdk::discovery::resolve_override(path_form, tickets_directory)<span class="question-mark">?</span>,
+<a href=#211 id=211 data-nosnippet>211</a>        <span class="prelude-val">None </span>=&gt; tix_sdk::discovery::discover_ticket_root_from(cwd).ok_or_else(|| {
+<a href=#212 id=212 data-nosnippet>212</a>            SdkError::Engine(TixError::TicketNotFound(
+<a href=#213 id=213 data-nosnippet>213</a>                <span class="string">"not inside a ticket — cd into one or pass --ticket &lt;path|id&gt;"</span>.to_string(),
+<a href=#214 id=214 data-nosnippet>214</a>            ))
+<a href=#215 id=215 data-nosnippet>215</a>        })<span class="question-mark">?</span>,
+<a href=#216 id=216 data-nosnippet>216</a>    };
+<a href=#217 id=217 data-nosnippet>217</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = project {
+<a href=#218 id=218 data-nosnippet>218</a>        <span class="kw">let </span>asserted = Project::named(tickets_directory, name)<span class="question-mark">?</span>;
+<a href=#219 id=219 data-nosnippet>219</a>        <span class="kw">if </span>!asserted.contains(<span class="kw-2">&amp;</span>root) {
+<a href=#220 id=220 data-nosnippet>220</a>            <span class="kw">let </span>actual = tix_sdk::project::project_of(<span class="kw-2">&amp;</span>root).map_or_else(
+<a href=#221 id=221 data-nosnippet>221</a>                || <span class="string">"it is a loose ticket"</span>.to_string(),
+<a href=#222 id=222 data-nosnippet>222</a>                |p| <span class="macro">format!</span>(<span class="string">"it is in '{}'"</span>, p.name),
+<a href=#223 id=223 data-nosnippet>223</a>            );
+<a href=#224 id=224 data-nosnippet>224</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(SdkError::Message(<span class="macro">format!</span>(
+<a href=#225 id=225 data-nosnippet>225</a>                <span class="string">"the ticket at {} is not in project '{name}' — {actual}"</span>,
+<a href=#226 id=226 data-nosnippet>226</a>                root.display()
+<a href=#227 id=227 data-nosnippet>227</a>            )));
+<a href=#228 id=228 data-nosnippet>228</a>        }
+<a href=#229 id=229 data-nosnippet>229</a>    }
+<a href=#230 id=230 data-nosnippet>230</a>    <span class="prelude-val">Ok</span>(root)
+<a href=#231 id=231 data-nosnippet>231</a>}
+<a href=#232 id=232 data-nosnippet>232</a>
+<a href=#233 id=233 data-nosnippet>233</a><span class="attr">#[cfg(test)]
+<a href=#234 id=234 data-nosnippet>234</a></span><span class="kw">mod </span>resolve_tests {
+<a href=#235 id=235 data-nosnippet>235</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#236 id=236 data-nosnippet>236</a>    <span class="kw">use </span>std::path::{Path, PathBuf};
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">use </span>tempfile::tempdir;
+<a href=#238 id=238 data-nosnippet>238</a>
+<a href=#239 id=239 data-nosnippet>239</a>    <span class="kw">fn </span>make_ticket(root: <span class="kw-2">&amp;</span>Path) {
+<a href=#240 id=240 data-nosnippet>240</a>        std::fs::create_dir_all(root.join(<span class="string">".tix"</span>)).unwrap();
+<a href=#241 id=241 data-nosnippet>241</a>        std::fs::write(root.join(<span class="string">".tix/ticket.toml"</span>), <span class="string">""</span>).unwrap();
+<a href=#242 id=242 data-nosnippet>242</a>    }
+<a href=#243 id=243 data-nosnippet>243</a>
+<a href=#244 id=244 data-nosnippet>244</a>    <span class="doccomment">/// `&lt;tickets&gt;/JIRA-1` (loose) and `&lt;tickets&gt;/acme/JIRA-2` (in `acme`).
+<a href=#245 id=245 data-nosnippet>245</a>    </span><span class="kw">fn </span>fixture() -&gt; (tempfile::TempDir, PathBuf) {
+<a href=#246 id=246 data-nosnippet>246</a>        <span class="kw">let </span>dir = tempdir().unwrap();
+<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span>tickets = dir.path().join(<span class="string">"tickets"</span>);
+<a href=#248 id=248 data-nosnippet>248</a>        make_ticket(<span class="kw-2">&amp;</span>tickets.join(<span class="string">"JIRA-1"</span>));
+<a href=#249 id=249 data-nosnippet>249</a>        tix_sdk::project::Project::named(<span class="kw-2">&amp;</span>tickets, <span class="string">"acme"</span>)
+<a href=#250 id=250 data-nosnippet>250</a>            .unwrap()
+<a href=#251 id=251 data-nosnippet>251</a>            .ensure()
+<a href=#252 id=252 data-nosnippet>252</a>            .unwrap();
+<a href=#253 id=253 data-nosnippet>253</a>        make_ticket(<span class="kw-2">&amp;</span>tickets.join(<span class="string">"acme/JIRA-2"</span>));
+<a href=#254 id=254 data-nosnippet>254</a>        (dir, tickets)
+<a href=#255 id=255 data-nosnippet>255</a>    }
+<a href=#256 id=256 data-nosnippet>256</a>
+<a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">fn </span>id(s: <span class="kw-2">&amp;</span>str) -&gt; TicketRef {
+<a href=#258 id=258 data-nosnippet>258</a>        TicketRef::Id(s.to_string())
+<a href=#259 id=259 data-nosnippet>259</a>    }
+<a href=#260 id=260 data-nosnippet>260</a>
+<a href=#261 id=261 data-nosnippet>261</a>    <span class="doccomment">/// An id resolves loose from outside any project, and within the
+<a href=#262 id=262 data-nosnippet>262</a>    /// project when `--project` names it.
+<a href=#263 id=263 data-nosnippet>263</a>    </span><span class="attr">#[test]
+<a href=#264 id=264 data-nosnippet>264</a>    </span><span class="kw">fn </span>test_id_resolves_loose_or_in_flagged_project() {
+<a href=#265 id=265 data-nosnippet>265</a>        <span class="kw">let </span>(dir, tickets) = fixture();
+<a href=#266 id=266 data-nosnippet>266</a>        <span class="kw">let </span>outside = dir.path();
+<a href=#267 id=267 data-nosnippet>267</a>        <span class="macro">assert_eq!</span>(
+<a href=#268 id=268 data-nosnippet>268</a>            resolve_ticket_in(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>id(<span class="string">"JIRA-1"</span>)), <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>tickets, outside).unwrap(),
+<a href=#269 id=269 data-nosnippet>269</a>            tickets.join(<span class="string">"JIRA-1"</span>)
+<a href=#270 id=270 data-nosnippet>270</a>        );
+<a href=#271 id=271 data-nosnippet>271</a>        <span class="macro">assert_eq!</span>(
+<a href=#272 id=272 data-nosnippet>272</a>            resolve_ticket_in(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>id(<span class="string">"JIRA-2"</span>)), <span class="prelude-val">Some</span>(<span class="string">"acme"</span>), <span class="kw-2">&amp;</span>tickets, outside).unwrap(),
+<a href=#273 id=273 data-nosnippet>273</a>            tickets.join(<span class="string">"acme/JIRA-2"</span>)
+<a href=#274 id=274 data-nosnippet>274</a>        );
+<a href=#275 id=275 data-nosnippet>275</a>        <span class="macro">assert!</span>(resolve_ticket_in(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>id(<span class="string">"JIRA-2"</span>)), <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>tickets, outside).is_err());
+<a href=#276 id=276 data-nosnippet>276</a>    }
+<a href=#277 id=277 data-nosnippet>277</a>
+<a href=#278 id=278 data-nosnippet>278</a>    <span class="doccomment">/// Deep inside a project ticket, a bare id means a sibling in the same
+<a href=#279 id=279 data-nosnippet>279</a>    /// project — and the loose ticket of that name needs its path.
+<a href=#280 id=280 data-nosnippet>280</a>    </span><span class="attr">#[test]
+<a href=#281 id=281 data-nosnippet>281</a>    </span><span class="kw">fn </span>test_id_inferred_from_inside_project_ticket() {
+<a href=#282 id=282 data-nosnippet>282</a>        <span class="kw">let </span>(_dir, tickets) = fixture();
+<a href=#283 id=283 data-nosnippet>283</a>        <span class="kw">let </span>deep = tickets.join(<span class="string">"acme/JIRA-2/api/src"</span>);
+<a href=#284 id=284 data-nosnippet>284</a>        std::fs::create_dir_all(<span class="kw-2">&amp;</span>deep).unwrap();
+<a href=#285 id=285 data-nosnippet>285</a>        make_ticket(<span class="kw-2">&amp;</span>tickets.join(<span class="string">"acme/JIRA-3"</span>));
+<a href=#286 id=286 data-nosnippet>286</a>
+<a href=#287 id=287 data-nosnippet>287</a>        <span class="macro">assert_eq!</span>(
+<a href=#288 id=288 data-nosnippet>288</a>            resolve_ticket_in(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>id(<span class="string">"JIRA-3"</span>)), <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>tickets, <span class="kw-2">&amp;</span>deep).unwrap(),
+<a href=#289 id=289 data-nosnippet>289</a>            tickets.join(<span class="string">"acme/JIRA-3"</span>)
+<a href=#290 id=290 data-nosnippet>290</a>        );
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="kw">let </span>error = resolve_ticket_in(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>id(<span class="string">"JIRA-1"</span>)), <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>tickets, <span class="kw-2">&amp;</span>deep)
+<a href=#292 id=292 data-nosnippet>292</a>            .unwrap_err()
+<a href=#293 id=293 data-nosnippet>293</a>            .to_string();
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="macro">assert!</span>(error.contains(<span class="string">"inside project 'acme'"</span>), <span class="string">"{error}"</span>);
+<a href=#295 id=295 data-nosnippet>295</a>    }
+<a href=#296 id=296 data-nosnippet>296</a>
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="doccomment">/// Discovery from inside a project ticket finds that ticket; `--project`
+<a href=#298 id=298 data-nosnippet>298</a>    /// then checks membership instead of choosing.
+<a href=#299 id=299 data-nosnippet>299</a>    </span><span class="attr">#[test]
+<a href=#300 id=300 data-nosnippet>300</a>    </span><span class="kw">fn </span>test_discovery_inside_project_ticket_with_assertion() {
+<a href=#301 id=301 data-nosnippet>301</a>        <span class="kw">let </span>(_dir, tickets) = fixture();
+<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span>deep = tickets.join(<span class="string">"acme/JIRA-2/api"</span>);
+<a href=#303 id=303 data-nosnippet>303</a>        std::fs::create_dir_all(<span class="kw-2">&amp;</span>deep).unwrap();
+<a href=#304 id=304 data-nosnippet>304</a>
+<a href=#305 id=305 data-nosnippet>305</a>        <span class="kw">let </span>ticket = tickets.join(<span class="string">"acme/JIRA-2"</span>);
+<a href=#306 id=306 data-nosnippet>306</a>        <span class="macro">assert_eq!</span>(
+<a href=#307 id=307 data-nosnippet>307</a>            resolve_ticket_in(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>tickets, <span class="kw-2">&amp;</span>deep).unwrap(),
+<a href=#308 id=308 data-nosnippet>308</a>            ticket
+<a href=#309 id=309 data-nosnippet>309</a>        );
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="macro">assert_eq!</span>(
+<a href=#311 id=311 data-nosnippet>311</a>            resolve_ticket_in(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"acme"</span>), <span class="kw-2">&amp;</span>tickets, <span class="kw-2">&amp;</span>deep).unwrap(),
+<a href=#312 id=312 data-nosnippet>312</a>            ticket
+<a href=#313 id=313 data-nosnippet>313</a>        );
+<a href=#314 id=314 data-nosnippet>314</a>        <span class="macro">assert!</span>(resolve_ticket_in(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"other"</span>), <span class="kw-2">&amp;</span>tickets, <span class="kw-2">&amp;</span>deep).is_err());
+<a href=#315 id=315 data-nosnippet>315</a>    }
+<a href=#316 id=316 data-nosnippet>316</a>
+<a href=#317 id=317 data-nosnippet>317</a>    <span class="doccomment">/// With a path, `--project` asserts membership: a loose ticket is in no
+<a href=#318 id=318 data-nosnippet>318</a>    /// project.
+<a href=#319 id=319 data-nosnippet>319</a>    </span><span class="attr">#[test]
+<a href=#320 id=320 data-nosnippet>320</a>    </span><span class="kw">fn </span>test_path_form_with_project_asserts() {
+<a href=#321 id=321 data-nosnippet>321</a>        <span class="kw">let </span>(dir, tickets) = fixture();
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">let </span>loose = TicketRef::Path(tickets.join(<span class="string">"JIRA-1"</span>));
+<a href=#323 id=323 data-nosnippet>323</a>        <span class="macro">assert!</span>(resolve_ticket_in(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>loose), <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>tickets, dir.path()).is_ok());
+<a href=#324 id=324 data-nosnippet>324</a>        <span class="kw">let </span>error = resolve_ticket_in(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>loose), <span class="prelude-val">Some</span>(<span class="string">"acme"</span>), <span class="kw-2">&amp;</span>tickets, dir.path())
+<a href=#325 id=325 data-nosnippet>325</a>            .unwrap_err()
+<a href=#326 id=326 data-nosnippet>326</a>            .to_string();
+<a href=#327 id=327 data-nosnippet>327</a>        <span class="macro">assert!</span>(error.contains(<span class="string">"loose ticket"</span>), <span class="string">"{error}"</span>);
+<a href=#328 id=328 data-nosnippet>328</a>    }
+<a href=#329 id=329 data-nosnippet>329</a>}
+<a href=#330 id=330 data-nosnippet>330</a>
+<a href=#331 id=331 data-nosnippet>331</a><span class="doccomment">/// Create, inspect, and manage ticket workspaces
+<a href=#332 id=332 data-nosnippet>332</a></span><span class="attr">#[derive(Args)]
+<a href=#333 id=333 data-nosnippet>333</a></span><span class="kw">pub struct </span>TicketArgs {
+<a href=#334 id=334 data-nosnippet>334</a>    <span class="attr">#[command(subcommand)]
+<a href=#335 id=335 data-nosnippet>335</a>    </span><span class="kw">pub </span>command: TicketCommands,
+<a href=#336 id=336 data-nosnippet>336</a>}
+<a href=#337 id=337 data-nosnippet>337</a>
+<a href=#338 id=338 data-nosnippet>338</a><span class="attr">#[derive(Args, Debug)]
+<a href=#339 id=339 data-nosnippet>339</a></span><span class="kw">pub struct </span>TicketSharedArgs {
+<a href=#340 id=340 data-nosnippet>340</a>    <span class="doccomment">/// The ticket to act on: a bare id resolved under the tickets
+<a href=#341 id=341 data-nosnippet>341</a>    /// directory, or a path (anything containing a separator, or `.`/`..`).
+<a href=#342 id=342 data-nosnippet>342</a>    /// Discovered by walking up from the current directory when omitted
+<a href=#343 id=343 data-nosnippet>343</a>    </span><span class="attr">#[arg(short, long, value_hint = clap::ValueHint::DirPath)]
+<a href=#344 id=344 data-nosnippet>344</a>    </span><span class="kw">pub </span>ticket: <span class="prelude-ty">Option</span>&lt;TicketRef&gt;,
+<a href=#345 id=345 data-nosnippet>345</a>
+<a href=#346 id=346 data-nosnippet>346</a>    <span class="doccomment">/// The project a bare ticket id resolves in. Inferred from the current
+<a href=#347 id=347 data-nosnippet>347</a>    /// directory when omitted; with a path or a discovered ticket, asserts
+<a href=#348 id=348 data-nosnippet>348</a>    /// the ticket belongs to it
+<a href=#349 id=349 data-nosnippet>349</a>    </span><span class="attr">#[arg(short, long, value_name = <span class="string">"NAME"</span>)]
+<a href=#350 id=350 data-nosnippet>350</a>    </span><span class="kw">pub </span>project: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#351 id=351 data-nosnippet>351</a>}
+<a href=#352 id=352 data-nosnippet>352</a>
+<a href=#353 id=353 data-nosnippet>353</a><span class="attr">#[derive(Subcommand)]
+<a href=#354 id=354 data-nosnippet>354</a></span><span class="kw">pub enum </span>TicketCommands {
+<a href=#355 id=355 data-nosnippet>355</a>    Add(add::Args),
+<a href=#356 id=356 data-nosnippet>356</a>    Destroy(destroy::Args),
+<a href=#357 id=357 data-nosnippet>357</a>    Info(info::Args),
+<a href=#358 id=358 data-nosnippet>358</a>    List(list::Args),
+<a href=#359 id=359 data-nosnippet>359</a>    Remove(remove::Args),
+<a href=#360 id=360 data-nosnippet>360</a>    Setup(setup::Args),
+<a href=#361 id=361 data-nosnippet>361</a>}
 </code></pre></div></section></main></body></html>
