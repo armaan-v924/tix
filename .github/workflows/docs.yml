@@ -1,12 +1,14 @@
 name: Docs
 
-# The only workflow that writes the `docs` branch, which GitHub Pages serves
-# at tix.armaanv.dev. The branch holds several independent site trees:
+# Publishes the release and development sites to the `docs` branch, which
+# GitHub Pages serves at tix.armaanv.dev. The branch holds several independent
+# site trees:
 #
 #   /            redirect to the newest release
 #   /latest/     newest release      (published on a v* tag)
 #   /vX.Y/       that release, pinned (published on a v* tag)
 #   /dev/        main                 (published on every push to main)
+#   /pr/<n>/     pull request preview (docs-preview.yml, removed on close)
 #
 # A release is *built twice* rather than copied: Astro bakes the base path
 # into every URL it generates, so a copy of /v3.1/ would still link to
@@ -14,7 +16,10 @@ name: Docs
 # rewriting scheme.
 #
 # The release workflow builds the same site, but only to attach a snapshot to
-# the release — it never publishes, so nothing races for this branch.
+# the release — it never publishes. The preview workflows do write the branch,
+# but only under /pr/, and every writer goes through
+# .github/scripts/publish-docs.sh, which fast-forwards rather than
+# force-pushes and redoes its update if another writer got there first.
 on:
   push:
     branches:
@@ -26,9 +31,11 @@ on:
 permissions:
   contents: read
 
-# Serialised rather than cancelled: two publishes touch disjoint directories,
-# but they force-push one branch, and cancelling a release publish half way
-# through is worse than waiting for it.
+# Serialised rather than cancelled: cancelling a release publish half way
+# through is worse than waiting for it. Previews deliberately stay out of this
+# group. GitHub keeps one pending run per group and cancels it when another
+# queues, so a preview queued behind a running /dev/ publish would silently
+# drop a release publish waiting for its turn.
 concurrency:
   group: docs-publish
   cancel-in-progress: false
@@ -97,86 +104,16 @@ jobs:
           ASTRO_TELEMETRY_DISABLED: "1"
 
       - name: Publish to docs branch
+        # Replaces only the trees this run built; every other tree on the
+        # branch, previews included, is left exactly as it was. See the
+        # script for how that is enforced and why the push is not forced.
         run: |
           set -euo pipefail
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-
-          # A worktree rather than a branch switch: the checkout is full of
-          # build output that `git add -A` would happily commit, and a
-          # worktree gives a tree containing the docs branch and nothing else.
-          # It shares .git, so pushing needs no separate credentials.
-          publish=$(mktemp -d)/site
-          if git ls-remote --exit-code --heads origin docs >/dev/null 2>&1; then
-            git fetch origin docs
-            git worktree add "$publish" -B docs origin/docs
-          else
-            git worktree add --detach "$publish"
-            git -C "$publish" checkout --orphan docs
-            git -C "$publish" rm -rf . >/dev/null 2>&1 || true
-          fi
-
-          # Replace only the trees this run built. Every other version on the
-          # branch is left exactly as it was — that is what makes /v3.1/
-          # survive a /dev/ publish.
-          for target in ${{ steps.targets.outputs.targets }}; do
-            rm -rf "${publish:?}/$target"
-            mkdir -p "$publish/$target"
-            cp -R "$STAGE/$target/." "$publish/$target/"
+          args=()
+          for target in $TARGETS; do
+            args+=(--put "$target" "$STAGE/$target")
           done
-
-          # Pages serves the branch root, so these belong there and not only
-          # inside each tree. Without .nojekyll, Jekyll drops `_astro/` and
-          # every site serves unstyled.
-          touch "$publish/.nojekyll"
-          echo "tix.armaanv.dev" > "$publish/CNAME"
-
-          python3 - "$publish" <<'PY'
-          import json, os, re, sys
-
-          root = sys.argv[1]
-          versions = sorted(
-              (d for d in os.listdir(root) if re.fullmatch(r"v\d+\.\d+", d)),
-              key=lambda d: [int(p) for p in d[1:].split(".")],
-              reverse=True,
-          )
-          has = lambda name: os.path.isdir(os.path.join(root, name))
-
-          # Read by the version switcher when there is more than one release
-          # to switch between; until then it is just a manifest of what the
-          # branch holds.
-          manifest = {
-              "latest": versions[0] if versions else None,
-              "versions": versions,
-              "dev": has("dev"),
-          }
-          with open(os.path.join(root, "versions.json"), "w") as f:
-              json.dump(manifest, f, indent=2)
-              f.write("\n")
-
-          # Nothing deep-links to the root, so a redirect is enough — and it
-          # has to be a real page, because Pages has no server-side rewrites.
-          if has("latest"):
-              home = "/latest/"
-          elif versions:
-              home = f"/{versions[0]}/"
-          else:
-              home = "/dev/"
-          with open(os.path.join(root, "index.html"), "w") as f:
-              f.write(
-                  "<!DOCTYPE html>\n"
-                  '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
-                  "<title>tix documentation</title>\n"
-                  f'<link rel="canonical" href="https://tix.armaanv.dev{home}">\n'
-                  f'<meta http-equiv="refresh" content="0; url={home}">\n'
-                  "</head>\n<body>\n"
-                  f'<p><a href="{home}">tix documentation</a></p>\n'
-                  "</body>\n</html>\n"
-              )
-          PY
-
-          cd "$publish"
-          git add -A
-          git commit -m "Update ${{ steps.targets.outputs.targets }} for ${GITHUB_SHA:0:7}" \
-            || echo "No changes to commit"
-          git push origin docs --force
+          .github/scripts/publish-docs.sh \
+            -m "Update $TARGETS for ${GITHUB_SHA:0:7}" "${args[@]}"
+        env:
+          TARGETS: ${{ steps.targets.outputs.targets }}
