@@ -11,7 +11,7 @@
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>std::io::Read;
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>std::path::{Path, PathBuf};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>tix_sdk::SdkError;
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>tracing::{info, warn};
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>tracing::{debug, info, warn};
 <a href=#15 id=15 data-nosnippet>15</a>
 <a href=#16 id=16 data-nosnippet>16</a><span class="doccomment">/// GitHub repository the updater checks, overridable for testing.
 <a href=#17 id=17 data-nosnippet>17</a></span><span class="kw">const </span>DEFAULT_OWNER: <span class="kw-2">&amp;</span>str = <span class="string">"armaan-v924"</span>;
@@ -66,7 +66,7 @@
 <a href=#66 id=66 data-nosnippet>66</a>        .map_err(|e| SdkError::Message(<span class="macro">format!</span>(<span class="string">"could not parse own version: {e}"</span>)))<span class="question-mark">?</span>;
 <a href=#67 id=67 data-nosnippet>67</a>
 <a href=#68 id=68 data-nosnippet>68</a>    <span class="kw">if </span>latest &lt;= current {
-<a href=#69 id=69 data-nosnippet>69</a>        <span class="macro">println!</span>(<span class="string">"tix {current} is already up to date (latest release: {latest})"</span>);
+<a href=#69 id=69 data-nosnippet>69</a>        <span class="macro">info!</span>(<span class="string">"tix {current} is already up to date (latest release: {latest})"</span>);
 <a href=#70 id=70 data-nosnippet>70</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#71 id=71 data-nosnippet>71</a>    }
 <a href=#72 id=72 data-nosnippet>72</a>
@@ -106,7 +106,7 @@
 <a href=#106 id=106 data-nosnippet>106</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#107 id=107 data-nosnippet>107</a>    }
 <a href=#108 id=108 data-nosnippet>108</a>
-<a href=#109 id=109 data-nosnippet>109</a>    <span class="macro">info!</span>(from = %current, to = %latest, asset = %asset_name, <span class="string">"updating tix"</span>);
+<a href=#109 id=109 data-nosnippet>109</a>    <span class="macro">info!</span>(<span class="string">"updating tix {current} -&gt; {latest} ({asset_name})"</span>);
 <a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">let </span>staging = tempfile::tempdir().map_err(SdkError::from)<span class="question-mark">?</span>;
 <a href=#111 id=111 data-nosnippet>111</a>    <span class="kw">let </span>archive_path = staging.path().join(<span class="kw-2">&amp;</span>asset.name);
 <a href=#112 id=112 data-nosnippet>112</a>    download(<span class="kw-2">&amp;</span>asset.browser_download_url, <span class="kw-2">&amp;</span>archive_path)<span class="question-mark">?</span>;
@@ -116,7 +116,7 @@
 <a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">let </span>extracted = extract_archive(<span class="kw-2">&amp;</span>archive_path, <span class="kw-2">&amp;</span>target)<span class="question-mark">?</span>;
 <a href=#117 id=117 data-nosnippet>117</a>    install_binary(<span class="kw-2">&amp;</span>extracted, <span class="kw-2">&amp;</span>destination)<span class="question-mark">?</span>;
 <a href=#118 id=118 data-nosnippet>118</a>
-<a href=#119 id=119 data-nosnippet>119</a>    <span class="macro">println!</span>(
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="macro">info!</span>(
 <a href=#120 id=120 data-nosnippet>120</a>        <span class="string">"updated tix {current} -&gt; {latest} ({})"</span>,
 <a href=#121 id=121 data-nosnippet>121</a>        destination.display()
 <a href=#122 id=122 data-nosnippet>122</a>    );
@@ -219,7 +219,7 @@
 <a href=#219 id=219 data-nosnippet>219</a>            <span class="string">"checksum mismatch: expected {expected}, got {actual} — not installing"
 <a href=#220 id=220 data-nosnippet>220</a>        </span>)));
 <a href=#221 id=221 data-nosnippet>221</a>    }
-<a href=#222 id=222 data-nosnippet>222</a>    <span class="macro">info!</span>(<span class="string">"checksum verified"</span>);
+<a href=#222 id=222 data-nosnippet>222</a>    <span class="macro">debug!</span>(<span class="string">"checksum verified"</span>);
 <a href=#223 id=223 data-nosnippet>223</a>    <span class="prelude-val">Ok</span>(())
 <a href=#224 id=224 data-nosnippet>224</a>}
 <a href=#225 id=225 data-nosnippet>225</a>

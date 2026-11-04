@@ -51,7 +51,7 @@
 <a href=#51 id=51 data-nosnippet>51</a>            root.display()
 <a href=#52 id=52 data-nosnippet>52</a>        ))<span class="question-mark">?
 <a href=#53 id=53 data-nosnippet>53</a>    </span>{
-<a href=#54 id=54 data-nosnippet>54</a>        <span class="macro">println!</span>(<span class="string">"aborted"</span>);
+<a href=#54 id=54 data-nosnippet>54</a>        <span class="macro">info!</span>(<span class="string">"aborted"</span>);
 <a href=#55 id=55 data-nosnippet>55</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
 <a href=#56 id=56 data-nosnippet>56</a>    }
 <a href=#57 id=57 data-nosnippet>57</a>
@@ -76,7 +76,7 @@
 <a href=#76 id=76 data-nosnippet>76</a>
 <a href=#77 id=77 data-nosnippet>77</a>        <span class="kw">match </span>(pruned, args.force) {
 <a href=#78 id=78 data-nosnippet>78</a>            (<span class="prelude-val">Ok</span>(()), <span class="kw">_</span>) =&gt; {
-<a href=#79 id=79 data-nosnippet>79</a>                <span class="macro">info!</span>(name = %name, <span class="string">"worktree pruned"</span>);
+<a href=#79 id=79 data-nosnippet>79</a>                <span class="macro">info!</span>(<span class="string">"pruned worktree {name}"</span>);
 <a href=#80 id=80 data-nosnippet>80</a>                <span class="comment">// Keep the document agreeing with disk so an abort partway
 <a href=#81 id=81 data-nosnippet>81</a>                // leaves the ticket resolvable for a retry.
 <a href=#82 id=82 data-nosnippet>82</a>                </span>with_write(<span class="kw-2">&amp;</span>ticket_document_path, |doc| {
@@ -104,7 +104,7 @@
 <a href=#104 id=104 data-nosnippet>104</a>    }
 <a href=#105 id=105 data-nosnippet>105</a>
 <a href=#106 id=106 data-nosnippet>106</a>    std::fs::remove_dir_all(<span class="kw-2">&amp;</span>root).map_err(SdkError::from)<span class="question-mark">?</span>;
-<a href=#107 id=107 data-nosnippet>107</a>    <span class="macro">println!</span>(<span class="string">"destroyed {} ({})"</span>, ticket.key, root.display());
+<a href=#107 id=107 data-nosnippet>107</a>    <span class="macro">info!</span>(<span class="string">"destroyed {} ({})"</span>, ticket.key, root.display());
 <a href=#108 id=108 data-nosnippet>108</a>
 <a href=#109 id=109 data-nosnippet>109</a>    <span class="kw">if </span>!leftovers.is_empty() {
 <a href=#110 id=110 data-nosnippet>110</a>        <span class="macro">warn!</span>(

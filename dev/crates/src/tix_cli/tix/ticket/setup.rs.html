@@ -366,7 +366,7 @@
 <a href=#366 id=366 data-nosnippet>366</a>        });
 <a href=#367 id=367 data-nosnippet>367</a>        <span class="kw">match </span>result {
 <a href=#368 id=368 data-nosnippet>368</a>            <span class="prelude-val">Ok</span>(worktree) =&gt; {
-<a href=#369 id=369 data-nosnippet>369</a>                <span class="macro">info!</span>(alias = %alias, branch = %worktree.branch, <span class="string">"worktree created"</span>);
+<a href=#369 id=369 data-nosnippet>369</a>                <span class="macro">info!</span>(<span class="string">"created worktree {alias} on {}"</span>, worktree.branch);
 <a href=#370 id=370 data-nosnippet>370</a>                worktrees.insert(
 <a href=#371 id=371 data-nosnippet>371</a>                    alias.clone(),
 <a href=#372 id=372 data-nosnippet>372</a>                    WorktreeConfig {
@@ -377,7 +377,7 @@
 <a href=#377 id=377 data-nosnippet>377</a>                );
 <a href=#378 id=378 data-nosnippet>378</a>            }
 <a href=#379 id=379 data-nosnippet>379</a>            <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#380 id=380 data-nosnippet>380</a>                <span class="macro">error!</span>(alias = %alias, error = %e, <span class="string">"failed to create worktree"</span>);
+<a href=#380 id=380 data-nosnippet>380</a>                <span class="macro">error!</span>(<span class="string">"{alias}: could not create worktree: {e}"</span>);
 <a href=#381 id=381 data-nosnippet>381</a>                failures.push((alias.clone(), e));
 <a href=#382 id=382 data-nosnippet>382</a>            }
 <a href=#383 id=383 data-nosnippet>383</a>        }

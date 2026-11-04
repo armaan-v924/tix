@@ -72,19 +72,18 @@
 <a href=#72 id=72 data-nosnippet>72</a>            .clone()
 <a href=#73 id=73 data-nosnippet>73</a>            .resolve(<span class="kw-2">&amp;</span>entry.repo)<span class="question-mark">?</span>;
 <a href=#74 id=74 data-nosnippet>74</a>        repo.remove_worktree(<span class="kw-2">&amp;</span>root.join(name), <span class="bool-val">false</span>)<span class="question-mark">?</span>;
-<a href=#75 id=75 data-nosnippet>75</a>        <span class="macro">info!</span>(name = %name, repo = %entry.repo, <span class="string">"worktree removed"</span>);
-<a href=#76 id=76 data-nosnippet>76</a>
-<a href=#77 id=77 data-nosnippet>77</a>        <span class="comment">// Drop the entry as soon as the prune lands, so an error later in
-<a href=#78 id=78 data-nosnippet>78</a>        // the batch leaves the document agreeing with disk.
-<a href=#79 id=79 data-nosnippet>79</a>        </span>with_write(<span class="kw-2">&amp;</span>ticket_document_path, |doc| {
-<a href=#80 id=80 data-nosnippet>80</a>            <span class="comment">// `table_at` rather than a plain lookup: a document written by a
-<a href=#81 id=81 data-nosnippet>81</a>            // version that collapsed the section into an inline table (#146)
-<a href=#82 id=82 data-nosnippet>82</a>            // holds no `Table` to remove from.
-<a href=#83 id=83 data-nosnippet>83</a>            </span>doc.table_at(<span class="kw-2">&amp;</span>[<span class="string">"ticket"</span>, <span class="string">"worktrees"</span>])<span class="question-mark">?</span>.remove(name);
-<a href=#84 id=84 data-nosnippet>84</a>            <span class="prelude-val">Ok</span>(())
-<a href=#85 id=85 data-nosnippet>85</a>        })<span class="question-mark">?</span>;
-<a href=#86 id=86 data-nosnippet>86</a>        <span class="macro">println!</span>(<span class="string">"removed {name}"</span>);
-<a href=#87 id=87 data-nosnippet>87</a>    }
-<a href=#88 id=88 data-nosnippet>88</a>    <span class="prelude-val">Ok</span>(())
-<a href=#89 id=89 data-nosnippet>89</a>}
+<a href=#75 id=75 data-nosnippet>75</a>
+<a href=#76 id=76 data-nosnippet>76</a>        <span class="comment">// Drop the entry as soon as the prune lands, so an error later in
+<a href=#77 id=77 data-nosnippet>77</a>        // the batch leaves the document agreeing with disk.
+<a href=#78 id=78 data-nosnippet>78</a>        </span>with_write(<span class="kw-2">&amp;</span>ticket_document_path, |doc| {
+<a href=#79 id=79 data-nosnippet>79</a>            <span class="comment">// `table_at` rather than a plain lookup: a document written by a
+<a href=#80 id=80 data-nosnippet>80</a>            // version that collapsed the section into an inline table (#146)
+<a href=#81 id=81 data-nosnippet>81</a>            // holds no `Table` to remove from.
+<a href=#82 id=82 data-nosnippet>82</a>            </span>doc.table_at(<span class="kw-2">&amp;</span>[<span class="string">"ticket"</span>, <span class="string">"worktrees"</span>])<span class="question-mark">?</span>.remove(name);
+<a href=#83 id=83 data-nosnippet>83</a>            <span class="prelude-val">Ok</span>(())
+<a href=#84 id=84 data-nosnippet>84</a>        })<span class="question-mark">?</span>;
+<a href=#85 id=85 data-nosnippet>85</a>        <span class="macro">info!</span>(<span class="string">"removed worktree {name}"</span>);
+<a href=#86 id=86 data-nosnippet>86</a>    }
+<a href=#87 id=87 data-nosnippet>87</a>    <span class="prelude-val">Ok</span>(())
+<a href=#88 id=88 data-nosnippet>88</a>}
 </code></pre></div></section></main></body></html>
