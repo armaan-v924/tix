@@ -15,7 +15,8 @@ jobs:
   # The commit about to be tagged has never been built as a release
   # artifact: cut-release and cut-patch push version bumps straight to a
   # branch, and pr-checks only runs on pull_request. Build the wheel and
-  # load it here, on every platform we ship, before the tag exists.
+  # the CLI archive and run both here, on every platform we ship, before
+  # the tag exists.
   verify-artifacts:
     if: startsWith(github.ref, 'refs/heads/release/')
     strategy:
@@ -40,6 +41,16 @@ jobs:
       - name: Smoke-test wheel
         shell: bash
         run: just smoke-wheel
+
+      - name: Build release binary
+        shell: bash
+        run: just build-cli "$(rustc -vV | awk '/^host/ { print $2 }')"
+      - name: Package binary
+        shell: bash
+        run: just package-cli "$(rustc -vV | awk '/^host/ { print $2 }')"
+      - name: Smoke-test binary
+        shell: bash
+        run: just smoke-binary
 
   tag:
     runs-on: ubuntu-latest

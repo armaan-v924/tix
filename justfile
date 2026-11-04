@@ -38,6 +38,55 @@ hook-pre-push: check lint test
 build-cli target:
     cargo build --release -p tix-cli --target {{ target }}
 
+# package a built CLI binary into dist/ exactly as the release ships it
+#
+# The name and layout are a contract: `tix cli update` and the install docs
+# fetch `tix-<tag>-<os>-<arch>.<tar.gz|zip>`, expect the executable at the
+# archive root, and the updater refuses an archive without its sibling
+# `.sha256`. `tag` defaults to `v` + the manifest version; the release passes
+# the pushed tag so assets are named after the tag they are attached to.
+package-cli target tag="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{ target }}" in
+        x86_64-unknown-linux-gnu) suffix=linux-x86_64   ext=tar.gz exe=tix ;;
+        aarch64-apple-darwin)     suffix=macos-aarch64  ext=tar.gz exe=tix ;;
+        x86_64-pc-windows-msvc)   suffix=windows-x86_64 ext=zip    exe=tix.exe ;;
+        *) echo "error: no release archive is defined for {{ target }}"; exit 1 ;;
+    esac
+    tag="{{ tag }}"
+    [[ -n "$tag" ]] || tag="v$(just _current)"
+    archive="tix-$tag-$suffix.$ext"
+    binary="target/{{ target }}/release/$exe"
+    if [[ ! -f "$binary" ]]; then
+        echo "error: $binary not found — run \`just build-cli {{ target }}\` first"
+        exit 1
+    fi
+    # Staged under target/ and wiped first, so a file left over from an
+    # earlier run can never end up in the archive. Relative paths throughout:
+    # on Windows the zip is made by PowerShell, which cannot read MSYS paths.
+    stage="target/package/{{ target }}"
+    rm -rf "$stage"
+    mkdir -p "$stage" dist
+    cp "$binary" README.md LICENSE "$stage/"
+    rm -f "dist/$archive" "dist/$archive.sha256"
+    case "$ext" in
+        tar.gz) tar -czf "dist/$archive" -C "$stage" . ;;
+        zip) pwsh -NoProfile -NonInteractive -Command \
+            "Compress-Archive -Path '$stage/*' -DestinationPath 'dist/$archive'" ;;
+    esac
+    # A sha256sum-style "<digest>  <name>" line naming the bare archive, so it
+    # is valid input for both the updater and `sha256sum -c` run from dist/.
+    # Formatted here rather than taken verbatim from the tool: macOS runners
+    # carry shasum, not coreutils' sha256sum, and the two differ in output.
+    if command -v sha256sum >/dev/null 2>&1; then
+        digest=$(sha256sum "dist/$archive")
+    else
+        digest=$(shasum -a 256 "dist/$archive")
+    fi
+    printf '%s  %s\n' "${digest%% *}" "$archive" > "dist/$archive.sha256"
+    echo "packaged dist/$archive"
+
 # build the pytix wheel for a given target triple
 [working-directory("pytix")]
 build-wheel target:
@@ -111,8 +160,76 @@ smoke-wheel:
     "$python" -c 'import pytix, pytix.host; print("loaded", pytix.__file__)'
     "$python" -m pytest pytix/tests -q
 
+# unpack the packaged CLI from ./dist and check the shipped binary runs
+#
+# Runs the archive, not target/…/release/: signing and packaging both happen
+# after the build, and either can break a binary that built fine. Only
+# startup-and-parse checks, so nothing touches the network or a real config.
 smoke-binary:
-    @echo "Not yet implemented."
+    #!/usr/bin/env bash
+    set -euo pipefail
+    shopt -s nullglob
+    archives=(dist/tix-*.tar.gz dist/tix-*.zip)
+    if [[ ${#archives[@]} -ne 1 ]]; then
+        echo "error: expected exactly one CLI archive in dist/, found ${#archives[@]}"
+        echo "       (build one with \`just build-cli <target> && just package-cli <target>\`)"
+        exit 1
+    fi
+    archive=${archives[0]}
+    name=${archive#dist/}
+    # The updater refuses an archive whose digest is missing or wrong, so a
+    # bad .sha256 is as broken a release as a bad binary.
+    if [[ ! -f "$archive.sha256" ]]; then
+        echo "error: $archive.sha256 not found"
+        exit 1
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        (cd dist && sha256sum -c "$name.sha256")
+    else
+        (cd dist && shasum -a 256 -c "$name.sha256")
+    fi
+    unpacked=target/smoke-binary
+    rm -rf "$unpacked"
+    mkdir -p "$unpacked"
+    case "$archive" in
+        *.tar.gz)
+            tar -xzf "$archive" -C "$unpacked"
+            bin="$unpacked/tix" ;;
+        *.zip)
+            if command -v unzip >/dev/null 2>&1; then
+                unzip -q "$archive" -d "$unpacked"
+            else
+                pwsh -NoProfile -NonInteractive -Command \
+                    "Expand-Archive -Path '$archive' -DestinationPath '$unpacked'"
+            fi
+            bin="$unpacked/tix.exe" ;;
+    esac
+    # -x as well as -f: a lost executable bit is a packaging bug to catch here.
+    if [[ ! -x "$bin" ]]; then
+        echo "error: $name does not contain an executable ${bin#"$unpacked"/}"
+        exit 1
+    fi
+    # Pointed at a config that does not exist, so a developer's own config
+    # cannot change the result. Relative, so Git Bash on Windows has no MSYS
+    # path to translate for the binary.
+    export TIX_CONFIG_PATH="$unpacked/no-config.toml"
+    # Proves the binary starts — so dynamic linking resolved — and reports
+    # the version it was cut as, which check-versions can't see.
+    expected="tix $(just _current)"
+    actual=$("$bin" --version)
+    actual=${actual%$'\r'}
+    if [[ "$actual" != "$expected" ]]; then
+        echo "error: $name reports '$actual', expected '$expected'"
+        exit 1
+    fi
+    # Builds the whole clap command tree, which panics on a wiring mistake.
+    "$bin" --help >/dev/null
+    # Exercises clap_complete.
+    if [[ -z "$("$bin" completions bash)" ]]; then
+        echo "error: \`tix completions bash\` printed nothing"
+        exit 1
+    fi
+    echo "$name: $actual, --help and completions ok"
 
 # ── lint ──────────────────────────────────────────────────────────────────────
 
