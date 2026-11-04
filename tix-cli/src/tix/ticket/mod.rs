@@ -149,19 +149,183 @@ pub fn load_ticket_config(
 /// Resolves the ticket a command operates on — `--ticket` override or the
 /// discovery walk — and errors clearly when neither yields one.
 ///
-/// The error is the "requires ticket context" message every ticket-scoped
-/// command shares; commands that merely prefer context call the discovery
-/// layer directly.
+/// `project` is the `--project` flag, and it means one thing whichever way
+/// the ticket is named:
+///
+/// - **Id form** (`--ticket JIRA-1`): the id resolves inside the command's
+///   project — the flag, else the project inferred from cwd, else loose
+///   (directly in the tickets directory). From inside `acme/JIRA-1`,
+///   `--ticket JIRA-2` therefore means `acme/JIRA-2`.
+/// - **Path form or discovery**: the ticket is already pinned down, so the
+///   flag is an assertion that it belongs to that project, and a mismatch
+///   errors — in keeping with `--ticket` being an assertion itself.
+///
+/// The error for "no ticket" is the "requires ticket context" message every
+/// ticket-scoped command shares; commands that merely prefer context call
+/// the discovery layer directly.
 pub fn require_ticket_root(
     context: &tix_sdk::context::Context,
     ticket: Option<&TicketRef>,
+    project: Option<&str>,
 ) -> Result<std::path::PathBuf, tix_sdk::SdkError> {
     let cli = load_cli_config(context)?;
-    tix_sdk::discovery::resolve_ticket_root(ticket, &cli.tickets_directory)?.ok_or_else(|| {
-        tix_sdk::SdkError::Engine(tix_sdk::TixError::TicketNotFound(
-            "not inside a ticket — cd into one or pass --ticket <path|id>".to_string(),
-        ))
-    })
+    resolve_ticket_in(
+        ticket,
+        project,
+        &cli.tickets_directory,
+        &tix_sdk::discovery::logical_cwd()?,
+    )
+}
+
+/// [`require_ticket_root`] over an explicit tickets directory and (logical)
+/// cwd — the part that needs no config.
+fn resolve_ticket_in(
+    ticket: Option<&TicketRef>,
+    project: Option<&str>,
+    tickets_directory: &std::path::Path,
+    cwd: &std::path::Path,
+) -> Result<std::path::PathBuf, tix_sdk::SdkError> {
+    use tix_sdk::project::{Project, resolve_project, tickets_home};
+    use tix_sdk::{SdkError, TixError};
+
+    if let Some(id_form @ TicketRef::Id(id)) = ticket {
+        let scope = resolve_project(project, tickets_directory, cwd)?;
+        let home = tickets_home(scope.as_ref(), tickets_directory);
+        return tix_sdk::discovery::resolve_override(id_form, home).map_err(|e| match &scope {
+            // Inferred, not asked for: say where the id was looked up and
+            // how to reach the loose ticket it may have meant.
+            Some(inferred) if project.is_none() && tickets_directory.join(id).is_dir() => {
+                SdkError::Message(format!(
+                    "{e} — inside project '{}', ids resolve within it; pass the path \
+                         (e.g. '{}') for the loose ticket",
+                    inferred.name,
+                    tickets_directory.join(id).display()
+                ))
+            }
+            _ => e,
+        });
+    }
+
+    let root = match ticket {
+        Some(path_form) => tix_sdk::discovery::resolve_override(path_form, tickets_directory)?,
+        None => tix_sdk::discovery::discover_ticket_root_from(cwd).ok_or_else(|| {
+            SdkError::Engine(TixError::TicketNotFound(
+                "not inside a ticket — cd into one or pass --ticket <path|id>".to_string(),
+            ))
+        })?,
+    };
+    if let Some(name) = project {
+        let asserted = Project::named(tickets_directory, name)?;
+        if !asserted.contains(&root) {
+            let actual = tix_sdk::project::project_of(&root).map_or_else(
+                || "it is a loose ticket".to_string(),
+                |p| format!("it is in '{}'", p.name),
+            );
+            return Err(SdkError::Message(format!(
+                "the ticket at {} is not in project '{name}' — {actual}",
+                root.display()
+            )));
+        }
+    }
+    Ok(root)
+}
+
+#[cfg(test)]
+mod resolve_tests {
+    use super::*;
+    use std::path::{Path, PathBuf};
+    use tempfile::tempdir;
+
+    fn make_ticket(root: &Path) {
+        std::fs::create_dir_all(root.join(".tix")).unwrap();
+        std::fs::write(root.join(".tix/ticket.toml"), "").unwrap();
+    }
+
+    /// `<tickets>/JIRA-1` (loose) and `<tickets>/acme/JIRA-2` (in `acme`).
+    fn fixture() -> (tempfile::TempDir, PathBuf) {
+        let dir = tempdir().unwrap();
+        let tickets = dir.path().join("tickets");
+        make_ticket(&tickets.join("JIRA-1"));
+        tix_sdk::project::Project::named(&tickets, "acme")
+            .unwrap()
+            .ensure()
+            .unwrap();
+        make_ticket(&tickets.join("acme/JIRA-2"));
+        (dir, tickets)
+    }
+
+    fn id(s: &str) -> TicketRef {
+        TicketRef::Id(s.to_string())
+    }
+
+    /// An id resolves loose from outside any project, and within the
+    /// project when `--project` names it.
+    #[test]
+    fn test_id_resolves_loose_or_in_flagged_project() {
+        let (dir, tickets) = fixture();
+        let outside = dir.path();
+        assert_eq!(
+            resolve_ticket_in(Some(&id("JIRA-1")), None, &tickets, outside).unwrap(),
+            tickets.join("JIRA-1")
+        );
+        assert_eq!(
+            resolve_ticket_in(Some(&id("JIRA-2")), Some("acme"), &tickets, outside).unwrap(),
+            tickets.join("acme/JIRA-2")
+        );
+        assert!(resolve_ticket_in(Some(&id("JIRA-2")), None, &tickets, outside).is_err());
+    }
+
+    /// Deep inside a project ticket, a bare id means a sibling in the same
+    /// project — and the loose ticket of that name needs its path.
+    #[test]
+    fn test_id_inferred_from_inside_project_ticket() {
+        let (_dir, tickets) = fixture();
+        let deep = tickets.join("acme/JIRA-2/api/src");
+        std::fs::create_dir_all(&deep).unwrap();
+        make_ticket(&tickets.join("acme/JIRA-3"));
+
+        assert_eq!(
+            resolve_ticket_in(Some(&id("JIRA-3")), None, &tickets, &deep).unwrap(),
+            tickets.join("acme/JIRA-3")
+        );
+        let error = resolve_ticket_in(Some(&id("JIRA-1")), None, &tickets, &deep)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("inside project 'acme'"), "{error}");
+    }
+
+    /// Discovery from inside a project ticket finds that ticket; `--project`
+    /// then checks membership instead of choosing.
+    #[test]
+    fn test_discovery_inside_project_ticket_with_assertion() {
+        let (_dir, tickets) = fixture();
+        let deep = tickets.join("acme/JIRA-2/api");
+        std::fs::create_dir_all(&deep).unwrap();
+
+        let ticket = tickets.join("acme/JIRA-2");
+        assert_eq!(
+            resolve_ticket_in(None, None, &tickets, &deep).unwrap(),
+            ticket
+        );
+        assert_eq!(
+            resolve_ticket_in(None, Some("acme"), &tickets, &deep).unwrap(),
+            ticket
+        );
+        assert!(resolve_ticket_in(None, Some("other"), &tickets, &deep).is_err());
+    }
+
+    /// With a path, `--project` asserts membership: a loose ticket is in no
+    /// project.
+    #[test]
+    fn test_path_form_with_project_asserts() {
+        let (dir, tickets) = fixture();
+        let loose = TicketRef::Path(tickets.join("JIRA-1"));
+        assert!(resolve_ticket_in(Some(&loose), None, &tickets, dir.path()).is_ok());
+        let error = resolve_ticket_in(Some(&loose), Some("acme"), &tickets, dir.path())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("loose ticket"), "{error}");
+    }
 }
 
 /// Create, inspect, and manage ticket workspaces
@@ -178,6 +342,12 @@ pub struct TicketSharedArgs {
     /// Discovered by walking up from the current directory when omitted
     #[arg(short, long, value_hint = clap::ValueHint::DirPath)]
     pub ticket: Option<TicketRef>,
+
+    /// The project a bare ticket id resolves in. Inferred from the current
+    /// directory when omitted; with a path or a discovered ticket, asserts
+    /// the ticket belongs to it
+    #[arg(short, long, value_name = "NAME")]
+    pub project: Option<String>,
 }
 
 #[derive(Subcommand)]

@@ -30,7 +30,11 @@ pub struct Args {
 /// the last worktree leaves a valid, empty ticket. Each successful prune is
 /// written back immediately through the format-preserving layer.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
-    let root = require_ticket_root(&app.context, args.shared.ticket.as_ref())?;
+    let root = require_ticket_root(
+        &app.context,
+        args.shared.ticket.as_ref(),
+        args.shared.project.as_deref(),
+    )?;
     let ticket = load_ticket_config(&root)?;
 
     let document = TixDocument::load(&app.context.config_path)?;

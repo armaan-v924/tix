@@ -89,7 +89,11 @@ impl Branch<'_> {
 /// format-preserving layer, so plugin tables and comments in
 /// `.tix/ticket.toml` survive.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
-    let root = require_ticket_root(&app.context, args.shared.ticket.as_ref())?;
+    let root = require_ticket_root(
+        &app.context,
+        args.shared.ticket.as_ref(),
+        args.shared.project.as_deref(),
+    )?;
     let ticket = load_ticket_config(&root)?;
 
     let document = TixDocument::load(&app.context.config_path)?;

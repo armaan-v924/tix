@@ -6,6 +6,7 @@ use crate::tix::ticket::{TicketRef, derive_branch_name};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tix_sdk::document::TixDocument;
+use tix_sdk::project::{Project, resolve_project, tickets_home};
 use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig, TixError, WorktreeConfig};
 use tracing::{error, info};
 
@@ -22,6 +23,12 @@ pub struct Args {
     /// Path form only — a bare key already names itself
     #[arg(short, long)]
     pub key: Option<String>,
+
+    /// The project to create the ticket in, created on first use. Inferred
+    /// from the current directory when omitted; outside any project the
+    /// ticket is loose. Key form only — a path already says where it goes
+    #[arg(short, long, value_name = "NAME")]
+    pub project: Option<String>,
 
     /// Human-readable description; feeds branch name derivation
     #[arg(short, long)]
@@ -40,6 +47,37 @@ pub struct Args {
     /// Repositories to include (defaults to `[defaults].repositories`)
     #[arg(group = "repos")]
     pub repo_aliases: Vec<RepoAlias>,
+}
+
+/// The project a new ticket goes in: `--project`, else the project the cwd
+/// is inside, else none (a loose ticket, directly in the tickets directory).
+///
+/// Only the key form has a project to choose. A path names its location
+/// outright, so `--project` alongside one could only contradict it, and no
+/// project is inferred for it — a path into a project directory lands in that
+/// project by being there.
+///
+/// # Errors
+///
+/// [`SdkError::Message`] when `--project` accompanies the path form, or is
+/// not a valid project name.
+fn project_for(
+    target: &TicketRef,
+    flag: Option<&str>,
+    tickets_directory: &Path,
+    cwd: &Path,
+) -> Result<Option<Project>, SdkError> {
+    match target {
+        TicketRef::Path(path) => match flag {
+            Some(name) => Err(SdkError::Message(format!(
+                "--project '{name}' conflicts with the path '{}', which already says where the \
+                 ticket goes — pass a bare key to create it in the project",
+                path.display()
+            ))),
+            None => Ok(None),
+        },
+        TicketRef::Id(_) => resolve_project(flag, tickets_directory, cwd),
+    }
 }
 
 /// Which shape the target argument took.
@@ -72,8 +110,9 @@ struct Target {
 /// Shape decides, exactly as `--ticket` is disambiguated ([`TicketRef`],
 /// `design/spec.md` §4) — one rule for finding tickets and creating them:
 ///
-/// - **Key form** (a bare name): created at `tickets_directory.join(key)`,
-///   v2 parity, and the key is the argument.
+/// - **Key form** (a bare name): created at `home.join(key)`, and the key is
+///   the argument. `home` is the tickets directory for a loose ticket (v2
+///   parity) or the project directory ([`tickets_home`]).
 /// - **Path form** (contains a separator, is absolute, or is `.`/`..`):
 ///   created at that path, wherever it points. The key defaults to the
 ///   directory name, which is the only thing the key form could ever have
@@ -95,7 +134,7 @@ struct Target {
 fn resolve_target(
     target: &TicketRef,
     key_override: Option<&str>,
-    tickets_directory: &Path,
+    home: &Path,
     cwd: &Path,
 ) -> Result<Target, SdkError> {
     match target {
@@ -108,7 +147,7 @@ fn resolve_target(
             }
             let key = validated_key(key)?;
             Ok(Target {
-                root: tickets_directory.join(&key),
+                root: home.join(&key),
                 key,
                 form: Form::Key,
             })
@@ -219,9 +258,12 @@ fn create_ticket_root(target: &Target) -> Result<(), SdkError> {
 /// Creates a ticket workspace with a worktree per selected repo.
 ///
 /// The target argument is disambiguated by shape (`resolve_target`): a bare
-/// key lands under `tickets_directory`, a path lands where it points. Both
-/// forms are otherwise identical — same seeds, same derivation, same
-/// document.
+/// key lands under `tickets_directory` — inside its project when there is one
+/// (`project_for`) — and a path lands where it points. Both forms are
+/// otherwise identical — same seeds, same derivation, same document.
+///
+/// A project named for the first time is created here, just before the
+/// ticket inside it: the directory and its empty `.tix/project.toml`.
 ///
 /// Runs **without ticket context** by design — this is the command that
 /// creates it. `[defaults]` is read **once**, here, and the derived values
@@ -249,11 +291,18 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let engine: EngineConfig = document.section_or_default("engine")?;
     let defaults: Defaults = document.section_or_default("defaults")?;
 
+    let cwd = tix_sdk::discovery::logical_cwd()?;
+    let project = project_for(
+        &args.target,
+        args.project.as_deref(),
+        &cli.tickets_directory,
+        &cwd,
+    )?;
     let target = resolve_target(
         &args.target,
         args.key.as_deref(),
-        &cli.tickets_directory,
-        &tix_sdk::discovery::logical_cwd()?,
+        tickets_home(project.as_ref(), &cli.tickets_directory),
+        &cwd,
     )?;
 
     // --- select repositories ---
@@ -296,6 +345,9 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     );
     let description = args.description.clone().unwrap_or_default();
 
+    if let Some(project) = &project {
+        project.ensure()?;
+    }
     create_ticket_root(&target)?;
     let ticket_root = &target.root;
 
@@ -436,6 +488,111 @@ mod tests {
             Path::new("/home/u/work/client-work/acme-login")
         );
         assert_eq!(target.key, "JIRA-9");
+    }
+
+    // --- project_for ---
+
+    /// Creates `.tix/project.toml` under `root`.
+    fn make_project(root: &Path) {
+        std::fs::create_dir_all(root.join(".tix")).unwrap();
+        std::fs::write(root.join(".tix/project.toml"), "").unwrap();
+    }
+
+    /// `--project` scopes a key to that project, whether or not it exists.
+    #[test]
+    fn test_project_flag_scopes_the_key_form() {
+        let target: TicketRef = "JIRA-123".parse().unwrap();
+        let project = project_for(
+            &target,
+            Some("myproject"),
+            Path::new(TICKETS),
+            Path::new(CWD),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(project.root, Path::new("/home/u/tickets/myproject"));
+
+        let home = tickets_home(Some(&project), Path::new(TICKETS));
+        let resolved = resolve_target(&target, None, home, Path::new(CWD)).unwrap();
+        assert_eq!(
+            resolved.root,
+            Path::new("/home/u/tickets/myproject/JIRA-123")
+        );
+    }
+
+    /// Outside any project and without the flag, a key makes a loose ticket.
+    #[test]
+    fn test_no_project_is_loose() {
+        let dir = tempdir().unwrap();
+        let target: TicketRef = "JIRA-123".parse().unwrap();
+        assert_eq!(
+            project_for(&target, None, &dir.path().join("tickets"), dir.path()).unwrap(),
+            None
+        );
+    }
+
+    /// Without the flag, a key created from inside a project — at project
+    /// level or deep in one of its tickets — lands in that project.
+    #[test]
+    fn test_project_inferred_from_cwd() {
+        let dir = tempdir().unwrap();
+        let tickets = dir.path().join("tickets");
+        let acme = tickets.join("acme");
+        make_project(&acme);
+        let deep = acme.join("JIRA-1/api");
+        std::fs::create_dir_all(acme.join("JIRA-1/.tix")).unwrap();
+        std::fs::write(acme.join("JIRA-1/.tix/ticket.toml"), "").unwrap();
+        std::fs::create_dir_all(&deep).unwrap();
+
+        let target: TicketRef = "JIRA-2".parse().unwrap();
+        for cwd in [&acme, &deep] {
+            let project = project_for(&target, None, &tickets, cwd).unwrap().unwrap();
+            assert_eq!(project.name, "acme");
+            assert_eq!(project.root, acme);
+        }
+    }
+
+    /// A path already says where the ticket goes: `--project` could only
+    /// contradict it, and nothing is inferred for it.
+    #[test]
+    fn test_path_form_takes_no_project() {
+        let dir = tempdir().unwrap();
+        make_project(dir.path());
+        let target: TicketRef = "./JIRA-1".parse().unwrap();
+        assert!(project_for(&target, Some("acme"), Path::new(TICKETS), dir.path()).is_err());
+        assert_eq!(
+            project_for(&target, None, Path::new(TICKETS), dir.path()).unwrap(),
+            None
+        );
+    }
+
+    /// The creation sequence `run` follows: first use of a project creates
+    /// it, marker and all, with the ticket inside — and loose tickets sit
+    /// beside it untouched.
+    #[test]
+    fn test_setup_in_new_project_creates_marker() {
+        let dir = tempdir().unwrap();
+        let tickets = dir.path().join("tickets");
+        let loose = tickets.join("JIRA-1");
+        create_ticket_root(&target_at(loose.clone(), Form::Key)).unwrap();
+
+        let target: TicketRef = "JIRA-123".parse().unwrap();
+        let project = project_for(&target, Some("myproject"), &tickets, dir.path())
+            .unwrap()
+            .unwrap();
+        let resolved = resolve_target(
+            &target,
+            None,
+            tickets_home(Some(&project), &tickets),
+            dir.path(),
+        )
+        .unwrap();
+        project.ensure().unwrap();
+        create_ticket_root(&resolved).unwrap();
+
+        assert!(tickets.join("myproject/JIRA-123").is_dir());
+        assert!(tickets.join("myproject/.tix/project.toml").is_file());
+        assert!(loose.is_dir());
     }
 
     /// A path with no final component has no key to take.

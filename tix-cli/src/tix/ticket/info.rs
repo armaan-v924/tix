@@ -72,7 +72,11 @@ impl WorktreeStatus {
 /// per-worktree. Each worktree's recorded base — what its branch was cut
 /// from — follows its branch when there is one.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
-    let root = require_ticket_root(&app.context, args.shared.ticket.as_ref())?;
+    let root = require_ticket_root(
+        &app.context,
+        args.shared.ticket.as_ref(),
+        args.shared.project.as_deref(),
+    )?;
     let ticket: TicketConfig = load_ticket_config(&root)?;
 
     // Grouped by repo, then by name within a repo.
@@ -92,6 +96,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         })
         .collect();
     rows.sort_by(|a, b| a.repo.cmp(&b.repo).then(a.name.cmp(&b.name)));
+    let project = tix_sdk::project::project_of(&root).map(|project| project.name);
 
     match app.output {
         OutputType::Default => {
@@ -146,13 +151,18 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             let value = serde_json::json!({
                 "key": ticket.key,
                 "description": ticket.description,
+                "project": project,
                 "path": root,
                 "worktrees": worktrees,
             });
             println!("{}", serde_json::to_string_pretty(&value).unwrap());
         }
         OutputType::Toml => {
-            println!("path = {:?}\n", root.display().to_string());
+            println!("path = {:?}", root.display().to_string());
+            if let Some(name) = &project {
+                println!("project = {}", toml::Value::from(name.as_str()));
+            }
+            println!();
             print!("{}", toml::to_string(&ticket)?);
         }
     }
