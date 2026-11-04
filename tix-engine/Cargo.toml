@@ -22,8 +22,8 @@ git2 = { version = "0.21.0", features = [
 # Optional and off by default: the derive it provides is what lets the
 # documentation generator read this crate's config types instead of a
 # hand-maintained copy of them. Released binaries never compile it.
-schemars = { version = "1.2.2", optional = true }
-serde = { version = "1.0.228", features = ["derive"] }
+schemars = { version = "1.2.3", optional = true }
+serde = { version = "1.0.229", features = ["derive"] }
 tracing = "0.1.44"
 
 [features]
@@ -34,4 +34,4 @@ schema = ["dep:schemars"]
 tempfile = "3.27.0"
 # dev-only: round-trip tests and doctests of the serde section shapes.
 # Document parsing is the SDK's job (design/spec.md §2.2).
-toml = "1.1.2"
+toml = "1.2.0"

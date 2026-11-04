@@ -72,7 +72,7 @@ impl PyWorktreeConfig {
 ///
 /// Mirrors [`tix_engine::Worktree`]. There is deliberately no constructor —
 /// a `Worktree` is evidence, and Python code must not be able to forge it.
-#[pyclass(name = "Worktree", module = "pytix", frozen, eq, skip_from_py_object)]
+#[pyclass(name = "Worktree", module = "pytix", frozen, eq)]
 #[derive(Clone, PartialEq)]
 pub struct PyWorktree {
     inner: Worktree,
