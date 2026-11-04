@@ -11,7 +11,7 @@ use sha2::Digest;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use tix_sdk::SdkError;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// GitHub repository the updater checks, overridable for testing.
 const DEFAULT_OWNER: &str = "armaan-v924";
@@ -66,7 +66,7 @@ pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         .map_err(|e| SdkError::Message(format!("could not parse own version: {e}")))?;
 
     if latest <= current {
-        println!("tix {current} is already up to date (latest release: {latest})");
+        info!("tix {current} is already up to date (latest release: {latest})");
         return Ok(());
     }
 
@@ -106,7 +106,7 @@ pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         return Ok(());
     }
 
-    info!(from = %current, to = %latest, asset = %asset_name, "updating tix");
+    info!("updating tix {current} -> {latest} ({asset_name})");
     let staging = tempfile::tempdir().map_err(SdkError::from)?;
     let archive_path = staging.path().join(&asset.name);
     download(&asset.browser_download_url, &archive_path)?;
@@ -116,7 +116,7 @@ pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let extracted = extract_archive(&archive_path, &target)?;
     install_binary(&extracted, &destination)?;
 
-    println!(
+    info!(
         "updated tix {current} -> {latest} ({})",
         destination.display()
     );
@@ -219,7 +219,7 @@ fn verify_digest(archive_path: &Path, expected: &str) -> Result<(), SdkError> {
             "checksum mismatch: expected {expected}, got {actual} — not installing"
         )));
     }
-    info!("checksum verified");
+    debug!("checksum verified");
     Ok(())
 }
 

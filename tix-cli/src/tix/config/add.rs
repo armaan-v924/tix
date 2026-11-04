@@ -54,7 +54,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 args.value, args.key
             ))?
         {
-            println!("aborted");
+            tracing::info!("aborted");
             return Ok(());
         }
     }
@@ -67,7 +67,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         Ok(rendered)
     })?;
 
-    println!(
+    tracing::info!(
         "{} = {list} ({})",
         args.key,
         app.context.config_path.display()

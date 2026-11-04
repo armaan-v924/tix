@@ -72,7 +72,6 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             .clone()
             .resolve(&entry.repo)?;
         repo.remove_worktree(&root.join(name), false)?;
-        info!(name = %name, repo = %entry.repo, "worktree removed");
 
         // Drop the entry as soon as the prune lands, so an error later in
         // the batch leaves the document agreeing with disk.
@@ -83,7 +82,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             doc.table_at(&["ticket", "worktrees"])?.remove(name);
             Ok(())
         })?;
-        println!("removed {name}");
+        info!("removed worktree {name}");
     }
     Ok(())
 }

@@ -122,6 +122,23 @@ error: unknown command 'deploy': not a builtin, and no 'tix-deploy' executable o
 A typo, or a plugin that is not on your `PATH`. `tix --help` lists the
 plugins tix can currently find.
 
+## Seeing what tix did
+
+By default tix prints one line per action (a clone, a worktree created or
+removed) and labels anything that went wrong `warning:` or `error:`. To see
+every step, pass `-v` (or `--log-level debug` for slightly less):
+
+```
+$ tix -v setup PROJ-1 api
+2026-11-04T22:29:29.463107Z DEBUG tix_engine::types::repository: opening repository alias=api path=/home/you/code/api
+2026-11-04T22:29:29.473941Z DEBUG tix_engine::types::repository: creating worktree alias=api name="api" branch="PROJ-1"
+…
+2026-11-04T22:29:29.475403Z  INFO tix_cli::tix::ticket::setup: created worktree api on PROJ-1
+```
+
+The detailed format adds timestamps, levels, and the module each line came
+from, which helps when you report a bug.
+
 ## Conflicting log flags
 
 ```

@@ -3,7 +3,7 @@ use crate::types::worktree::{Worktree, WorktreeConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::{debug, error};
+use tracing::debug;
 
 /// The `[ticket]` section of the ticket document (`.tix/ticket.toml`).
 ///
@@ -130,7 +130,7 @@ impl TicketConfig {
     pub fn resolve(self, path: PathBuf) -> Result<Ticket, TixError> {
         debug!(key = %self.key, path = %path.display(), "resolving ticket");
         if !path.is_dir() {
-            error!(key = %self.key, path = %path.display(), "ticket directory does not exist");
+            debug!(key = %self.key, path = %path.display(), "ticket directory does not exist");
             return Err(TixError::TicketNotFound(path.display().to_string()));
         }
 
@@ -143,7 +143,7 @@ impl TicketConfig {
         for (name, entry) in entries {
             let worktree_path = path.join(name);
             if !worktree_path.is_dir() {
-                error!(key = %self.key, worktree = %name, path = %worktree_path.display(), "recorded worktree is missing on disk");
+                debug!(key = %self.key, worktree = %name, path = %worktree_path.display(), "recorded worktree is missing on disk");
                 return Err(TixError::WorktreeNotFound(format!(
                     "'{}' recorded in ticket '{}' but missing at {}",
                     name,
@@ -154,7 +154,7 @@ impl TicketConfig {
             // The directory must actually be a git worktree, not just any
             // directory that happens to share the recorded name.
             git2::Repository::open(&worktree_path).map_err(|e| {
-                error!(key = %self.key, worktree = %name, error = %e, "recorded worktree is not a git repository");
+                debug!(key = %self.key, worktree = %name, error = %e, "recorded worktree is not a git repository");
                 TixError::GitError(e)
             })?;
             worktrees.push(Worktree {

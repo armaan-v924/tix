@@ -2,7 +2,7 @@ use crate::types::{errors::TixError, worktree::Worktree};
 use git2::{RepositoryState, WorktreeAddOptions};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// The configuration for a repository.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -89,15 +89,15 @@ impl RepositoryConfig {
     /// let repo = config.clone_remote("my-repo");
     /// ```
     pub fn clone_remote(self, alias: &str) -> Result<Repository, TixError> {
-        info!(alias = %alias, remote = %self.remote, "cloning repository");
+        info!("cloning {alias} from {}", self.remote);
         let repo = git2::build::RepoBuilder::new()
             .fetch_options(crate::auth::fetch_options())
             .clone(&self.remote, &self.code_path)
             .map_err(|e| {
-                error!(alias = %alias, error = %e, "clone failed");
+                debug!(alias = %alias, error = %e, "clone failed");
                 TixError::GitError(e)
             })?;
-        info!(alias = %alias, path = %self.code_path.display(), "clone complete");
+        debug!(alias = %alias, path = %self.code_path.display(), "clone complete");
         Ok(Repository {
             alias: alias.to_string(),
             config: self,
@@ -211,7 +211,7 @@ impl Repository {
         path: &Path,
         base: Option<&str>,
     ) -> Result<Worktree, TixError> {
-        info!(alias = %self.alias, name, branch, base, "creating worktree");
+        debug!(alias = %self.alias, name, branch, base, "creating worktree");
 
         // The worktree must open on `branch` by that exact name. Without an
         // explicit reference, git2 would create a branch named after the
@@ -232,7 +232,7 @@ impl Repository {
                             .map_err(TixError::GitError)?
                             .id();
                         if !self.contains(tip, resolved.commit)? {
-                            error!(alias = %self.alias, branch, base = %resolved.name, "existing branch does not contain base");
+                            debug!(alias = %self.alias, branch, base = %resolved.name, "existing branch does not contain base");
                             return Err(TixError::from(format!(
                                 "branch '{branch}' already exists and does not contain '{}' — \
                                      reuse it without a base, or pick another branch",
@@ -285,10 +285,10 @@ impl Repository {
                 path: path.to_path_buf(),
             })
             .map_err(|e| {
-                error!(alias = %self.alias, name, error = %e, "failed to create worktree");
+                debug!(alias = %self.alias, name, error = %e, "failed to create worktree");
                 TixError::GitError(e)
             })?;
-        info!(alias = %self.alias, name, path = %path.display(), base = worktree.base.as_deref(), "worktree created");
+        debug!(alias = %self.alias, name, path = %path.display(), base = worktree.base.as_deref(), "worktree created");
         Ok(worktree)
     }
 
@@ -394,7 +394,7 @@ impl Repository {
                 commit: local,
             },
             (Some(_), Some(_)) => {
-                error!(alias = %self.alias, base = spec, "local and origin have diverged");
+                debug!(alias = %self.alias, base = spec, "local and origin have diverged");
                 return Err(TixError::from(format!(
                     "'{spec}' has diverged from 'origin/{spec}' — name the one to branch from: \
                      'refs/heads/{spec}' or 'origin/{spec}'"
@@ -483,7 +483,7 @@ impl Repository {
         }
 
         let unknown = |reason: String| {
-            error!(alias = %self.alias, reason = %reason, "cannot determine default branch");
+            debug!(alias = %self.alias, reason = %reason, "cannot determine default branch");
             TixError::from(format!(
                 "cannot determine the default branch of '{}' ({reason}) — pass an explicit base",
                 self.alias
@@ -574,7 +574,7 @@ impl Repository {
     /// repo.remove_worktree(&PathBuf::from("/home/user/tickets/JIRA-123/my-repo"), false);
     /// ```
     pub fn remove_worktree(&self, path: &Path, force: bool) -> Result<(), TixError> {
-        info!(alias = %self.alias, path = %path.display(), "removing worktree");
+        debug!(alias = %self.alias, path = %path.display(), "removing worktree");
 
         let worktree = self
             .find_worktree_by_path(path)?
@@ -585,7 +585,7 @@ impl Repository {
             // gone). It says nothing about cleanliness — that takes opening
             // the worktree and asking for its status.
             if worktree.validate().is_err() {
-                error!(alias = %self.alias, path = %path.display(), "worktree failed validation, use force to remove");
+                debug!(alias = %self.alias, path = %path.display(), "worktree failed validation, use force to remove");
                 return Err(TixError::from(
                     "worktree is not in a clean state, use force to remove",
                 ));
@@ -594,7 +594,7 @@ impl Repository {
                 git2::Repository::open(worktree.path()).map_err(TixError::GitError)?;
             let count = uncommitted_changes(&worktree_repo)?;
             if count > 0 {
-                error!(alias = %self.alias, path = %path.display(), count, "worktree has uncommitted changes, use force to remove");
+                debug!(alias = %self.alias, path = %path.display(), count, "worktree has uncommitted changes, use force to remove");
                 return Err(TixError::from(
                     "worktree has uncommitted changes, use force to remove",
                 ));
@@ -605,10 +605,10 @@ impl Repository {
         opts.working_tree(true).valid(true);
 
         worktree.prune(Some(&mut opts)).map_err(|e| {
-            error!(alias = %self.alias, path = %path.display(), "failed to remove worktree: {e}");
+            debug!(alias = %self.alias, path = %path.display(), "failed to remove worktree: {e}");
             TixError::GitError(e)
         })?;
-        info!(alias = %self.alias, path = %path.display(), "worktree removed");
+        debug!(alias = %self.alias, path = %path.display(), "worktree removed");
         Ok(())
     }
 
@@ -663,7 +663,7 @@ impl Repository {
         // RepositoryState::Clean means no git operation is in progress.
         // force cannot recover from this — the user must resolve it manually.
         if self.repo.state() != RepositoryState::Clean {
-            error!(alias = %self.alias, "repository is mid-operation, cannot sync");
+            debug!(alias = %self.alias, "repository is mid-operation, cannot sync");
             return Err(TixError::from(
                 "repository is mid-operation (merge, rebase, etc), resolve it before syncing",
             ));
@@ -673,7 +673,7 @@ impl Repository {
         if !force {
             let count = uncommitted_changes(&self.repo)?;
             if count > 0 {
-                error!(alias = %self.alias, count, "repository has uncommitted changes");
+                debug!(alias = %self.alias, count, "repository has uncommitted changes");
                 return Err(TixError::from(
                     "repository has uncommitted changes, use force to discard them",
                 ));
@@ -740,7 +740,7 @@ impl Repository {
                 .merge_analysis(&[&fetch_commit])
                 .map_err(TixError::GitError)?;
             if !analysis.is_fast_forward() && !analysis.is_up_to_date() {
-                error!(alias = %self.alias, branch, "branch has diverged from remote");
+                debug!(alias = %self.alias, branch, "branch has diverged from remote");
                 return Err(TixError::from(format!(
                     "'{}' has diverged from remote, use force to reset",
                     branch
@@ -760,7 +760,7 @@ impl Repository {
                 // shorthand() gives the branch name (e.g. "main") rather than the
                 // full ref path (e.g. "refs/heads/main")
                 if head.shorthand() == Ok(branch) {
-                    error!(alias = %self.alias, branch, worktree = name, "branch is checked out in another worktree");
+                    debug!(alias = %self.alias, branch, worktree = name, "branch is checked out in another worktree");
                     return Err(TixError::from(format!(
                         "branch '{}' is checked out in worktree '{}'",
                         branch, name

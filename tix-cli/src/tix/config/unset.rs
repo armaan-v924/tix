@@ -32,6 +32,6 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         validate_section(document, key.section())
     })?;
 
-    println!("unset {} ({})", args.key, app.context.config_path.display());
+    tracing::info!("unset {} ({})", args.key, app.context.config_path.display());
     Ok(())
 }

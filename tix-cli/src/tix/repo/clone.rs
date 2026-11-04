@@ -3,7 +3,7 @@
 use crate::tix::repo::RepoAlias;
 use tix_sdk::document::TixDocument;
 use tix_sdk::{EngineConfig, SdkError, TixError};
-use tracing::error;
+use tracing::{error, info};
 
 /// Clone registered repositories to their code paths
 #[derive(clap::Args, Debug)]
@@ -62,11 +62,10 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         let config = engine.configured_repositories[alias].clone();
         let already_present = config.code_path.exists();
         match config.ensure(alias) {
-            Ok(_) if already_present => println!("{alias}: already on disk"),
-            Ok(repo) => println!("{alias}: cloned to {}", repo.config.code_path.display()),
+            Ok(_) if already_present => info!("{alias}: already on disk"),
+            Ok(repo) => info!("{alias}: cloned to {}", repo.config.code_path.display()),
             Err(e) => {
-                error!(alias = %alias, error = %e, "clone failed");
-                println!("{alias}: FAILED ({e})");
+                error!("{alias}: clone failed: {e}");
                 failed += 1;
             }
         }

@@ -76,7 +76,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         Ok(())
     })?;
 
-    println!("{alias} -> {remote}");
+    tracing::info!("registered {alias} -> {remote}");
     Ok(())
 }
 

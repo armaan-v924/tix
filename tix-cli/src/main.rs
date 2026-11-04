@@ -2,7 +2,6 @@ use tix_cli::tix;
 use tix_cli::tix::utils::App;
 use tix_cli::tix::{Commands, cli, config, plugin, repo, ticket};
 use tix_sdk::context::Context;
-use tracing_subscriber::fmt;
 
 /// Prints a CLI error to stderr and exits nonzero.
 ///
@@ -17,12 +16,9 @@ fn main() {
     let parsed = tix::TixParser::parse_with_plugin_help();
     let log_level = parsed.resolve_log_level();
 
-    // Diagnostics go to stderr: stdout carries results only, so
+    // Diagnostics and status go to stderr: stdout carries results only, so
     // `tix ticket list --output json | jq` works even when warnings fire.
-    fmt()
-        .with_max_level(log_level)
-        .with_writer(std::io::stderr)
-        .init();
+    tix::logging::init(log_level);
 
     // Resolve the config path once (--config > TIX_CONFIG_PATH > platform
     // default) and hand it to every subcommand. Existence is enforced here,
