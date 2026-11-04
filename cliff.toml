@@ -1,0 +1,107 @@
+# git-cliff configuration for GitHub release notes.
+#
+# Not run directly: `just release-notes [tag]` picks the commit range and the
+# commits to skip, then calls git-cliff with this file. Run that to preview.
+#
+# The output is one release's notes, used as the body of its GitHub release.
+# There is no version heading because the release page already shows one.
+# Each entry is the commit's subject line, linked to the commit, where the
+# full message is. Commit bodies here explain why a change was made and what
+# was verified. They are written for whoever reads the history, and are too
+# long for release notes, so they stay out. The one exception is a breaking
+# change: its `BREAKING CHANGE:` footer is the migration note a user needs,
+# so the "Breaking changes" section shows it.
+
+[changelog]
+header = ""
+footer = ""
+trim = true
+body = """
+{%- set repo = "https://github.com/armaan-v924/tix" -%}
+
+{%- macro link(commit, repo) -%}
+([`{{ commit.id | truncate(length=7, end="") }}`]({{ repo }}/commit/{{ commit.id }}))
+{%- endmacro -%}
+
+{%- macro entry(commit, repo, show_scope) -%}
+- {% if show_scope and commit.scope %}**{{ commit.scope }}:** {% endif -%}
+  {{ commit.message | upper_first | trim }} {{ self::link(commit=commit, repo=repo) }}
+{%- endmacro -%}
+
+{%- set breaking = commits | filter(attribute="breaking", value=true) -%}
+{%- if breaking | length > 0 %}
+### Breaking changes
+{% for commit in breaking %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif -%}
+  {{ commit.breaking_description | upper_first | trim }} {{ self::link(commit=commit, repo=repo) }}
+{%- endfor %}
+{% endif -%}
+
+{%- for group, commits in commits | group_by(attribute="group") %}
+{%- set name = group | striptags | trim %}
+{%- if name == "Internal" %}
+
+<details>
+<summary>Internal ({{ commits | length }})</summary>
+
+Build, CI, test and formatting changes. They do not change what tix does.
+{% for commit in commits %}
+- `{{ commit.raw_message | split(pat="\n") | first | trim }}` {{ self::link(commit=commit, repo=repo) }}
+{%- endfor %}
+
+</details>
+{%- else %}
+
+### {{ name }}
+{% for commit in commits %}
+{{ self::entry(commit=commit, repo=repo, show_scope=name != "Dependencies") }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+
+{%- set compare = get_env(name="TIX_NOTES_COMPARE", default="") %}
+{%- if compare %}
+
+**Full diff**: {{ repo }}/compare/{{ compare }}
+{%- endif %}
+"""
+# Tera's whitespace control cannot easily remove every blank line that the
+# loops above leave behind, so these collapse blank runs to one.
+postprocessors = [
+  { pattern = '^\n+', replace = "" },
+  { pattern = '\n{3,}', replace = "\n\n" },
+]
+
+[git]
+conventional_commits = true
+# Every commit gets a section, including one that is not a Conventional
+# Commit. A commit that slipped the convention lands in "Other" rather than
+# disappearing from the notes.
+filter_unconventional = false
+split_commits = false
+# Off on purpose. If it were on, git-cliff would keep a breaking commit that
+# `just release-notes` skips as a duplicate, and repeat a breaking fix that a
+# patch release already announced.
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+sort_commits = "oldest"
+
+# The first match wins. The `<!-- n -->` prefix sets the section order and is
+# stripped before rendering.
+commit_parsers = [
+  # Version bumps from cut-release.yml and cut-patch.yml only make sense on
+  # the branch that has them.
+  { message = "^chore\\(release\\)", skip = true },
+  # A cascade PR merged as one squashed commit has this subject. Its content
+  # already shipped in the patch release it came from.
+  { message = "^chore\\(cascade\\)", skip = true },
+  { message = "^feat", group = "<!-- 0 -->Added" },
+  { message = "^fix", group = "<!-- 1 -->Fixed" },
+  { message = "^perf", group = "<!-- 2 -->Performance" },
+  { message = "^(refactor|revert)", group = "<!-- 3 -->Changed" },
+  { message = "^docs", group = "<!-- 4 -->Documentation" },
+  { message = "^build\\(deps\\)", group = "<!-- 5 -->Dependencies" },
+  { message = "^(build|ci|test|style|chore)", group = "<!-- 7 -->Internal" },
+  { message = ".*", group = "<!-- 6 -->Other" },
+]

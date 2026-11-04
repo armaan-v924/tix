@@ -51,10 +51,12 @@ jobs:
           # Deploy key: tag pushes authenticate over SSH and bypass the
           # tag ruleset (github-actions itself has no bypass).
           ssh-key: ${{ secrets.DEPLOY_KEY }}
+          # Every branch and tag, for the release-notes preview below.
+          fetch-depth: 0
 
       - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
-          tool: just@1.59.0
+          tool: just@1.59.0,git-cliff@2.14.2
           fallback: none
 
       - name: Configure git
@@ -68,6 +70,13 @@ jobs:
       # lockstep.
       - name: Verify version lockstep
         run: just check-versions
+
+      # Build Release renders these same notes after the tag exists. If
+      # rendering failed there, the release would never be created. Running
+      # it here first means a broken cliff.toml stops the release before the
+      # tag is pushed. The preview goes to the run summary.
+      - name: Preview release notes
+        run: just release-notes >> "$GITHUB_STEP_SUMMARY"
 
       - name: Tag and push
         run: just push-tag
