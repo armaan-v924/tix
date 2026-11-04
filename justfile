@@ -57,7 +57,9 @@ package-cli target tag="":
     tag="{{ tag }}"
     [[ -n "$tag" ]] || tag="v$(just _current)"
     archive="tix-$tag-$suffix.$ext"
-    binary="target/{{ target }}/release/$exe"
+    # Where cargo put it: CARGO_TARGET_DIR when set, so a build shared
+    # between checkouts is found too, else ./target as in CI.
+    binary="${CARGO_TARGET_DIR:-target}/{{ target }}/release/$exe"
     if [[ ! -f "$binary" ]]; then
         echo "error: $binary not found — run \`just build-cli {{ target }}\` first"
         exit 1
