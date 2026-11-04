@@ -1,0 +1,89 @@
+name: Docs Preview Cleanup
+
+# Removes /pr/<number>/ from the docs branch once that PR is no longer open.
+#
+# Closing a PR removes its tree straight away. The daily sweep removes every
+# preview whose PR is not open, which catches what a close cannot: a close
+# whose cleanup run failed, a preview a cancelled or late run published after
+# its PR closed, and a PR that stopped touching docs/ before it closed.
+#
+# Separate from docs-preview.yml because that workflow is filtered to docs
+# paths, and a close has to clean up whatever the PR's diff looks like by then.
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The same group as the PR's preview build, so a close cancels a preview still
+# in flight instead of racing it. Sweeps share one group of their own.
+concurrency:
+  group: docs-preview-${{ github.event.pull_request.number || 'sweep' }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    # A fork's close event gets a read-only token, and forks never get a
+    # preview to remove anyway.
+    if: >-
+      github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CLOSED_PR: ${{ github.event.pull_request.number }}
+    steps:
+      # Always the default branch: a closed PR's merge ref may already be
+      # gone, and the scripts this needs are the ones that ship on main.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Remove previews of PRs that are not open
+        run: |
+          set -euo pipefail
+          if ! git fetch --quiet origin docs; then
+            echo "no docs branch; nothing to clean up"
+            exit 0
+          fi
+
+          open=" $(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+            --limit 1000 --json number --jq '.[].number' | tr '\n' ' ') "
+
+          stale=()
+          while IFS= read -r tree; do
+            number=${tree#pr/}
+            # The closed PR's own tree goes even if the PR list has not
+            # caught up with the close yet.
+            if [[ $number == "$CLOSED_PR" || $open != *" $number "* ]]; then
+              stale+=("$tree")
+            fi
+          done < <(git ls-tree -d --name-only FETCH_HEAD pr/)
+
+          if ((${#stale[@]} == 0)); then
+            echo "no stale previews"
+            exit 0
+          fi
+
+          args=()
+          for tree in "${stale[@]}"; do
+            args+=(--remove "$tree")
+          done
+          .github/scripts/publish-docs.sh \
+            -m "Remove previews: ${stale[*]#pr/}" "${args[@]}"
+
+      - name: Update the preview comment
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          printf '%s\n' "**Docs preview:** removed now that this PR is closed." \
+            > "$RUNNER_TEMP/comment.md"
+          .github/scripts/docs-preview-comment.sh --update-only \
+            "$CLOSED_PR" "$RUNNER_TEMP/comment.md"
