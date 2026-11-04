@@ -40,6 +40,29 @@ tix config add [OPTIONS] <KEY> <VALUE>
 | `-f, --force` | Append without confirming, even if the value is already in the list |
 
 
+## `tix config fmt`
+
+Rewrite the global config (or a ticket document) in tix's house style
+
+```sh frame="none"
+tix config fmt [OPTIONS]
+```
+
+
+Every table becomes a headered `[section]` block. That includes inline tables written on purpose (`alpha = { remote = "…" }`) and dotted keys (`alpha.remote = "…"`), not only the one-line shape older versions of tix collapsed sections into. Plugin tables are reformatted the same way and their data is left as it is. Inline tables inside arrays have no headered form and are left alone, as is anything already in house style. The document's data never changes, and no version is stamped.
+
+Unlike ordinary writes, this rewrites the document wholesale, so comments and formatting are not guaranteed to survive. Comments near a reformatted table are moved above its new header where possible. The command asks before writing; `--force` (or `--yes`) skips the question.
+
+### Options
+
+| Option | Description |
+| --- | --- |
+| `-t, --ticket <TICKET>` | Format a ticket's `.tix/ticket.toml` instead of the global config: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`) |
+| `--check` | Write and print nothing; exit non-zero when the document is not already formatted (for pre-commit hooks and CI) |
+| `--dry-run` | Print the formatted document to stdout instead of writing it |
+| `-f, -y, --force, --yes` | Rewrite without confirming |
+
+
 ## `tix config get`
 
 Read a value from the config document

@@ -1,5 +1,6 @@
 pub mod add;
 mod edit;
+pub mod format;
 pub mod get;
 pub mod init;
 pub mod remove;
@@ -197,6 +198,7 @@ pub struct ConfigArgs {
 #[derive(Subcommand)]
 pub enum ConfigCommands {
     Add(add::Args),
+    Fmt(format::Args),
     Get(get::Args),
     Init(init::Args),
     Remove(remove::Args),

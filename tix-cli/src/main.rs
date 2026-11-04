@@ -43,6 +43,7 @@ fn main() {
         },
         Commands::Config(args) => match args.command {
             config::ConfigCommands::Add(args) => config::add::run(&app, args),
+            config::ConfigCommands::Fmt(args) => config::format::run(&app, args),
             config::ConfigCommands::Get(args) => config::get::run(&app, args),
             config::ConfigCommands::Init(args) => config::init::run(&app, args),
             config::ConfigCommands::Remove(args) => config::remove::run(&app, args),
