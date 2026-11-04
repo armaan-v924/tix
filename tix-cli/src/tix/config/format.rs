@@ -99,9 +99,11 @@ pub fn run(app: &App, args: Args) -> Result<(), SdkError> {
 /// current directory is in. The command is `tix config …`, and walking up
 /// to a ticket implicitly would make it rewrite a different file depending
 /// on where it ran. `--ticket .` names the ticket at the current directory.
+/// There is no `--project` flag, so an id resolves in the project inferred
+/// from the cwd, else among the loose tickets.
 fn document_path(app: &App, ticket: Option<&TicketRef>) -> Result<PathBuf, SdkError> {
     match ticket {
-        Some(ticket) => Ok(require_ticket_root(&app.context, Some(ticket))?
+        Some(ticket) => Ok(require_ticket_root(&app.context, Some(ticket), None)?
             .join(".tix")
             .join("ticket.toml")),
         None => Ok(app.context.config_path.clone()),
