@@ -260,7 +260,7 @@ lint-rust-clippy:
 # Pinned so a new ruff release can't change what passes; bump it on purpose.
 # `uvx` rather than a dev dependency: `uv run` would build the extension first.
 lint-python-ruff:
-    uvx ruff@0.17.1 check pytix
+    uvx ruff@0.17.3 check pytix
 
 # ── checks ────────────────────────────────────────────────────────────────────
 
