@@ -116,8 +116,8 @@ fn walk(command: &Command, parent_path: Option<&str>) -> CommandDoc {
         about: command.get_about().map(ToString::to_string),
         long_about: command
             .get_long_about()
-            .map(ToString::to_string)
-            .filter(|long| Some(long) != command.get_about().map(ToString::to_string).as_ref()),
+            .map(|long| body_after_summary(&long.to_string(), command.get_about()))
+            .filter(|long| !long.is_empty()),
         positionals: positionals.into_iter().map(describe_arg).collect(),
         options: options.into_iter().map(describe_arg).collect(),
         subcommands,
@@ -127,6 +127,19 @@ fn walk(command: &Command, parent_path: Option<&str>) -> CommandDoc {
 }
 
 /// Builds the synopsis, e.g. `tix ticket setup [OPTIONS] <KEY> [REPO_ALIASES]...`.
+/// The part of a command's long help that the page doesn't already show.
+///
+/// A doc comment with more than one paragraph gives clap a long help that
+/// *starts* with the summary line, so printing it under the summary would
+/// repeat that line. Returns empty when the long help is the summary alone.
+fn body_after_summary(long: &str, about: Option<&clap::builder::StyledStr>) -> String {
+    let about = about.map(ToString::to_string).unwrap_or_default();
+    long.strip_prefix(about.as_str())
+        .unwrap_or(long)
+        .trim_start()
+        .to_string()
+}
+
 fn usage_line(path: &str, positionals: &[&Arg], options: &[&Arg], has_subcommands: bool) -> String {
     let mut parts = vec![path.to_string()];
     if !options.is_empty() {
