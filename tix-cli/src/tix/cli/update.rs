@@ -228,6 +228,11 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 /// Pulls the target executable out of the archive into its parent dir.
+///
+/// Entry paths are only matched on their file name, never joined onto the
+/// output directory, so a `../` name cannot write outside it. The match
+/// must be a regular file: unpacking a symlink named like the executable
+/// would leave a link that `install_binary` then follows.
 fn extract_archive(archive_path: &Path, target: &Target) -> Result<PathBuf, SdkError> {
     let out_dir = archive_path
         .parent()
@@ -255,6 +260,9 @@ fn extract_tar_gz(archive_path: &Path, out_dir: &Path, exe: &str) -> Result<Path
             .file_name()
             .is_some_and(|name| name == exe);
         if is_exe {
+            if !entry.header().entry_type().is_file() {
+                return Err(not_a_regular_file(exe));
+            }
             let dest = out_dir.join(exe);
             entry.unpack(&dest).map_err(SdkError::from)?;
             return Ok(dest);
@@ -280,6 +288,9 @@ fn extract_zip(archive_path: &Path, out_dir: &Path, exe: &str) -> Result<PathBuf
             .file_name()
             .is_some_and(|name| name == exe);
         if is_exe {
+            if !entry.is_file() {
+                return Err(not_a_regular_file(exe));
+            }
             let dest = out_dir.join(exe);
             let mut out = std::fs::File::create(&dest).map_err(SdkError::from)?;
             std::io::copy(&mut entry, &mut out).map_err(SdkError::from)?;
@@ -289,6 +300,12 @@ fn extract_zip(archive_path: &Path, out_dir: &Path, exe: &str) -> Result<PathBuf
     Err(SdkError::Message(format!(
         "executable '{exe}' not found in archive"
     )))
+}
+
+fn not_a_regular_file(exe: &str) -> SdkError {
+    SdkError::Message(format!(
+        "'{exe}' in the archive is not a regular file; refusing to install it"
+    ))
 }
 
 /// Where the new binary lands: `TIX_INSTALL_PATH` override, else next to the
@@ -368,6 +385,141 @@ mod tests {
         {
             use std::os::unix::fs::PermissionsExt;
             assert_ne!(dest.metadata().unwrap().permissions().mode() & 0o111, 0);
+        }
+    }
+
+    const ZIP_TARGET: Target = Target {
+        asset_suffix: "windows-x86_64",
+        archive_ext: "zip",
+        exe_name: "tix.exe",
+    };
+    const TAR_TARGET: Target = Target {
+        asset_suffix: "linux-x86_64",
+        archive_ext: "tar.gz",
+        exe_name: "tix",
+    };
+
+    /// Writes a zip of regular files at `path`.
+    fn write_zip(path: &Path, files: &[(&str, &str)]) {
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(path).unwrap());
+        for (name, contents) in files {
+            zip.start_file(*name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            std::io::Write::write_all(&mut zip, contents.as_bytes()).unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    /// Appends one tar entry, writing the name straight into the header so
+    /// a test can use names `Header::set_path` would refuse, like `../x`.
+    fn append_tar(
+        builder: &mut tar::Builder<impl std::io::Write>,
+        name: &str,
+        kind: tar::EntryType,
+        link: Option<&str>,
+        contents: &str,
+    ) {
+        let mut header = tar::Header::new_gnu();
+        header.as_gnu_mut().unwrap().name[..name.len()].copy_from_slice(name.as_bytes());
+        header.set_entry_type(kind);
+        if let Some(link) = link {
+            header.set_link_name(link).unwrap();
+        }
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o755);
+        header.set_cksum();
+        builder.append(&header, contents.as_bytes()).unwrap();
+    }
+
+    fn write_tar_gz(
+        path: &Path,
+        fill: impl FnOnce(&mut tar::Builder<flate2::write::GzEncoder<std::fs::File>>),
+    ) {
+        let gz = flate2::write::GzEncoder::new(
+            std::fs::File::create(path).unwrap(),
+            flate2::Compression::default(),
+        );
+        let mut builder = tar::Builder::new(gz);
+        fill(&mut builder);
+        builder.into_inner().unwrap().finish().unwrap();
+    }
+
+    /// A release-shaped Windows zip (LICENSE, tix.exe at the root) yields
+    /// the executable with its contents intact.
+    #[test]
+    fn test_extract_zip() {
+        let dir = tempfile::tempdir().unwrap();
+        let archive_path = dir.path().join("tix-v9.9.9-windows-x86_64.zip");
+        write_zip(&archive_path, &[("LICENSE", "MIT"), ("tix.exe", "MZ new")]);
+
+        let extracted = extract_archive(&archive_path, &ZIP_TARGET).unwrap();
+        assert_eq!(extracted, dir.path().join("extract/tix.exe"));
+        assert_eq!(std::fs::read_to_string(&extracted).unwrap(), "MZ new");
+    }
+
+    /// An entry whose name climbs out of the archive is matched on its file
+    /// name only, and lands in the extraction directory like any other.
+    /// The archive sits two levels down so a regression would write inside
+    /// the tempdir, where the test can see it, rather than above it.
+    #[test]
+    fn test_extract_confines_traversing_entry_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let staging = dir.path().join("a/b");
+        std::fs::create_dir_all(&staging).unwrap();
+
+        let zip_path = staging.join("tix.zip");
+        write_zip(&zip_path, &[("../../escape/tix.exe", "MZ new")]);
+        let extracted = extract_archive(&zip_path, &ZIP_TARGET).unwrap();
+        assert_eq!(extracted, staging.join("extract/tix.exe"));
+
+        let tar_path = staging.join("tix.tar.gz");
+        write_tar_gz(&tar_path, |b| {
+            append_tar(b, "../../escape/tix", tar::EntryType::Regular, None, "new")
+        });
+        let extracted = extract_archive(&tar_path, &TAR_TARGET).unwrap();
+        assert_eq!(extracted, staging.join("extract/tix"));
+
+        for outside in ["escape", "a/escape", "a/b/escape"] {
+            assert!(
+                !dir.path().join(outside).exists(),
+                "an entry escaped to {outside}"
+            );
+        }
+    }
+
+    /// A symlink named like the executable is refused in both formats,
+    /// and nothing is left at the destination for the installer to follow.
+    #[test]
+    fn test_extract_refuses_symlinked_executable() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let zip_path = dir.path().join("tix.zip");
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&zip_path).unwrap());
+        zip.add_symlink(
+            "tix.exe",
+            "/etc/passwd",
+            zip::write::SimpleFileOptions::default(),
+        )
+        .unwrap();
+        zip.finish().unwrap();
+
+        let tar_path = dir.path().join("tix.tar.gz");
+        write_tar_gz(&tar_path, |b| {
+            append_tar(b, "tix", tar::EntryType::Symlink, Some("/etc/passwd"), "")
+        });
+
+        for (archive, target) in [(&zip_path, &ZIP_TARGET), (&tar_path, &TAR_TARGET)] {
+            let err = extract_archive(archive, target).expect_err("symlink is refused");
+            assert!(
+                err.to_string().contains("not a regular file"),
+                "unexpected error: {err}"
+            );
+            let dest = dir.path().join("extract").join(target.exe_name);
+            assert!(
+                dest.symlink_metadata().is_err(),
+                "{} was created",
+                dest.display()
+            );
         }
     }
 
