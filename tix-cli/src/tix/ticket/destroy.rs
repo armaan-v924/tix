@@ -1,8 +1,8 @@
 //! `tix ticket destroy` — prune every worktree, then delete the ticket.
 
 use crate::tix::ticket::{
-    TicketRef, TicketSharedArgs, load_engine_config, load_ticket_config, prune_worktree,
-    require_ticket_root,
+    TicketRef, TicketSharedArgs, WorktreeStatus, load_engine_config, load_ticket_config,
+    prune_worktree, require_ticket_root,
 };
 use tix_sdk::{SdkError, TixError, WorktreeConfig};
 use tracing::{info, warn};
@@ -33,6 +33,11 @@ pub struct Args {
 /// from the ticket document immediately, so an abort partway leaves a
 /// resolvable ticket for a retry.
 ///
+/// A worktree whose directory was deleted by hand is dropped with a warning
+/// rather than failing. One that is there but no longer a git checkout
+/// cannot be checked for uncommitted work, so the default path refuses up
+/// front, before confirming; `--force` deletes it with the rest.
+///
 /// **`--force`** — no confirmation, worktrees force-pruned (uncommitted
 /// changes discarded), and the directory is deleted **even if pruning
 /// fails** — forced deletion means deleted. Whatever had to be left behind
@@ -44,6 +49,23 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let ticket = load_ticket_config(&root)?;
 
     let engine = load_engine_config(&app.context)?;
+
+    // Deleting the ticket deletes a worktree directory that is no longer a
+    // checkout too, and nothing can check it for uncommitted work first.
+    if !args.force {
+        let mut names: Vec<&String> = ticket.worktrees.keys().collect();
+        names.sort();
+        if let Some(name) = names
+            .into_iter()
+            .find(|name| WorktreeStatus::of(&root.join(name)) == WorktreeStatus::NotAGitRepository)
+        {
+            return Err(SdkError::Message(format!(
+                "worktree '{name}' at {} is not a git repository, so tix cannot check it for \
+                 uncommitted work — move anything you need out of it, then pass --force",
+                root.join(name).display()
+            )));
+        }
+    }
 
     if !args.force
         && !crate::tix::utils::confirm(&format!(
@@ -63,7 +85,9 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     for (name, entry) in entries {
         let pruned = prune_worktree(&root, name, entry, &engine, args.force);
         match (pruned, args.force) {
-            (Ok(()), _) => info!("pruned worktree {name}"),
+            (Ok(WorktreeStatus::Ok), _) => info!("pruned worktree {name}"),
+            // Already gone or no checkout: prune_worktree warned.
+            (Ok(_), _) => {}
             // Forced deletion means deleted: pruning failures are warnings.
             (Err(e), true) => {
                 warn!(name = %name, error = %e, "could not prune worktree, continuing (--force)");
