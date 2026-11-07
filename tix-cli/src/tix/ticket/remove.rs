@@ -18,6 +18,10 @@ pub struct Args {
     /// matches its default worktree)
     #[arg(required = true, value_name = "NAME")]
     pub names: Vec<String>,
+
+    /// Remove worktrees with uncommitted changes, discarding them
+    #[arg(short, long)]
+    pub force: bool,
 }
 
 /// Prunes the named worktrees and deletes their entries from the ticket
@@ -32,6 +36,10 @@ pub struct Args {
 /// checkout, is dropped from the document with a warning (and git's stale
 /// registration pruned) rather than failing; a directory that is still
 /// there is left in place.
+///
+/// A worktree with uncommitted changes (untracked files included) is
+/// refused unless `--force`, which discards them. The batch stops at the
+/// first refusal; worktrees already removed stay removed.
 ///
 /// The ticket directory and every other worktree are untouched; removing
 /// the last worktree leaves a valid, empty ticket. Each successful prune is
@@ -72,10 +80,10 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     }
 
     for name in &args.names {
-        let status = prune_worktree(&root, name, &ticket.worktrees[name], &engine, false)
+        let status = prune_worktree(&root, name, &ticket.worktrees[name], &engine, args.force)
             .map_err(|e| match e {
                 SdkError::Engine(dirty @ TixError::Dirty { .. }) => SdkError::Message(format!(
-                    "could not remove worktree '{name}': {dirty} — commit or stash the changes first"
+                    "could not remove worktree '{name}': {dirty} — commit or stash the changes, or pass --force to discard them"
                 )),
                 e => e,
             })?;
