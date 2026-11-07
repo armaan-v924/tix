@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ConfigCommands"],"fn":["validate_section"],"mod":["add","format","get","init","remove","set","show","unset"],"struct":["CliConfig","ConfigArgs","ConfigKeyPath","ConfigPath"]};
+window.SIDEBAR_ITEMS = {"enum":["ConfigCommands"],"fn":["cli_section","load_cli_config","load_engine_config","validate_section"],"mod":["add","format","get","init","remove","set","show","unset"],"struct":["CliConfig","ConfigArgs","ConfigKeyPath","ConfigPath"]};

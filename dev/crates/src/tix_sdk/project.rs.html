@@ -18,7 +18,7 @@
 <a href=#18 id=18 data-nosnippet>18</a>//! Projects are created implicitly on first use ([`Project::ensure`]);
 <a href=#19 id=19 data-nosnippet>19</a>//! there is no separate "create a project" step.
 <a href=#20 id=20 data-nosnippet>20</a>
-<a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">use </span><span class="kw">crate</span>::discovery::{discover_from, is_ticket_root, same_directory};
+<a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">use </span><span class="kw">crate</span>::discovery::{TIX_DIR, discover_from, is_ticket_root, same_directory};
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::error::SdkError;
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>std::io::ErrorKind;
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span>std::path::{Path, PathBuf};
@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>
 <a href=#36 id=36 data-nosnippet>36</a><span class="doccomment">/// The marker file of the project rooted at `root`: `&lt;root&gt;/.tix/project.toml`.
 <a href=#37 id=37 data-nosnippet>37</a></span><span class="kw">pub fn </span>marker_path(root: <span class="kw-2">&amp;</span>Path) -&gt; PathBuf {
-<a href=#38 id=38 data-nosnippet>38</a>    root.join(<span class="string">".tix"</span>).join(<span class="string">"project.toml"</span>)
+<a href=#38 id=38 data-nosnippet>38</a>    root.join(TIX_DIR).join(<span class="string">"project.toml"</span>)
 <a href=#39 id=39 data-nosnippet>39</a>}
 <a href=#40 id=40 data-nosnippet>40</a>
 <a href=#41 id=41 data-nosnippet>41</a><span class="doccomment">/// A project: its name, and the directory its tickets live in.

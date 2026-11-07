@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["TicketCommands","TicketRef"],"fn":["derive_branch_name","load_cli_config","load_ticket_config","require_ticket_root"],"mod":["add","destroy","info","list","remove","setup"],"struct":["TicketArgs","TicketSharedArgs"]};
+window.SIDEBAR_ITEMS = {"enum":["TicketCommands","TicketRef","WorktreeStatus"],"fn":["backing_repository","derive_branch_name","load_ticket_config","prune_worktree","require_ticket_root"],"mod":["add","destroy","info","list","remove","setup"],"struct":["TicketArgs","TicketSharedArgs"]};
