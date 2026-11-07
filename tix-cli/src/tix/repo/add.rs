@@ -2,8 +2,8 @@
 //! `tix repo clone` (#65).
 
 use crate::tix::config::CliConfig;
+use crate::tix::config::load_cli_config;
 use crate::tix::repo::{RepoAlias, RepoRef};
-use crate::tix::ticket::load_cli_config;
 use tix_sdk::document::with_write;
 use tix_sdk::{Defaults, EngineConfig, SdkError};
 

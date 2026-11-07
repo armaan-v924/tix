@@ -112,32 +112,6 @@ mod branch_name_tests {
     }
 }
 
-/// Loads the required `[cli]` section from the resolved global config.
-///
-/// Shared by every ticket subcommand; the "no `[cli]` section" error points at
-/// `tix config init` rather than leaking a parse detail.
-pub fn load_cli_config(
-    context: &tix_sdk::context::Context,
-) -> Result<crate::tix::config::CliConfig, tix_sdk::SdkError> {
-    let document = tix_sdk::document::TixDocument::load(&context.config_path)?;
-    document.section("cli")?.ok_or_else(|| {
-        tix_sdk::SdkError::Message(
-            "global config has no [cli] section — run `tix config init`".to_string(),
-        )
-    })
-}
-
-/// Loads the `[engine]` section from the resolved global config — the
-/// registered repositories — defaulting to empty when it is absent.
-///
-/// For commands that need nothing else from the global config; those that
-/// read several sections load the document once themselves.
-pub fn load_engine_config(
-    context: &tix_sdk::context::Context,
-) -> Result<tix_sdk::EngineConfig, tix_sdk::SdkError> {
-    tix_sdk::document::TixDocument::load(&context.config_path)?.section_or_default("engine")
-}
-
 /// Reads the `[ticket]` section of the ticket document at `ticket_root`.
 ///
 /// # Errors
@@ -293,7 +267,7 @@ pub fn require_ticket_root(
     ticket: Option<&TicketRef>,
     project: Option<&str>,
 ) -> Result<std::path::PathBuf, tix_sdk::SdkError> {
-    let cli = load_cli_config(context)?;
+    let cli = crate::tix::config::load_cli_config(context)?;
     resolve_ticket_in(
         ticket,
         project,

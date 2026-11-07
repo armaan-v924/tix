@@ -1,8 +1,9 @@
 //! `tix ticket destroy` — prune every worktree, then delete the ticket.
 
+use crate::tix::config::load_engine_config;
 use crate::tix::ticket::{
-    TicketRef, TicketSharedArgs, WorktreeStatus, load_engine_config, load_ticket_config,
-    prune_worktree, require_ticket_root,
+    TicketRef, TicketSharedArgs, WorktreeStatus, load_ticket_config, prune_worktree,
+    require_ticket_root,
 };
 use tix_sdk::{SdkError, TixError, WorktreeConfig};
 use tracing::{info, warn};
