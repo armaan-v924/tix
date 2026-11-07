@@ -136,12 +136,12 @@ pub fn load_cli_config(
 pub fn load_ticket_config(
     ticket_root: &std::path::Path,
 ) -> Result<tix_sdk::TicketConfig, tix_sdk::SdkError> {
-    let document =
-        tix_sdk::document::TixDocument::load(&ticket_root.join(".tix").join("ticket.toml"))?;
+    let path = tix_sdk::discovery::ticket_document_path(ticket_root);
+    let document = tix_sdk::document::TixDocument::load(&path)?;
     document.section("ticket")?.ok_or_else(|| {
         tix_sdk::SdkError::Engine(tix_sdk::TixError::TicketNotFound(format!(
             "{} has no [ticket] section",
-            ticket_root.join(".tix/ticket.toml").display()
+            path.display()
         )))
     })
 }

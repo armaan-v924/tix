@@ -10,6 +10,7 @@ use crate::tix::utils::App;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use tix_sdk::delta::{Delta, DeltaTarget};
+use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::with_write;
 use tix_sdk::host::{PROTOCOL, PROTOCOL_MISMATCH_EXIT, prescan_globals};
 use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig};
@@ -147,8 +148,7 @@ fn find_plugin(name: &str) -> Option<PathBuf> {
 fn detect_current_repo(
     ticket_root: &std::path::Path,
 ) -> Result<Option<(String, PathBuf)>, SdkError> {
-    let document =
-        tix_sdk::document::TixDocument::load(&ticket_root.join(".tix").join("ticket.toml"))?;
+    let document = tix_sdk::document::TixDocument::load(&ticket_document_path(ticket_root))?;
     let Some(ticket): Option<TicketConfig> = document.section("ticket")? else {
         return Ok(None);
     };
@@ -206,15 +206,12 @@ fn apply_delta_if_present(
     let delta = Delta::parse(&bytes)?;
     let target_path = match delta.target {
         DeltaTarget::Global => app.context.config_path.clone(),
-        DeltaTarget::Ticket => ticket_root
-            .ok_or_else(|| {
-                SdkError::PluginImplementation(
-                    "delta targets the ticket document, but the plugin ran outside a ticket"
-                        .to_string(),
-                )
-            })?
-            .join(".tix")
-            .join("ticket.toml"),
+        DeltaTarget::Ticket => ticket_document_path(ticket_root.ok_or_else(|| {
+            SdkError::PluginImplementation(
+                "delta targets the ticket document, but the plugin ran outside a ticket"
+                    .to_string(),
+            )
+        })?),
     };
 
     debug!(target = ?delta.target, ops = delta.ops.len(), "applying plugin delta");

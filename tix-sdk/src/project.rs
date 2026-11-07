@@ -18,7 +18,7 @@
 //! Projects are created implicitly on first use ([`Project::ensure`]);
 //! there is no separate "create a project" step.
 
-use crate::discovery::{discover_from, is_ticket_root, same_directory};
+use crate::discovery::{TIX_DIR, discover_from, is_ticket_root, same_directory};
 use crate::error::SdkError;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -35,7 +35,7 @@ pub fn is_project_root(path: &Path) -> bool {
 
 /// The marker file of the project rooted at `root`: `<root>/.tix/project.toml`.
 pub fn marker_path(root: &Path) -> PathBuf {
-    root.join(".tix").join("project.toml")
+    root.join(TIX_DIR).join("project.toml")
 }
 
 /// A project: its name, and the directory its tickets live in.

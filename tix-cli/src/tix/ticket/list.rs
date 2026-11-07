@@ -4,6 +4,7 @@
 use crate::tix::ticket::load_cli_config;
 use crate::tix::utils::OutputType;
 use std::path::Path;
+use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::TixDocument;
 use tix_sdk::project::{Project, list_projects};
 use tix_sdk::{SdkError, TicketConfig};
@@ -98,7 +99,7 @@ fn tickets_in(directory: &Path) -> Vec<TicketConfig> {
     };
     let mut tickets: Vec<TicketConfig> = Vec::new();
     for entry in entries.filter_map(Result::ok) {
-        let ticket_path = entry.path().join(".tix").join("ticket.toml");
+        let ticket_path = ticket_document_path(&entry.path());
         if !ticket_path.is_file() {
             continue;
         }

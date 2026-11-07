@@ -25,7 +25,10 @@ use std::path::{Path, PathBuf};
 ///
 /// [`SdkError::Engine`]-wrapped IO error if creation fails.
 pub fn ticket_state_dir(ticket_root: &Path, plugin: &str) -> Result<PathBuf, SdkError> {
-    let dir = ticket_root.join(".tix").join("plugins").join(plugin);
+    let dir = ticket_root
+        .join(crate::discovery::TIX_DIR)
+        .join("plugins")
+        .join(plugin);
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
 }
