@@ -36,8 +36,9 @@ under a base it was not cut from. Existing branches are never moved.</p>
 <p>The branch name is always <code>branch</code>, never the worktree name.</p>
 <h5 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h5>
 <ul>
-<li><a href="enum.TixError.html#variant.Message" title="variant tix_sdk::TixError::Message"><code>TixError::Message</code></a> if the base cannot be resolved, or an existing
-<code>branch</code> does not contain an explicit <code>base</code></li>
+<li><a href="enum.TixError.html#variant.BranchLacksBase" title="variant tix_sdk::TixError::BranchLacksBase"><code>TixError::BranchLacksBase</code></a> if an existing <code>branch</code> does not
+contain an explicit <code>base</code></li>
+<li>any error of <a href="struct.Repository.html#method.resolve_base" title="method tix_sdk::Repository::resolve_base"><code>Self::resolve_base</code></a> if the base cannot be resolved</li>
 <li><a href="enum.TixError.html#variant.GitError" title="variant tix_sdk::TixError::GitError"><code>TixError::GitError</code></a> if worktree creation fails</li>
 </ul>
 <h5 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h5>
@@ -89,8 +90,14 @@ spanning a <code>main</code> repo and a <code>master</code> repo needs no flags.
 whatever refs are already local, so offline work stays possible.</p>
 <p>Never touches the source checkout’s HEAD, working tree, or branches.</p>
 <h5 id="errors-1"><a class="doc-anchor" href="#errors-1">§</a>Errors</h5>
-<p><a href="enum.TixError.html#variant.Message" title="variant tix_sdk::TixError::Message"><code>TixError::Message</code></a> if the default branch cannot be determined, a
-bare name has diverged from origin, or <code>base</code> names no commit.</p>
+<ul>
+<li><a href="enum.TixError.html#variant.UnknownDefaultBranch" title="variant tix_sdk::TixError::UnknownDefaultBranch"><code>TixError::UnknownDefaultBranch</code></a> if the default branch cannot be
+determined</li>
+<li><a href="enum.TixError.html#variant.DefaultBranchNotFetched" title="variant tix_sdk::TixError::DefaultBranchNotFetched"><code>TixError::DefaultBranchNotFetched</code></a> if it can, but its
+remote-tracking ref is not present</li>
+<li><a href="enum.TixError.html#variant.AmbiguousBase" title="variant tix_sdk::TixError::AmbiguousBase"><code>TixError::AmbiguousBase</code></a> if a bare name has diverged from origin</li>
+<li><a href="enum.TixError.html#variant.Message" title="variant tix_sdk::TixError::Message"><code>TixError::Message</code></a> if <code>base</code> names no commit</li>
+</ul>
 <h5 id="examples-1"><a class="doc-anchor" href="#examples-1">§</a>Examples</h5>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>repo = RepositoryConfig::new(
     <span class="string">"https://github.com/owner/repo.git"</span>.to_string(),
