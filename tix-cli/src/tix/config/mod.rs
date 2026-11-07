@@ -49,10 +49,17 @@ pub struct CliConfig {
 
 /// Loads the required `[cli]` section from the resolved global config.
 ///
-/// Shared by the ticket and repo subcommands; the "no `[cli]` section"
-/// error points at `tix config init` rather than leaking a parse detail.
+/// Shared by the ticket and repo subcommands. See [`cli_section`].
 pub fn load_cli_config(context: &tix_sdk::context::Context) -> Result<CliConfig, SdkError> {
-    let document = TixDocument::load(&context.config_path)?;
+    cli_section(&TixDocument::load(&context.config_path)?)
+}
+
+/// Extracts the required `[cli]` section from an already-loaded global
+/// config, for commands that read other sections from the same document.
+///
+/// The "no `[cli]` section" error points at `tix config init` rather than
+/// leaking a parse detail.
+pub fn cli_section(document: &TixDocument) -> Result<CliConfig, SdkError> {
     document.section("cli")?.ok_or_else(|| {
         SdkError::Message("global config has no [cli] section — run `tix config init`".to_string())
     })
