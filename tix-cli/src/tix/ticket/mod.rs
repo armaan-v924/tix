@@ -159,6 +159,7 @@ pub fn load_ticket_config(
 
 /// Whether a recorded worktree actually resolves on disk — what `tix info`
 /// flags, and what decides how `remove` and `destroy` handle it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorktreeStatus {
     /// A directory that opens as a git repository.
     Ok,
@@ -200,7 +201,14 @@ impl WorktreeStatus {
 }
 
 /// Prunes the worktree `name` of the ticket at `root` through its source
-/// repository, then deletes its `[ticket.worktrees.<name>]` entry.
+/// repository, then deletes its `[ticket.worktrees.<name>]` entry. Returns
+/// what was found on disk.
+///
+/// A worktree that is [missing](WorktreeStatus::MissingDirectory) or
+/// [not a git repository](WorktreeStatus::NotAGitRepository) — usually
+/// deleted by hand — has nothing to check and nothing to remove: only git's
+/// stale registration is pruned, if there still is one, and the entry is
+/// dropped with a warning. Whatever is at its path stays there.
 ///
 /// The entry goes as soon as the prune lands, so a batch that fails partway
 /// leaves the ticket document agreeing with disk and a retry resumes.
@@ -217,7 +225,7 @@ pub fn prune_worktree(
     entry: &tix_sdk::WorktreeConfig,
     engine: &tix_sdk::EngineConfig,
     force: bool,
-) -> Result<(), tix_sdk::SdkError> {
+) -> Result<WorktreeStatus, tix_sdk::SdkError> {
     let config = engine
         .configured_repositories
         .get(&entry.repo)
@@ -228,9 +236,30 @@ pub fn prune_worktree(
                 name, entry.repo
             ))
         })?;
-    config
-        .resolve(&entry.repo)?
-        .remove_worktree(&root.join(name), force)?;
+    let repo = config.resolve(&entry.repo)?;
+    let path = root.join(name);
+    let status = WorktreeStatus::of(&path);
+    match status {
+        WorktreeStatus::Ok => repo.remove_worktree(&path, force)?,
+        WorktreeStatus::MissingDirectory | WorktreeStatus::NotAGitRepository => {
+            let pruned = repo.prune_worktree_registration(&path)?;
+            tracing::warn!(
+                "worktree '{name}' is {}; dropping it from the ticket{}",
+                match status {
+                    WorktreeStatus::MissingDirectory => "missing on disk",
+                    _ => "not a git repository",
+                },
+                if pruned {
+                    format!(
+                        " and pruning its registration in {}",
+                        repo.config.code_path.display()
+                    )
+                } else {
+                    String::new()
+                }
+            );
+        }
+    }
 
     tix_sdk::document::with_write(&tix_sdk::discovery::ticket_document_path(root), |doc| {
         // `table_at` rather than a plain lookup: a document written by a
@@ -238,7 +267,8 @@ pub fn prune_worktree(
         // holds no `Table` to remove from.
         doc.table_at(&["ticket", "worktrees"])?.remove(name);
         Ok(())
-    })
+    })?;
+    Ok(status)
 }
 
 /// Resolves the ticket a command operates on — `--ticket` override or the
