@@ -66,7 +66,14 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     }
 
     for name in &args.names {
-        prune_worktree(&root, name, &ticket.worktrees[name], &engine, false)?;
+        prune_worktree(&root, name, &ticket.worktrees[name], &engine, false).map_err(
+            |e| match e {
+                SdkError::Engine(dirty @ TixError::Dirty { .. }) => SdkError::Message(format!(
+                    "could not remove worktree '{name}': {dirty} — commit or stash the changes first"
+                )),
+                e => e,
+            },
+        )?;
         info!("removed worktree {name}");
     }
     Ok(())
