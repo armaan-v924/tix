@@ -4,7 +4,7 @@
 .SH NAME
 tix\-ticket\-remove \- Remove a worktree from a ticket without destroying it
 .SH SYNOPSIS
-\fBtix ticket remove\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
+\fBtix ticket remove\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-f\fR|\fB\-\-force\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
 .SH DESCRIPTION
 Remove a worktree from a ticket without destroying it
 .SH OPTIONS
@@ -32,6 +32,9 @@ default
 .TP
 \fB\-p\fR, \fB\-\-project\fR \fI<NAME>\fR
 The project a bare ticket id resolves in. Inferred from the current directory when omitted; with a path or a discovered ticket, asserts the ticket belongs to it
+.TP
+\fB\-f\fR, \fB\-\-force\fR
+Remove worktrees with uncommitted changes, discarding them
 .TP
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)
