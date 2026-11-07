@@ -27,16 +27,27 @@ pyo3::create_exception!(
 /// this crate and so is [`PyErr`], so the orphan rule rules out the blanket
 /// conversion that would let `?` do this implicitly.
 ///
-/// The engine names no way past its refusals; every one that `force=True`
-/// gets past is worded with that hint here, in Python's terms.
+/// The engine names no way past its refusals; every one an argument gets
+/// past is worded with that hint here, in Python's terms — `force=True`, or
+/// the `base=` of `Repository.create_worktree` and `Repository.resolve_base`.
 pub fn engine_error(error: EngineError) -> PyErr {
     let hint = match &error {
-        EngineError::Dirty { .. } => " (pass force=True to discard them)",
-        EngineError::InvalidWorktree { .. } => " (pass force=True to remove it anyway)",
-        EngineError::Diverged { .. } => " (pass force=True to reset to origin)",
-        _ => "",
+        EngineError::Dirty { .. } => "pass force=True to discard them".to_string(),
+        EngineError::InvalidWorktree { .. } => "pass force=True to remove it anyway".to_string(),
+        EngineError::Diverged { .. } => "pass force=True to reset to origin".to_string(),
+        EngineError::BranchLacksBase { .. } => {
+            "pass base=None to reuse it as it is, or another branch".to_string()
+        }
+        EngineError::DefaultBranchNotFetched { branch } => {
+            format!("run `git fetch origin {branch}` in the source checkout, or pass base=")
+        }
+        EngineError::AmbiguousBase { spec } => {
+            format!("pass base='refs/heads/{spec}' or base='origin/{spec}' to pick one")
+        }
+        EngineError::UnknownDefaultBranch { .. } => "pass an explicit base=".to_string(),
+        _ => return TixError::new_err(error.to_string()),
     };
-    TixError::new_err(format!("{error}{hint}"))
+    TixError::new_err(format!("{error} ({hint})"))
 }
 
 /// Wraps an SDK failure as the Python-visible exception. See [`engine_error`].
