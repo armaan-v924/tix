@@ -1,7 +1,7 @@
 //! `tix repo clone` — clone registered repositories to their code paths.
 
+use crate::tix::config::load_engine_config;
 use crate::tix::repo::RepoAlias;
-use crate::tix::ticket::load_engine_config;
 use tix_sdk::{SdkError, TixError};
 use tracing::{error, info};
 

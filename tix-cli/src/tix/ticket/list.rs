@@ -1,7 +1,7 @@
 //! `tix ticket list` — one line per ticket under the tickets directory,
 //! grouped by project.
 
-use crate::tix::ticket::load_cli_config;
+use crate::tix::config::load_cli_config;
 use crate::tix::utils::OutputType;
 use std::path::Path;
 use tix_sdk::discovery::ticket_document_path;

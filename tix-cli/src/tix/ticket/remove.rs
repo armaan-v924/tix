@@ -1,9 +1,9 @@
 //! `tix ticket remove` — remove single worktrees from a ticket without
 //! destroying it.
 
+use crate::tix::config::load_engine_config;
 use crate::tix::ticket::{
-    TicketSharedArgs, WorktreeStatus, load_engine_config, load_ticket_config, prune_worktree,
-    require_ticket_root,
+    TicketSharedArgs, WorktreeStatus, load_ticket_config, prune_worktree, require_ticket_root,
 };
 use tix_sdk::{SdkError, TixError};
 use tracing::{info, warn};

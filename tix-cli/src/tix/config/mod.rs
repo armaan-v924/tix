@@ -47,6 +47,28 @@ pub struct CliConfig {
     pub code_directory: PathBuf,
 }
 
+/// Loads the required `[cli]` section from the resolved global config.
+///
+/// Shared by the ticket and repo subcommands; the "no `[cli]` section"
+/// error points at `tix config init` rather than leaking a parse detail.
+pub fn load_cli_config(context: &tix_sdk::context::Context) -> Result<CliConfig, SdkError> {
+    let document = TixDocument::load(&context.config_path)?;
+    document.section("cli")?.ok_or_else(|| {
+        SdkError::Message("global config has no [cli] section — run `tix config init`".to_string())
+    })
+}
+
+/// Loads the `[engine]` section from the resolved global config — the
+/// registered repositories — defaulting to empty when it is absent.
+///
+/// For commands that need nothing else from the global config; those that
+/// read several sections load the document once themselves.
+pub fn load_engine_config(
+    context: &tix_sdk::context::Context,
+) -> Result<tix_sdk::EngineConfig, SdkError> {
+    TixDocument::load(&context.config_path)?.section_or_default("engine")
+}
+
 /// A dotted path addressing a place in the config document: a section
 /// (`defaults`), a key in one (`defaults.branch_prefix`), or anything
 /// deeper (`engine.configured_repositories.backend.remote`).
