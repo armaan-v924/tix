@@ -81,11 +81,20 @@ error: 'feature/login' is not a valid ticket key — it becomes a directory
 A key becomes a directory name under your tickets directory, so `/` and `\`
 are rejected. Everything else is allowed — `REL-1.2.3` is a fine key.
 
+## Remove refused a worktree
+
+```
+error: could not remove worktree 'api': /home/you/tickets/JIRA-123/api has 2 uncommitted changes — commit or stash the changes, or pass --force to discard them
+```
+
+Untracked files count. Commit or stash them and retry, or pass `--force`
+if you mean to throw them away.
+
 ## Destroy stopped part way
 
 ```
-error: could not prune worktree 'api': … — nothing further was deleted;
-       fix it (or pass --force) and retry
+error: could not prune worktree 'api': /home/you/tickets/JIRA-123/api has 2 uncommitted changes — nothing further was deleted;
+       commit or stash the changes (or pass --force) and retry
 ```
 
 Almost always uncommitted changes. Commit, stash, or push, then retry.
@@ -111,7 +120,21 @@ web    ⚠ not a git repository
 
 The ticket document records a worktree that is gone or is no longer a git
 checkout — usually something deleted by hand. `tix remove <name>` drops the
-entry; add it back with `tix add <alias>` if you still want it.
+entry, prunes the source repository's stale registration if git still has
+one, and warns:
+
+```
+warning: worktree 'api' is missing on disk; dropping it from the ticket and pruning its registration in /home/you/code/api
+```
+
+A directory that is still there but no longer a checkout is left in place
+— tix cannot tell whether it holds work. Move what you need out of it and
+delete it yourself. Add the worktree back with `tix add <alias>` if you
+still want it.
+
+`tix destroy` handles a missing worktree the same way. It refuses one that
+is not a git repository, since deleting the ticket would delete it
+unchecked, unless you pass `--force`.
 
 ## Unknown command
 
