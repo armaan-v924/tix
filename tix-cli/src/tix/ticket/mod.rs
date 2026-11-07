@@ -196,6 +196,32 @@ pub fn backing_repository<'a>(
         })
 }
 
+/// `error` from creating a worktree, worded with the way past it for the
+/// command that hit it — `tix ticket setup` or `tix ticket add`, the two
+/// that take `--base`. The engine states only the problem.
+///
+/// `branch_flag` says whether the command takes `--branch` (`add` does,
+/// `setup` derives the branch), so a branch that cannot take the base is
+/// only offered the flags that exist.
+pub fn worktree_creation_error(error: &tix_sdk::TixError, branch_flag: bool) -> String {
+    use tix_sdk::TixError;
+    let hint = match error {
+        TixError::BranchLacksBase { .. } if branch_flag => {
+            "drop --base to reuse it as it is, or pick another branch with --branch".to_string()
+        }
+        TixError::BranchLacksBase { .. } => "drop --base to reuse it as it is".to_string(),
+        TixError::DefaultBranchNotFetched { branch } => {
+            format!("run `git fetch origin {branch}` in the source checkout, or pass --base")
+        }
+        TixError::AmbiguousBase { spec } => {
+            format!("pass --base refs/heads/{spec} or --base origin/{spec} to pick one")
+        }
+        TixError::UnknownDefaultBranch { .. } => "pass --base".to_string(),
+        _ => return error.to_string(),
+    };
+    format!("{error} — {hint}")
+}
+
 /// Prunes the worktree `name` of the ticket at `root` through its source
 /// repository, then deletes its `[ticket.worktrees.<name>]` entry. Returns
 /// what was found on disk.

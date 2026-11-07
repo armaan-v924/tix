@@ -2,7 +2,7 @@
 
 use crate::tix::config::cli_section;
 use crate::tix::repo::RepoAlias;
-use crate::tix::ticket::{TicketRef, derive_branch_name};
+use crate::tix::ticket::{TicketRef, derive_branch_name, worktree_creation_error};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tix_sdk::discovery::ticket_document_path;
@@ -376,7 +376,10 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 );
             }
             Err(e) => {
-                error!("{alias}: could not create worktree: {e}");
+                error!(
+                    "{alias}: could not create worktree: {}",
+                    worktree_creation_error(&e, false)
+                );
                 failures.push((alias.clone(), e));
             }
         }

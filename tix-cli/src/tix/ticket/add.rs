@@ -3,6 +3,7 @@
 use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::{
     TicketSharedArgs, derive_branch_name, load_ticket_config, require_ticket_root,
+    worktree_creation_error,
 };
 use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::{TixDocument, with_write};
@@ -176,7 +177,11 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 println!("{}", path.display());
             }
             Err(e) => {
-                error!("{}: could not add worktree: {e}", worktree.name);
+                error!(
+                    "{}: could not add worktree: {}",
+                    worktree.name,
+                    worktree_creation_error(&e, true)
+                );
                 failures.push((worktree.name.clone(), e));
             }
         }
