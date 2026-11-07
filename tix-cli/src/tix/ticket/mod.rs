@@ -127,6 +127,17 @@ pub fn load_cli_config(
     })
 }
 
+/// Loads the `[engine]` section from the resolved global config — the
+/// registered repositories — defaulting to empty when it is absent.
+///
+/// For commands that need nothing else from the global config; those that
+/// read several sections load the document once themselves.
+pub fn load_engine_config(
+    context: &tix_sdk::context::Context,
+) -> Result<tix_sdk::EngineConfig, tix_sdk::SdkError> {
+    tix_sdk::document::TixDocument::load(&context.config_path)?.section_or_default("engine")
+}
+
 /// Reads the `[ticket]` section of the ticket document at `ticket_root`.
 ///
 /// # Errors

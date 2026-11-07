@@ -1,8 +1,8 @@
 //! `tix repo clone` — clone registered repositories to their code paths.
 
 use crate::tix::repo::RepoAlias;
-use tix_sdk::document::TixDocument;
-use tix_sdk::{EngineConfig, SdkError, TixError};
+use crate::tix::ticket::load_engine_config;
+use tix_sdk::{SdkError, TixError};
 use tracing::{error, info};
 
 /// Clone registered repositories to their code paths
@@ -25,8 +25,7 @@ pub struct Args {
 /// outcome is reported on its own line, and the exit is nonzero if anything
 /// failed. Unknown aliases error up front listing the registered set.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
-    let document = TixDocument::load(&app.context.config_path)?;
-    let engine: EngineConfig = document.section_or_default("engine")?;
+    let engine = load_engine_config(&app.context)?;
 
     let mut registered: Vec<&str> = engine
         .configured_repositories

@@ -1,9 +1,11 @@
 //! `tix ticket destroy` — prune every worktree, then delete the ticket.
 
-use crate::tix::ticket::{TicketRef, TicketSharedArgs, load_ticket_config, require_ticket_root};
+use crate::tix::ticket::{
+    TicketRef, TicketSharedArgs, load_engine_config, load_ticket_config, require_ticket_root,
+};
 use tix_sdk::discovery::ticket_document_path;
-use tix_sdk::document::{TixDocument, with_write};
-use tix_sdk::{EngineConfig, SdkError, TixError, WorktreeConfig};
+use tix_sdk::document::with_write;
+use tix_sdk::{SdkError, TixError, WorktreeConfig};
 use tracing::{info, warn};
 
 /// Destroy a ticket: prune its worktrees, delete its directory
@@ -42,8 +44,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let root = require_ticket_root(&app.context, selector, args.shared.project.as_deref())?;
     let ticket = load_ticket_config(&root)?;
 
-    let document = TixDocument::load(&app.context.config_path)?;
-    let engine: EngineConfig = document.section_or_default("engine")?;
+    let engine = load_engine_config(&app.context)?;
 
     if !args.force
         && !crate::tix::utils::confirm(&format!(

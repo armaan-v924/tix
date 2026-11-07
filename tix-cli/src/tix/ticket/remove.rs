@@ -1,10 +1,12 @@
 //! `tix ticket remove` — remove single worktrees from a ticket without
 //! destroying it.
 
-use crate::tix::ticket::{TicketSharedArgs, load_ticket_config, require_ticket_root};
+use crate::tix::ticket::{
+    TicketSharedArgs, load_engine_config, load_ticket_config, require_ticket_root,
+};
 use tix_sdk::discovery::ticket_document_path;
-use tix_sdk::document::{TixDocument, with_write};
-use tix_sdk::{EngineConfig, SdkError, TixError};
+use tix_sdk::document::with_write;
+use tix_sdk::{SdkError, TixError};
 use tracing::info;
 
 /// Remove a worktree from a ticket without destroying it
@@ -38,8 +40,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     )?;
     let ticket = load_ticket_config(&root)?;
 
-    let document = TixDocument::load(&app.context.config_path)?;
-    let engine: EngineConfig = document.section_or_default("engine")?;
+    let engine = load_engine_config(&app.context)?;
 
     // Validate the batch up front: every name must be tracked, and every
     // backing repo must still be registered (pruning goes through the repo).
