@@ -57,12 +57,9 @@ impl PyHostContext {
 
     /// The ticket document's path, which is fixed relative to the ticket root.
     fn ticket_document_path(&self) -> PyResult<PathBuf> {
-        Ok(self
-            .inner
-            .require_ticket()
-            .map_err(sdk_error)?
-            .join(".tix")
-            .join("ticket.toml"))
+        Ok(tix_sdk::discovery::ticket_document_path(
+            self.inner.require_ticket().map_err(sdk_error)?,
+        ))
     }
 
     /// Loads and parses a document under a shared lock, so a concurrent

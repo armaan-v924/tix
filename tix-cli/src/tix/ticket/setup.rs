@@ -5,6 +5,7 @@ use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::{TicketRef, derive_branch_name};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::TixDocument;
 use tix_sdk::project::{Project, resolve_project, tickets_home};
 use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig, TixError, WorktreeConfig};
@@ -391,7 +392,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     };
     let mut ticket_document = TixDocument::empty();
     ticket_document.set_section("ticket", &ticket)?;
-    ticket_document.save(&ticket_root.join(".tix").join("ticket.toml"))?;
+    ticket_document.save(&ticket_document_path(ticket_root))?;
 
     println!("{}", ticket_root.display());
 

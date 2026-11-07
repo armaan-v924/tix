@@ -4,6 +4,7 @@ use crate::tix::ticket::{TicketRef, require_ticket_root};
 use crate::tix::utils::{App, confirm};
 use std::path::{Path, PathBuf};
 use tix_sdk::SdkError;
+use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::{TixDocument, with_write};
 
 /// Rewrite the global config (or a ticket document) in tix's house style
@@ -103,9 +104,11 @@ pub fn run(app: &App, args: Args) -> Result<(), SdkError> {
 /// from the cwd, else among the loose tickets.
 fn document_path(app: &App, ticket: Option<&TicketRef>) -> Result<PathBuf, SdkError> {
     match ticket {
-        Some(ticket) => Ok(require_ticket_root(&app.context, Some(ticket), None)?
-            .join(".tix")
-            .join("ticket.toml")),
+        Some(ticket) => Ok(ticket_document_path(&require_ticket_root(
+            &app.context,
+            Some(ticket),
+            None,
+        )?)),
         None => Ok(app.context.config_path.clone()),
     }
 }

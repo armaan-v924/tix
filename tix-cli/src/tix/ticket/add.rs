@@ -4,6 +4,7 @@ use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::{
     TicketSharedArgs, derive_branch_name, load_ticket_config, require_ticket_root,
 };
+use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::{TixDocument, with_write};
 use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig, TixError};
 use tracing::{error, info};
@@ -141,7 +142,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         .collect();
     let planned = plan(&aliases, args.name.as_deref(), branch, &ticket)?;
 
-    let ticket_document_path = root.join(".tix").join("ticket.toml");
+    let ticket_document_path = ticket_document_path(&root);
     let mut failures: Vec<(String, TixError)> = Vec::new();
     for worktree in &planned {
         let repo_config = engine.configured_repositories[&worktree.alias].clone();

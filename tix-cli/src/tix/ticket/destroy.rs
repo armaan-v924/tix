@@ -1,6 +1,7 @@
 //! `tix ticket destroy` — prune every worktree, then delete the ticket.
 
 use crate::tix::ticket::{TicketRef, TicketSharedArgs, load_ticket_config, require_ticket_root};
+use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::{TixDocument, with_write};
 use tix_sdk::{EngineConfig, SdkError, TixError, WorktreeConfig};
 use tracing::{info, warn};
@@ -58,7 +59,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let mut entries: Vec<(&String, &WorktreeConfig)> = ticket.worktrees.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
 
-    let ticket_document_path = root.join(".tix").join("ticket.toml");
+    let ticket_document_path = ticket_document_path(&root);
     let mut leftovers: Vec<String> = Vec::new();
     for (name, entry) in entries {
         let pruned = engine

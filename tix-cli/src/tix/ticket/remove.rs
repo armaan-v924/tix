@@ -2,6 +2,7 @@
 //! destroying it.
 
 use crate::tix::ticket::{TicketSharedArgs, load_ticket_config, require_ticket_root};
+use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::{TixDocument, with_write};
 use tix_sdk::{EngineConfig, SdkError, TixError};
 use tracing::info;
@@ -65,7 +66,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         }
     }
 
-    let ticket_document_path = root.join(".tix").join("ticket.toml");
+    let ticket_document_path = ticket_document_path(&root);
     for name in &args.names {
         let entry = &ticket.worktrees[name];
         let repo = engine.configured_repositories[&entry.repo]

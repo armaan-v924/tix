@@ -51,6 +51,17 @@ impl std::str::FromStr for TicketRef {
     }
 }
 
+/// The directory tix keeps its own files in, under a ticket or project
+/// root.
+pub const TIX_DIR: &str = ".tix";
+
+/// The ticket document of the ticket rooted at `root`:
+/// `<root>/.tix/ticket.toml`. Its presence is what makes `root` a ticket
+/// root ([`is_ticket_root`]).
+pub fn ticket_document_path(root: &Path) -> PathBuf {
+    root.join(TIX_DIR).join("ticket.toml")
+}
+
 /// Returns true if `path` is a ticket root: a directory containing the file
 /// `.tix/ticket.toml`.
 ///
@@ -59,7 +70,7 @@ impl std::str::FromStr for TicketRef {
 /// would halt an upward walk at a project and misreport it as a ticket
 /// ([ticket discovery](https://tix.armaanv.dev/latest/concepts/ticket-discovery/)).
 pub fn is_ticket_root(path: &Path) -> bool {
-    path.join(".tix").join("ticket.toml").is_file()
+    ticket_document_path(path).is_file()
 }
 
 /// The logical current working directory — `$PWD` as the shell reports it.
