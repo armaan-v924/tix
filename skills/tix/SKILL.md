@@ -10,7 +10,7 @@ is one directory; inside it, each repository the work touches is a git
 worktree on its own branch. The user's main checkouts are never switched,
 stashed, or moved.
 
-Written against tix 4.x. Check with `tix --version`; when a flag here is
+Written against tix 3.3. Check with `tix --version`; when a flag here is
 rejected, `tix <command> --help` is the authority.
 
 ## Mental model
@@ -94,7 +94,7 @@ If every command errors with `config not found`, tix isn't set up. See
    get past the check.
 8. **Don't `rm -rf` worktree directories.** Use `tix remove <name>` /
    `tix destroy`. Once a worktree directory is gone, `tix info` flags it
-   `missing`, and in 4.0 `tix remove` *cannot* clean it up. It errors with
+   `missing`, and as of 3.3 `tix remove` *cannot* clean it up. It errors with
    "not in a clean state" or "worktree not found", despite what the
    troubleshooting docs say. Recover by hand: run `git worktree prune` in
    the source repo (its `code_path` in `tix config show`), then delete that
