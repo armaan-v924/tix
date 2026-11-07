@@ -3,7 +3,8 @@
 
 use crate::tix::config::load_engine_config;
 use crate::tix::ticket::{
-    TicketSharedArgs, WorktreeStatus, load_ticket_config, prune_worktree, require_ticket_root,
+    TicketSharedArgs, WorktreeStatus, backing_repository, load_ticket_config, prune_worktree,
+    require_ticket_root,
 };
 use tix_sdk::{SdkError, TixError};
 use tracing::{info, warn};
@@ -71,12 +72,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 }
             ))
         })?;
-        if !engine.configured_repositories.contains_key(&entry.repo) {
-            return Err(SdkError::Engine(TixError::RepoNotFound(format!(
-                "worktree '{}' belongs to '{}', which is no longer a registered repository",
-                name, entry.repo
-            ))));
-        }
+        backing_repository(name, entry, &engine)?;
     }
 
     for name in &args.names {
