@@ -2,10 +2,8 @@
 //! destroying it.
 
 use crate::tix::ticket::{
-    TicketSharedArgs, load_engine_config, load_ticket_config, require_ticket_root,
+    TicketSharedArgs, load_engine_config, load_ticket_config, prune_worktree, require_ticket_root,
 };
-use tix_sdk::discovery::ticket_document_path;
-use tix_sdk::document::with_write;
 use tix_sdk::{SdkError, TixError};
 use tracing::info;
 
@@ -67,23 +65,8 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         }
     }
 
-    let ticket_document_path = ticket_document_path(&root);
     for name in &args.names {
-        let entry = &ticket.worktrees[name];
-        let repo = engine.configured_repositories[&entry.repo]
-            .clone()
-            .resolve(&entry.repo)?;
-        repo.remove_worktree(&root.join(name), false)?;
-
-        // Drop the entry as soon as the prune lands, so an error later in
-        // the batch leaves the document agreeing with disk.
-        with_write(&ticket_document_path, |doc| {
-            // `table_at` rather than a plain lookup: a document written by a
-            // version that collapsed the section into an inline table (#146)
-            // holds no `Table` to remove from.
-            doc.table_at(&["ticket", "worktrees"])?.remove(name);
-            Ok(())
-        })?;
+        prune_worktree(&root, name, &ticket.worktrees[name], &engine, false)?;
         info!("removed worktree {name}");
     }
     Ok(())

@@ -157,6 +157,48 @@ pub fn load_ticket_config(
     })
 }
 
+/// Prunes the worktree `name` of the ticket at `root` through its source
+/// repository, then deletes its `[ticket.worktrees.<name>]` entry.
+///
+/// The entry goes as soon as the prune lands, so a batch that fails partway
+/// leaves the ticket document agreeing with disk and a retry resumes.
+/// `force` prunes past uncommitted changes, discarding them.
+///
+/// # Errors
+///
+/// [`tix_sdk::TixError::RepoNotFound`] when `entry.repo` is not registered;
+/// otherwise whatever resolving the repository, pruning, or writing the
+/// ticket document returns.
+pub fn prune_worktree(
+    root: &std::path::Path,
+    name: &str,
+    entry: &tix_sdk::WorktreeConfig,
+    engine: &tix_sdk::EngineConfig,
+    force: bool,
+) -> Result<(), tix_sdk::SdkError> {
+    let config = engine
+        .configured_repositories
+        .get(&entry.repo)
+        .cloned()
+        .ok_or_else(|| {
+            tix_sdk::TixError::RepoNotFound(format!(
+                "worktree '{}' belongs to '{}', which is not a registered repository",
+                name, entry.repo
+            ))
+        })?;
+    config
+        .resolve(&entry.repo)?
+        .remove_worktree(&root.join(name), force)?;
+
+    tix_sdk::document::with_write(&tix_sdk::discovery::ticket_document_path(root), |doc| {
+        // `table_at` rather than a plain lookup: a document written by a
+        // version that collapsed the section into an inline table (#146)
+        // holds no `Table` to remove from.
+        doc.table_at(&["ticket", "worktrees"])?.remove(name);
+        Ok(())
+    })
+}
+
 /// Resolves the ticket a command operates on — `--ticket` override or the
 /// discovery walk — and errors clearly when neither yields one.
 ///

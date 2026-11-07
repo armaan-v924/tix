@@ -1,11 +1,10 @@
 //! `tix ticket destroy` — prune every worktree, then delete the ticket.
 
 use crate::tix::ticket::{
-    TicketRef, TicketSharedArgs, load_engine_config, load_ticket_config, require_ticket_root,
+    TicketRef, TicketSharedArgs, load_engine_config, load_ticket_config, prune_worktree,
+    require_ticket_root,
 };
-use tix_sdk::discovery::ticket_document_path;
-use tix_sdk::document::with_write;
-use tix_sdk::{SdkError, TixError, WorktreeConfig};
+use tix_sdk::{SdkError, WorktreeConfig};
 use tracing::{info, warn};
 
 /// Destroy a ticket: prune its worktrees, delete its directory
@@ -60,35 +59,11 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let mut entries: Vec<(&String, &WorktreeConfig)> = ticket.worktrees.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
 
-    let ticket_document_path = ticket_document_path(&root);
     let mut leftovers: Vec<String> = Vec::new();
     for (name, entry) in entries {
-        let pruned = engine
-            .configured_repositories
-            .get(&entry.repo)
-            .cloned()
-            .ok_or_else(|| {
-                TixError::RepoNotFound(format!(
-                    "worktree '{}' belongs to '{}', which is not a registered repository",
-                    name, entry.repo
-                ))
-            })
-            .and_then(|config| config.resolve(&entry.repo))
-            .and_then(|repo| repo.remove_worktree(&root.join(name), args.force));
-
+        let pruned = prune_worktree(&root, name, entry, &engine, args.force);
         match (pruned, args.force) {
-            (Ok(()), _) => {
-                info!("pruned worktree {name}");
-                // Keep the document agreeing with disk so an abort partway
-                // leaves the ticket resolvable for a retry.
-                with_write(&ticket_document_path, |doc| {
-                    // `table_at` rather than a plain lookup: a document
-                    // written by a version that collapsed the section into
-                    // an inline table (#146) holds no `Table` to remove from.
-                    doc.table_at(&["ticket", "worktrees"])?.remove(name);
-                    Ok(())
-                })?;
-            }
+            (Ok(()), _) => info!("pruned worktree {name}"),
             // Forced deletion means deleted: pruning failures are warnings.
             (Err(e), true) => {
                 warn!(name = %name, error = %e, "could not prune worktree, continuing (--force)");
