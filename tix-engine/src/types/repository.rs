@@ -176,8 +176,9 @@ impl Repository {
     ///
     /// # Errors
     ///
-    /// - [`TixError::Message`] if the base cannot be resolved, or an existing
-    ///   `branch` does not contain an explicit `base`
+    /// - [`TixError::BranchLacksBase`] if an existing `branch` does not
+    ///   contain an explicit `base`
+    /// - any error of [`Self::resolve_base`] if the base cannot be resolved
     /// - [`TixError::GitError`] if worktree creation fails
     ///
     /// # Examples
@@ -233,11 +234,10 @@ impl Repository {
                             .id();
                         if !self.contains(tip, resolved.commit)? {
                             debug!(alias = %self.alias, branch, base = %resolved.name, "existing branch does not contain base");
-                            return Err(TixError::from(format!(
-                                "branch '{branch}' already exists and does not contain '{}' — \
-                                     reuse it without a base, or pick another branch",
-                                resolved.name
-                            )));
+                            return Err(TixError::BranchLacksBase {
+                                branch: branch.to_string(),
+                                base: resolved.name,
+                            });
                         }
                         Some(resolved.name)
                     }
@@ -320,8 +320,12 @@ impl Repository {
     ///
     /// # Errors
     ///
-    /// [`TixError::Message`] if the default branch cannot be determined, a
-    /// bare name has diverged from origin, or `base` names no commit.
+    /// - [`TixError::UnknownDefaultBranch`] if the default branch cannot be
+    ///   determined
+    /// - [`TixError::DefaultBranchNotFetched`] if it can, but its
+    ///   remote-tracking ref is not present
+    /// - [`TixError::AmbiguousBase`] if a bare name has diverged from origin
+    /// - [`TixError::Message`] if `base` names no commit
     ///
     /// # Examples
     ///
@@ -343,12 +347,11 @@ impl Repository {
         let Some(spec) = base else {
             let default = self.default_branch()?;
             self.fetch_or_warn(&default);
-            let commit = self.commit_at(&format!("refs/remotes/origin/{default}"))?.ok_or_else(|| {
-                TixError::from(format!(
-                    "origin's default branch is '{default}', but refs/remotes/origin/{default} does not exist — \
-                     fetch it, or pass an explicit base"
-                ))
-            })?;
+            let commit = self
+                .commit_at(&format!("refs/remotes/origin/{default}"))?
+                .ok_or_else(|| TixError::DefaultBranchNotFetched {
+                    branch: default.clone(),
+                })?;
             return Ok(ResolvedBase {
                 name: format!("origin/{default}"),
                 commit,
@@ -395,10 +398,9 @@ impl Repository {
             },
             (Some(_), Some(_)) => {
                 debug!(alias = %self.alias, base = spec, "local and origin have diverged");
-                return Err(TixError::from(format!(
-                    "'{spec}' has diverged from 'origin/{spec}' — name the one to branch from: \
-                     'refs/heads/{spec}' or 'origin/{spec}'"
-                )));
+                return Err(TixError::AmbiguousBase {
+                    spec: spec.to_string(),
+                });
             }
         };
         debug!(alias = %self.alias, base = spec, resolved = %resolved.name, "resolved bare base by ancestry");
@@ -468,8 +470,8 @@ impl Repository {
     ///
     /// # Errors
     ///
-    /// [`TixError::Message`] if there is no cached answer and origin cannot
-    /// be asked.
+    /// [`TixError::UnknownDefaultBranch`] if there is no cached answer and
+    /// origin cannot be asked.
     fn default_branch(&self) -> Result<String, TixError> {
         const ORIGIN_HEAD: &str = "refs/remotes/origin/HEAD";
         const ORIGIN_PREFIX: &str = "refs/remotes/origin/";
@@ -484,10 +486,10 @@ impl Repository {
 
         let unknown = |reason: String| {
             debug!(alias = %self.alias, reason = %reason, "cannot determine default branch");
-            TixError::from(format!(
-                "cannot determine the default branch of '{}' ({reason}) — pass an explicit base",
-                self.alias
-            ))
+            TixError::UnknownDefaultBranch {
+                alias: self.alias.clone(),
+                reason,
+            }
         };
         debug!(alias = %self.alias, "no origin/HEAD, asking origin for its default branch");
         let mut remote = self
@@ -1171,7 +1173,31 @@ mod tests {
         }
         repo.repo.remote_delete("origin").unwrap();
 
-        assert!(matches!(repo.resolve_base(None), Err(TixError::Message(_))));
+        assert!(matches!(
+            repo.resolve_base(None),
+            Err(TixError::UnknownDefaultBranch { alias, .. }) if alias == repo.alias
+        ));
+    }
+
+    /// A known default branch whose remote-tracking ref is missing (and
+    /// cannot be fetched) is an error naming it, not a fallback to a guess.
+    #[test]
+    fn test_default_branch_not_fetched_errors() {
+        let dir = tempdir().unwrap();
+        let (_remote, repo) = fixture(dir.path());
+        repo.repo
+            .reference_symbolic(
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/trunk",
+                true,
+                "test: point origin/HEAD at a branch origin lacks",
+            )
+            .unwrap();
+
+        assert!(matches!(
+            repo.resolve_base(None),
+            Err(TixError::DefaultBranchNotFetched { branch }) if branch == "trunk"
+        ));
     }
 
     /// A ticket whose branch already exists locally reuses it untouched, and
@@ -1223,7 +1249,8 @@ mod tests {
         let path = dir.path().join("worktrees/feature");
         assert!(matches!(
             repo.create_worktree("feature", "feature", &path, Some("main")),
-            Err(TixError::Message(_))
+            Err(TixError::BranchLacksBase { branch, base })
+                if branch == "feature" && base == "origin/main"
         ));
         assert!(!path.exists());
         assert_eq!(repo.repo.refname_to_id("refs/heads/feature").unwrap(), tip);
@@ -1341,8 +1368,8 @@ mod tests {
         assert_eq!(repo.resolve_base(Some("local-only")).unwrap(), "local-only");
     }
 
-    /// Diverged local and origin are an error naming both — either guess
-    /// would be wrong.
+    /// Diverged local and origin are an error — either guess would be
+    /// wrong.
     #[test]
     fn test_resolve_base_bare_diverged() {
         let dir = tempdir().unwrap();
@@ -1350,9 +1377,10 @@ mod tests {
         test_helpers::add_commit_to_bare(&remote, "remote commit");
         test_helpers::add_commit(&repo.repo, "main", "local commit");
 
-        let error = repo.resolve_base(Some("main")).unwrap_err().to_string();
-        assert!(error.contains("refs/heads/main"), "{error}");
-        assert!(error.contains("origin/main"), "{error}");
+        assert!(matches!(
+            repo.resolve_base(Some("main")),
+            Err(TixError::AmbiguousBase { spec }) if spec == "main"
+        ));
         // Qualifying it is the way out.
         assert_eq!(
             repo.resolve_base(Some("refs/heads/main")).unwrap(),
