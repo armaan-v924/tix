@@ -6,7 +6,9 @@ sidebar:
 ---
 
 `--tix-protocol` is the only compatibility boundary between a host and a
-separately-compiled plugin. Crate versions carry no compatibility meaning.
+separately-compiled plugin. Crate versions say nothing about whether a
+plugin runs; a major version signals an on-disk migration instead, which is
+a separate boundary.
 
 - Monotonic, starting at 1. The SDK's compiled-in value is
   `tix_sdk::host::PROTOCOL`.
