@@ -42,6 +42,34 @@ pub enum TixError {
         /// The branch name.
         branch: String,
     },
+    /// A branch that already exists does not contain the base it was asked
+    /// to be cut from, so reusing it under that base would be a lie and
+    /// moving it would be destructive.
+    BranchLacksBase {
+        /// The existing branch.
+        branch: String,
+        /// The base it does not contain, as resolved (e.g. `origin/main`).
+        base: String,
+    },
+    /// origin's default branch is known, but its remote-tracking ref is not
+    /// present locally — origin lacks it, or fetching it failed.
+    DefaultBranchNotFetched {
+        /// The default branch's name on origin.
+        branch: String,
+    },
+    /// A bare branch name names a local branch and an origin branch that
+    /// have diverged, so neither is the obvious base.
+    AmbiguousBase {
+        /// The base as given.
+        spec: String,
+    },
+    /// origin's default branch is neither cached nor obtainable from origin.
+    UnknownDefaultBranch {
+        /// The repository alias.
+        alias: String,
+        /// Why origin could not be asked.
+        reason: String,
+    },
     /// A freeform error message.
     Message(String),
 }
@@ -67,6 +95,26 @@ impl fmt::Display for TixError {
             TixError::Diverged { branch } => {
                 write!(f, "'{}' has diverged from origin", branch)
             }
+            TixError::BranchLacksBase { branch, base } => write!(
+                f,
+                "branch '{}' already exists and does not contain '{}'",
+                branch, base
+            ),
+            TixError::DefaultBranchNotFetched { branch } => write!(
+                f,
+                "origin's default branch is '{0}', but refs/remotes/origin/{0} does not exist",
+                branch
+            ),
+            TixError::AmbiguousBase { spec } => write!(
+                f,
+                "'{0}' has diverged from 'origin/{0}', so either could be the base",
+                spec
+            ),
+            TixError::UnknownDefaultBranch { alias, reason } => write!(
+                f,
+                "cannot determine the default branch of '{}' ({})",
+                alias, reason
+            ),
             TixError::Message(s) => write!(f, "{}", s),
         }
     }
@@ -154,15 +202,90 @@ mod tests {
             TixError::Diverged {
                 branch: "main".into(),
             },
+            TixError::BranchLacksBase {
+                branch: "feature".into(),
+                base: "origin/main".into(),
+            },
+            TixError::DefaultBranchNotFetched {
+                branch: "main".into(),
+            },
+            TixError::AmbiguousBase { spec: "dev".into() },
+            TixError::UnknownDefaultBranch {
+                alias: "api".into(),
+                reason: "remote 'origin' does not exist".into(),
+            },
             TixError::Message("something went wrong".into()),
         ];
 
         for err in variants {
             let message = err.to_string();
             assert!(!message.is_empty(), "Display was empty for: {:?}", err);
-            // The engine has no UI: wording a way past an error (a flag, an
-            // argument) is each frontend's job.
-            assert!(!message.contains("force"), "{message}");
+            assert!(gives_advice(&message).is_none(), "{message}");
         }
+    }
+
+    /// Words that only show up when a message tells the reader what to do.
+    /// The engine has no UI: wording a way past an error (a flag, an
+    /// argument, a command) is each frontend's job.
+    const ADVICE: &[&str] = &["force", "pass", "pick", "reuse", "fetch", "run", "try"];
+
+    /// The advice word `message` contains, if any. Whole words only, so a
+    /// fact like "bypassed" or "fetched" is not flagged.
+    fn gives_advice(message: &str) -> Option<&'static str> {
+        message
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .find_map(|word| {
+                ADVICE
+                    .iter()
+                    .copied()
+                    .find(|advice| word.eq_ignore_ascii_case(advice))
+            })
+            .or_else(|| message.contains("--").then_some("--"))
+    }
+
+    /// The advice check flags advice, and leaves facts alone.
+    #[test]
+    fn test_gives_advice() {
+        assert_eq!(gives_advice("pass --force to discard them"), Some("pass"));
+        assert_eq!(gives_advice("reuse it without a base"), Some("reuse"));
+        assert_eq!(gives_advice("fetch it first"), Some("fetch"));
+        assert_eq!(gives_advice("see --base"), Some("--"));
+        assert_eq!(gives_advice("it was fetched, then bypassed"), None);
+        assert_eq!(
+            gives_advice("base 'x' does not resolve to a commit in 'api'"),
+            None
+        );
+    }
+
+    /// Each new variant's `Display` names its facts.
+    #[test]
+    fn test_base_variants_display_their_facts() {
+        assert_eq!(
+            TixError::BranchLacksBase {
+                branch: "feature".into(),
+                base: "origin/main".into(),
+            }
+            .to_string(),
+            "branch 'feature' already exists and does not contain 'origin/main'"
+        );
+        assert_eq!(
+            TixError::DefaultBranchNotFetched {
+                branch: "trunk".into()
+            }
+            .to_string(),
+            "origin's default branch is 'trunk', but refs/remotes/origin/trunk does not exist"
+        );
+        assert_eq!(
+            TixError::AmbiguousBase { spec: "dev".into() }.to_string(),
+            "'dev' has diverged from 'origin/dev', so either could be the base"
+        );
+        assert_eq!(
+            TixError::UnknownDefaultBranch {
+                alias: "api".into(),
+                reason: "offline".into(),
+            }
+            .to_string(),
+            "cannot determine the default branch of 'api' (offline)"
+        );
     }
 }
