@@ -49,6 +49,17 @@ The same wheel also binds the engine as `pytix.*`, for scripting against
 repositories, tickets, and worktrees without writing a plugin at all:
 [pytix](https://tix.armaanv.dev/latest/concepts/pytix/).
 
+## Agent skill
+
+[`skills/tix`](skills/tix/SKILL.md) is an agent skill that teaches a coding
+agent to drive tix: the mental model, the safe teardown pattern, and the
+traps that bite non-interactive callers (confirmation prompts read stdin, so
+EOF declines with exit 0). Install it for Claude Code with:
+
+```bash
+cp -r skills/tix ~/.claude/skills/
+```
+
 ## Repository layout
 
 | Crate | Role |
