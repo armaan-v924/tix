@@ -1,14 +1,15 @@
 //! `tix update` — self-update from GitHub releases.
 //!
-//! Fetches the latest release, compares against the compiled-in version,
-//! and replaces the running binary via temp file + rename. A direct port of
-//! v2's self-updater, adjusted for the workspace and given `--dry-run` and
-//! mandatory checksum verification.
+//! Lists the published releases, picks the newest one in the running
+//! binary's major, and replaces the running binary via temp file + rename.
+//! A newer major is reported but only installed with consent: under spec
+//! §2.3 a major means an on-disk migration, so crossing one silently would
+//! leave a binary that cannot read the user's files until `tix migrate`.
 
 use semver::Version;
 use serde::Deserialize;
 use sha2::Digest;
-use std::io::Read;
+use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use tix_sdk::SdkError;
 use tracing::{debug, info, warn};
@@ -17,13 +18,20 @@ use tracing::{debug, info, warn};
 const DEFAULT_OWNER: &str = "armaan-v924";
 const DEFAULT_REPO: &str = "tix";
 const USER_AGENT: &str = concat!("tix-updater/", env!("CARGO_PKG_VERSION"));
+/// GitHub's maximum page size for the releases listing.
+const PER_PAGE: usize = 100;
 
-/// Update tix to the latest release
+/// Update tix to the newest release in its major version
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// Print what would happen without downloading or writing anything
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Install a newer major version if one exists. A new major needs
+    /// `tix migrate` before it can use your config and tickets
+    #[arg(long)]
+    pub major: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,6 +43,12 @@ struct ReleaseAsset {
 #[derive(Debug, Deserialize)]
 struct Release {
     tag_name: String,
+    #[serde(default)]
+    html_url: String,
+    #[serde(default)]
+    draft: bool,
+    #[serde(default)]
+    prerelease: bool,
     assets: Vec<ReleaseAsset>,
 }
 
@@ -45,7 +59,68 @@ struct Target {
     exe_name: &'static str,
 }
 
-/// Checks the latest GitHub release and installs it when newer.
+/// What the release list offers a binary at `current`.
+#[derive(Debug)]
+struct Selection<'a> {
+    /// Newest release in the running major, if newer than `current`.
+    same_major: Option<(Version, &'a Release)>,
+    /// Newest release in any later major.
+    newer_major: Option<(Version, &'a Release)>,
+}
+
+/// Picks candidates from a release list. Drafts and prereleases are skipped,
+/// as `releases/latest` skips them, and so are tags that are not semver.
+fn select<'a>(releases: &'a [Release], current: &Version) -> Selection<'a> {
+    let mut selection = Selection {
+        same_major: None,
+        newer_major: None,
+    };
+    for release in releases.iter().filter(|r| !r.draft && !r.prerelease) {
+        let Ok(version) = parse_tag(&release.tag_name) else {
+            debug!(tag = %release.tag_name, "skipping release with a non-semver tag");
+            continue;
+        };
+        let slot = if version.major == current.major && version > *current {
+            &mut selection.same_major
+        } else if version.major > current.major {
+            &mut selection.newer_major
+        } else {
+            continue;
+        };
+        if slot.as_ref().is_none_or(|(best, _)| version > *best) {
+            *slot = Some((version, release));
+        }
+    }
+    selection
+}
+
+/// The answer to "cross into the newer major?".
+#[derive(Debug, PartialEq, Eq)]
+enum Consent {
+    Cross,
+    Stay,
+    /// Nobody could be asked and no flag answered up front.
+    Refused,
+}
+
+/// The one decision point for crossing a major. The flag answers up front;
+/// otherwise only a terminal can be asked. Anything else is refused, never
+/// treated as a quiet "no": [`run`] turns that into a non-zero exit.
+fn consent(
+    flag: bool,
+    interactive: bool,
+    ask: impl FnOnce() -> Result<bool, SdkError>,
+) -> Result<Consent, SdkError> {
+    Ok(match (flag, interactive) {
+        (true, _) => Consent::Cross,
+        (false, true) if ask()? => Consent::Cross,
+        (false, true) => Consent::Stay,
+        (false, false) => Consent::Refused,
+    })
+}
+
+/// Lists releases, installs the newest in the running major, and asks
+/// before crossing into a newer one.
 ///
 /// Asset naming follows the release workflow's convention:
 /// `tix-v<version>-<os>-<arch>.<tar.gz|zip>`, and every archive ships a
@@ -55,23 +130,95 @@ struct Target {
 /// half-uploaded release or an attacker withholding the file to steer the
 /// updater onto an unchecked path. The binary is replaced via temp file +
 /// rename in its own directory.
+///
+/// Without a terminal and without `--major`, a newer major is refused: the
+/// in-major update (if any) still installs, then the command fails so a
+/// script sees that a migration-bearing release is waiting.
 pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let target = detect_target()?;
     let owner = std::env::var("TIX_UPDATE_OWNER").unwrap_or_else(|_| DEFAULT_OWNER.into());
     let repo = std::env::var("TIX_UPDATE_REPO").unwrap_or_else(|_| DEFAULT_REPO.into());
 
-    let release = fetch_latest_release(&owner, &repo)?;
-    let latest = parse_tag(&release.tag_name)?;
+    let releases = fetch_releases(&owner, &repo)?;
     let current = Version::parse(env!("CARGO_PKG_VERSION"))
         .map_err(|e| SdkError::Message(format!("could not parse own version: {e}")))?;
+    let Selection {
+        same_major,
+        newer_major,
+    } = select(&releases, &current);
 
-    if latest <= current {
-        info!("tix {current} is already up to date (latest release: {latest})");
+    if args.dry_run {
+        if let Some((version, release)) = &newer_major {
+            let action = if args.major {
+                "would install"
+            } else {
+                "would skip (pass --major to install)"
+            };
+            println!(
+                "{action} tix {version}: a new major version, needs `tix migrate` ({})",
+                release.html_url
+            );
+        }
+        let chosen = if args.major && newer_major.is_some() {
+            &newer_major
+        } else {
+            &same_major
+        };
+        match chosen {
+            Some((version, release)) => {
+                print_plan(&target, &current, version, release)?;
+            }
+            None => println!("tix {current} is the newest {}.x release", current.major),
+        }
         return Ok(());
     }
 
+    let mut refused = None;
+    let chosen = match newer_major {
+        Some((version, release)) => {
+            let ask = || {
+                crate::tix::utils::confirm(&format!(
+                    "tix {version} is a new major version and needs `tix migrate` before \
+                     it can use your config and tickets ({}). Install it",
+                    release.html_url
+                ))
+            };
+            match consent(args.major, std::io::stdin().is_terminal(), ask)? {
+                Consent::Cross => Some((version, release)),
+                Consent::Stay => same_major,
+                Consent::Refused => {
+                    refused = Some((version, release));
+                    same_major
+                }
+            }
+        }
+        None => same_major,
+    };
+
+    match chosen {
+        Some((version, release)) => install(&target, &current, &version, release)?,
+        None => info!("tix {current} is the newest {}.x release", current.major),
+    }
+
+    if let Some((version, release)) = refused {
+        return Err(SdkError::Message(format!(
+            "tix {version} is a new major version and was not installed: it needs \
+             `tix migrate` before it can use your config and tickets ({}). Rerun \
+             `tix cli update --major` to install it",
+            release.html_url
+        )));
+    }
+    Ok(())
+}
+
+/// The asset and checksum names `release` must publish for this platform.
+fn assets<'a>(
+    target: &Target,
+    version: &Version,
+    release: &'a Release,
+) -> Result<(&'a ReleaseAsset, &'a ReleaseAsset), SdkError> {
     let asset_name = format!(
-        "tix-v{latest}-{}.{}",
+        "tix-v{version}-{}.{}",
         target.asset_suffix, target.archive_ext
     );
     let asset = release
@@ -96,43 +243,72 @@ pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 release.tag_name
             ))
         })?;
-    let destination = install_destination(&target)?;
+    Ok((asset, checksum_asset))
+}
 
-    if args.dry_run {
-        println!("would update tix {current} -> {latest}");
-        println!("  asset:       {asset_name}");
-        println!("  checksum:    {checksum_name}");
-        println!("  destination: {}", destination.display());
-        return Ok(());
-    }
+fn print_plan(
+    target: &Target,
+    current: &Version,
+    version: &Version,
+    release: &Release,
+) -> Result<(), SdkError> {
+    let (asset, checksum) = assets(target, version, release)?;
+    let destination = install_destination(target)?;
+    println!("would update tix {current} -> {version}");
+    println!("  asset:       {}", asset.name);
+    println!("  checksum:    {}", checksum.name);
+    println!("  destination: {}", destination.display());
+    Ok(())
+}
 
-    info!("updating tix {current} -> {latest} ({asset_name})");
+fn install(
+    target: &Target,
+    current: &Version,
+    version: &Version,
+    release: &Release,
+) -> Result<(), SdkError> {
+    let (asset, checksum) = assets(target, version, release)?;
+    let destination = install_destination(target)?;
+
+    info!("updating tix {current} -> {version} ({})", asset.name);
     let staging = tempfile::tempdir().map_err(SdkError::from)?;
     let archive_path = staging.path().join(&asset.name);
     download(&asset.browser_download_url, &archive_path)?;
 
-    verify_checksum(&archive_path, &checksum_asset.browser_download_url)?;
+    verify_checksum(&archive_path, &checksum.browser_download_url)?;
 
-    let extracted = extract_archive(&archive_path, &target)?;
+    let extracted = extract_archive(&archive_path, target)?;
     install_binary(&extracted, &destination)?;
 
     info!(
-        "updated tix {current} -> {latest} ({})",
+        "updated tix {current} -> {version} ({})",
         destination.display()
     );
     Ok(())
 }
 
-fn fetch_latest_release(owner: &str, repo: &str) -> Result<Release, SdkError> {
-    let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/latest");
-    let mut response = ureq::get(&url)
-        .header("User-Agent", USER_AGENT)
-        .call()
-        .map_err(|e| SdkError::Message(format!("could not fetch latest release: {e}")))?;
-    response
-        .body_mut()
-        .read_json::<Release>()
-        .map_err(|e| SdkError::Message(format!("could not parse release JSON: {e}")))
+/// Every release, newest first as GitHub returns them, across all pages.
+fn fetch_releases(owner: &str, repo: &str) -> Result<Vec<Release>, SdkError> {
+    let mut releases = Vec::new();
+    for page in 1.. {
+        let url = format!(
+            "https://api.github.com/repos/{owner}/{repo}/releases?per_page={PER_PAGE}&page={page}"
+        );
+        let batch = ureq::get(&url)
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "application/vnd.github+json")
+            .call()
+            .map_err(|e| SdkError::Message(format!("could not list releases: {e}")))?
+            .body_mut()
+            .read_json::<Vec<Release>>()
+            .map_err(|e| SdkError::Message(format!("could not parse release JSON: {e}")))?;
+        let last = batch.len() < PER_PAGE;
+        releases.extend(batch);
+        if last {
+            break;
+        }
+    }
+    Ok(releases)
 }
 
 fn parse_tag(tag: &str) -> Result<Version, SdkError> {
@@ -521,6 +697,78 @@ mod tests {
                 dest.display()
             );
         }
+    }
+
+    fn release(tag: &str, draft: bool, prerelease: bool) -> Release {
+        Release {
+            tag_name: tag.to_string(),
+            html_url: format!("https://example.test/{tag}"),
+            draft,
+            prerelease,
+            assets: Vec::new(),
+        }
+    }
+
+    /// The issue's mixed list, newest first as GitHub returns it.
+    fn mixed_releases() -> Vec<Release> {
+        vec![
+            release("v4.1.0", false, true),
+            release("v4.0.0", false, false),
+            release("v3.4.0", true, false),
+            release("v3.3.1", false, false),
+            release("v3.3.0", false, false),
+            release("not-a-version", false, false),
+        ]
+    }
+
+    fn picked(slot: &Option<(Version, &Release)>) -> Option<String> {
+        slot.as_ref().map(|(version, _)| version.to_string())
+    }
+
+    /// From 3.3.0: the in-major pick is 3.3.1 (the 3.4.0 draft is skipped),
+    /// and 4.0.0 is reported as the newer major (the 4.1.0 prerelease is
+    /// skipped).
+    #[test]
+    fn test_select_from_older_patch() {
+        let releases = mixed_releases();
+        let selection = select(&releases, &Version::new(3, 3, 0));
+        assert_eq!(picked(&selection.same_major).as_deref(), Some("3.3.1"));
+        assert_eq!(picked(&selection.newer_major).as_deref(), Some("4.0.0"));
+    }
+
+    /// From 3.3.1: nothing newer in the major, 4.0.0 still reported.
+    #[test]
+    fn test_select_from_newest_patch() {
+        let releases = mixed_releases();
+        let selection = select(&releases, &Version::new(3, 3, 1));
+        assert_eq!(picked(&selection.same_major), None);
+        assert_eq!(picked(&selection.newer_major).as_deref(), Some("4.0.0"));
+    }
+
+    /// Order in the listing does not decide the pick, and a binary already
+    /// on the newest major sees no newer one.
+    #[test]
+    fn test_select_ignores_listing_order() {
+        let mut releases = mixed_releases();
+        releases.reverse();
+        let selection = select(&releases, &Version::new(3, 3, 0));
+        assert_eq!(picked(&selection.same_major).as_deref(), Some("3.3.1"));
+        let selection = select(&releases, &Version::new(4, 0, 0));
+        assert_eq!(picked(&selection.same_major), None);
+        assert_eq!(picked(&selection.newer_major), None);
+    }
+
+    /// Without a terminal and without the flag, crossing is refused — not
+    /// answered "no" — and nothing is asked. The flag crosses without
+    /// asking; a terminal gets asked.
+    #[test]
+    fn test_consent() {
+        let never = || -> Result<bool, SdkError> { panic!("must not prompt") };
+        assert_eq!(consent(false, false, never).unwrap(), Consent::Refused);
+        assert_eq!(consent(true, false, never).unwrap(), Consent::Cross);
+        assert_eq!(consent(true, true, never).unwrap(), Consent::Cross);
+        assert_eq!(consent(false, true, || Ok(true)).unwrap(), Consent::Cross);
+        assert_eq!(consent(false, true, || Ok(false)).unwrap(), Consent::Stay);
     }
 
     /// The hex encoder agrees with the reference digest.

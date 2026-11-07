@@ -2,11 +2,11 @@
 .el .ds Aq '
 .TH tix-cli-update 1  "update " 
 .SH NAME
-tix\-cli\-update \- Update tix to the latest release
+tix\-cli\-update \- Update tix to the newest release in its major version
 .SH SYNOPSIS
-\fBtix cli update\fR [\fB\-\-config\fR] [\fB\-\-dry\-run\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBtix cli update\fR [\fB\-\-config\fR] [\fB\-\-dry\-run\fR] [\fB\-\-major\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
-Update tix to the latest release
+Update tix to the newest release in its major version
 .SH OPTIONS
 .TP
 \fB\-\-config\fR \fI<CONFIG>\fR
@@ -14,6 +14,9 @@ Path to the global config file (overrides TIX_CONFIG_PATH and the platform defau
 .TP
 \fB\-\-dry\-run\fR
 Print what would happen without downloading or writing anything
+.TP
+\fB\-\-major\fR
+Install a newer major version if one exists. A new major needs `tix migrate` before it can use your config and tickets
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
 Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
