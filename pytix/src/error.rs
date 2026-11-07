@@ -26,8 +26,17 @@ pyo3::create_exception!(
 /// Free functions rather than `From` impls: both source types are foreign to
 /// this crate and so is [`PyErr`], so the orphan rule rules out the blanket
 /// conversion that would let `?` do this implicitly.
+///
+/// The engine names no way past its refusals; every one that `force=True`
+/// gets past is worded with that hint here, in Python's terms.
 pub fn engine_error(error: EngineError) -> PyErr {
-    TixError::new_err(error.to_string())
+    let hint = match &error {
+        EngineError::Dirty { .. } => " (pass force=True to discard them)",
+        EngineError::InvalidWorktree { .. } => " (pass force=True to remove it anyway)",
+        EngineError::Diverged { .. } => " (pass force=True to reset to origin)",
+        _ => "",
+    };
+    TixError::new_err(format!("{error}{hint}"))
 }
 
 /// Wraps an SDK failure as the Python-visible exception. See [`engine_error`].

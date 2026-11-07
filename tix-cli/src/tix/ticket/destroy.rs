@@ -4,7 +4,7 @@ use crate::tix::ticket::{
     TicketRef, TicketSharedArgs, load_engine_config, load_ticket_config, prune_worktree,
     require_ticket_root,
 };
-use tix_sdk::{SdkError, WorktreeConfig};
+use tix_sdk::{SdkError, TixError, WorktreeConfig};
 use tracing::{info, warn};
 
 /// Destroy a ticket: prune its worktrees, delete its directory
@@ -71,10 +71,13 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             }
             // The default path aborts before deleting anything further.
             (Err(e), false) => {
+                let fix = match e {
+                    SdkError::Engine(TixError::Dirty { .. }) => "commit or stash the changes",
+                    _ => "fix it",
+                };
                 return Err(SdkError::Message(format!(
-                    "could not prune worktree '{}': {e} — nothing further was deleted; \
-                     fix it (or pass --force) and retry",
-                    name
+                    "could not prune worktree '{name}': {e} — nothing further was deleted; \
+                     {fix} (or pass --force) and retry"
                 )));
             }
         }

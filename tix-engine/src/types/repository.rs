@@ -559,7 +559,10 @@ impl Repository {
     /// # Errors
     ///
     /// - [`TixError::WorktreeNotFound`] if no registered worktree records `path`
-    /// - [`TixError::Message`] if the worktree is dirty without `force`
+    /// - [`TixError::InvalidWorktree`] if git's validation of the worktree
+    ///   fails without `force` (e.g. its directory is gone)
+    /// - [`TixError::Dirty`] if the worktree has uncommitted changes without
+    ///   `force`
     /// - [`TixError::GitError`] if pruning fails
     ///
     /// # Examples
@@ -584,20 +587,22 @@ impl Repository {
             // validate() catches structural breakage (e.g. the directory is
             // gone). It says nothing about cleanliness — that takes opening
             // the worktree and asking for its status.
-            if worktree.validate().is_err() {
-                debug!(alias = %self.alias, path = %path.display(), "worktree failed validation, use force to remove");
-                return Err(TixError::from(
-                    "worktree is not in a clean state, use force to remove",
-                ));
+            if let Err(e) = worktree.validate() {
+                debug!(alias = %self.alias, path = %path.display(), error = %e, "worktree failed validation");
+                return Err(TixError::InvalidWorktree {
+                    path: path.to_path_buf(),
+                    reason: e.message().to_string(),
+                });
             }
             let worktree_repo =
                 git2::Repository::open(worktree.path()).map_err(TixError::GitError)?;
-            let count = uncommitted_changes(&worktree_repo)?;
-            if count > 0 {
-                debug!(alias = %self.alias, path = %path.display(), count, "worktree has uncommitted changes, use force to remove");
-                return Err(TixError::from(
-                    "worktree has uncommitted changes, use force to remove",
-                ));
+            let changes = uncommitted_changes(&worktree_repo)?;
+            if changes > 0 {
+                debug!(alias = %self.alias, path = %path.display(), changes, "worktree has uncommitted changes");
+                return Err(TixError::Dirty {
+                    path: path.to_path_buf(),
+                    changes,
+                });
             }
         }
 
@@ -643,7 +648,9 @@ impl Repository {
     ///
     /// # Errors
     ///
-    /// - [`TixError::Message`] for dirty state, diverged branch, or worktree conflicts
+    /// - [`TixError::Dirty`] for uncommitted changes without `force`
+    /// - [`TixError::Diverged`] if the branch cannot fast-forward without `force`
+    /// - [`TixError::Message`] for a mid-operation repository or a worktree conflict
     /// - [`TixError::GitError`] for underlying git failures
     ///
     /// # Examples
@@ -671,12 +678,13 @@ impl Repository {
 
         // if anything is dirty and force is not set, bail rather than silently discarding work.
         if !force {
-            let count = uncommitted_changes(&self.repo)?;
-            if count > 0 {
-                debug!(alias = %self.alias, count, "repository has uncommitted changes");
-                return Err(TixError::from(
-                    "repository has uncommitted changes, use force to discard them",
-                ));
+            let changes = uncommitted_changes(&self.repo)?;
+            if changes > 0 {
+                debug!(alias = %self.alias, changes, "repository has uncommitted changes");
+                return Err(TixError::Dirty {
+                    path: self.config.code_path.clone(),
+                    changes,
+                });
             }
         }
 
@@ -741,10 +749,9 @@ impl Repository {
                 .map_err(TixError::GitError)?;
             if !analysis.is_fast_forward() && !analysis.is_up_to_date() {
                 debug!(alias = %self.alias, branch, "branch has diverged from remote");
-                return Err(TixError::from(format!(
-                    "'{}' has diverged from remote, use force to reset",
-                    branch
-                )));
+                return Err(TixError::Diverged {
+                    branch: branch.to_string(),
+                });
             }
         }
 
@@ -1360,7 +1367,7 @@ mod tests {
 
     // --- remove_worktree ---
 
-    /// Removing a worktree that doesn't exist returns `TixError::Message`.
+    /// Removing a worktree that doesn't exist returns `TixError::WorktreeNotFound`.
     #[test]
     fn test_remove_worktree_not_found() {
         let dir = tempdir().unwrap();
@@ -1375,7 +1382,8 @@ mod tests {
         ));
     }
 
-    /// Removing an orphaned worktree (missing directory) without `force` returns `TixError::Message`.
+    /// Removing an orphaned worktree (missing directory) without `force` returns
+    /// `TixError::InvalidWorktree`.
     #[test]
     fn test_remove_worktree_orphaned_no_force() {
         let dir = tempdir().unwrap();
@@ -1387,7 +1395,7 @@ mod tests {
 
         assert!(matches!(
             repo.remove_worktree(&dir.path().join("worktrees/feature"), false),
-            Err(TixError::Message(_))
+            Err(TixError::InvalidWorktree { .. })
         ));
     }
 
@@ -1421,7 +1429,7 @@ mod tests {
 
         assert!(matches!(
             repo.remove_worktree(&dir.path().join("worktrees/feature"), false),
-            Err(TixError::Message(_))
+            Err(TixError::Dirty { changes: 1, .. })
         ));
         // Force discards it.
         assert!(
@@ -1499,7 +1507,7 @@ mod tests {
 
         assert!(matches!(
             repo.sync_base("main", false),
-            Err(TixError::Message(_))
+            Err(TixError::Dirty { .. })
         ));
     }
 
@@ -1631,7 +1639,7 @@ mod tests {
 
         assert!(matches!(
             repo.sync_base("main", false),
-            Err(TixError::Message(_))
+            Err(TixError::Diverged { .. })
         ));
     }
 

@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::PathBuf;
 
 /// An error that can occur during tix-engine operations.
 pub enum TixError {
@@ -12,6 +13,31 @@ pub enum TixError {
     TicketNotFound(String),
     /// A worktree recorded in the ticket document was not found on disk.
     WorktreeNotFound(String),
+    /// A working tree has uncommitted changes (modified, staged, or
+    /// untracked files) that the operation would discard.
+    ///
+    /// Raised by operations that take a `force` argument when it is unset;
+    /// how to get past it is the caller's to explain, not the engine's.
+    Dirty {
+        /// The working tree with the changes.
+        path: PathBuf,
+        /// How many entries `git status` would report.
+        changes: usize,
+    },
+    /// git's validation of a registered worktree failed, so it cannot be
+    /// checked for uncommitted changes — typically its directory is gone.
+    InvalidWorktree {
+        /// The worktree's recorded path.
+        path: PathBuf,
+        /// What validation reported.
+        reason: String,
+    },
+    /// A local branch has diverged from its counterpart on origin, so it
+    /// cannot be fast-forwarded.
+    Diverged {
+        /// The branch name.
+        branch: String,
+    },
     /// A freeform error message.
     Message(String),
 }
@@ -24,6 +50,19 @@ impl fmt::Display for TixError {
             TixError::RepoNotFound(s) => write!(f, "repo not found: {}", s),
             TixError::TicketNotFound(s) => write!(f, "ticket not found: {}", s),
             TixError::WorktreeNotFound(s) => write!(f, "worktree not found: {}", s),
+            TixError::Dirty { path, changes } => write!(
+                f,
+                "{} has {} uncommitted {}",
+                path.display(),
+                changes,
+                if *changes == 1 { "change" } else { "changes" }
+            ),
+            TixError::InvalidWorktree { path, reason } => {
+                write!(f, "worktree at {} is not valid: {}", path.display(), reason)
+            }
+            TixError::Diverged { branch } => {
+                write!(f, "'{}' has diverged from origin", branch)
+            }
             TixError::Message(s) => write!(f, "{}", s),
         }
     }
@@ -100,15 +139,26 @@ mod tests {
             TixError::RepoNotFound("path".into()),
             TixError::TicketNotFound("path".into()),
             TixError::WorktreeNotFound("path".into()),
+            TixError::Dirty {
+                path: "path".into(),
+                changes: 1,
+            },
+            TixError::InvalidWorktree {
+                path: "path".into(),
+                reason: "gone".into(),
+            },
+            TixError::Diverged {
+                branch: "main".into(),
+            },
             TixError::Message("something went wrong".into()),
         ];
 
         for err in variants {
-            assert!(
-                !err.to_string().is_empty(),
-                "Display was empty for: {:?}",
-                err
-            );
+            let message = err.to_string();
+            assert!(!message.is_empty(), "Display was empty for: {:?}", err);
+            // The engine has no UI: wording a way past an error (a flag, an
+            // argument) is each frontend's job.
+            assert!(!message.contains("force"), "{message}");
         }
     }
 }
