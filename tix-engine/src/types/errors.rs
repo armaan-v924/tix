@@ -2,6 +2,10 @@ use std::fmt;
 use std::path::PathBuf;
 
 /// An error that can occur during tix-engine operations.
+///
+/// Non-exhaustive: new failure modes get their own variants, so a `match`
+/// outside this crate needs a wildcard arm.
+#[non_exhaustive]
 pub enum TixError {
     /// A git2 operation failed.
     GitError(git2::Error),
