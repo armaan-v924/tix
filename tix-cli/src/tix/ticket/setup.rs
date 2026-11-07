@@ -1,6 +1,6 @@
 //! `tix ticket setup` — create a new ticket workspace with worktrees.
 
-use crate::tix::config::CliConfig;
+use crate::tix::config::cli_section;
 use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::{TicketRef, derive_branch_name};
 use std::collections::HashMap;
@@ -286,9 +286,7 @@ fn create_ticket_root(target: &Target) -> Result<(), SdkError> {
 /// the repos that failed.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let document = TixDocument::load(&app.context.config_path)?;
-    let cli: CliConfig = document.section("cli")?.ok_or_else(|| {
-        SdkError::Message("global config has no [cli] section — run `tix config init`".to_string())
-    })?;
+    let cli = cli_section(&document)?;
     let engine: EngineConfig = document.section_or_default("engine")?;
     let defaults: Defaults = document.section_or_default("defaults")?;
 
