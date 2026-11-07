@@ -157,6 +157,48 @@ pub fn load_ticket_config(
     })
 }
 
+/// Whether a recorded worktree actually resolves on disk — what `tix info`
+/// flags, and what decides how `remove` and `destroy` handle it.
+pub enum WorktreeStatus {
+    /// A directory that opens as a git repository.
+    Ok,
+    /// No directory at the recorded path.
+    MissingDirectory,
+    /// A directory, but not one git can open.
+    NotAGitRepository,
+}
+
+impl WorktreeStatus {
+    /// Classifies the worktree recorded at `path`.
+    pub fn of(path: &std::path::Path) -> Self {
+        if !path.is_dir() {
+            WorktreeStatus::MissingDirectory
+        } else if !tix_sdk::opens_as_git_repository(path) {
+            WorktreeStatus::NotAGitRepository
+        } else {
+            WorktreeStatus::Ok
+        }
+    }
+
+    /// The suffix `tix info` prints after the row.
+    pub fn marker(&self) -> &'static str {
+        match self {
+            WorktreeStatus::Ok => "",
+            WorktreeStatus::MissingDirectory => "  ⚠ missing on disk",
+            WorktreeStatus::NotAGitRepository => "  ⚠ not a git repository",
+        }
+    }
+
+    /// The `status` value in `tix info -o json`.
+    pub fn label(&self) -> &'static str {
+        match self {
+            WorktreeStatus::Ok => "ok",
+            WorktreeStatus::MissingDirectory => "missing",
+            WorktreeStatus::NotAGitRepository => "not-a-git-repository",
+        }
+    }
+}
+
 /// Prunes the worktree `name` of the ticket at `root` through its source
 /// repository, then deletes its `[ticket.worktrees.<name>]` entry.
 ///
