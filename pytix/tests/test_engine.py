@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -114,3 +115,14 @@ def test_worktree_lifecycle(tmp_path: Path, clone: Path) -> None:
     repository.remove_worktree(ticket_root / "api")
     with pytest.raises(pytix.TixError):
         repository.remove_worktree(ticket_root / "api")
+
+
+def test_unknown_default_branch_names_the_base_argument(clone: Path) -> None:
+    """The engine states the problem; pytix words the way past it as `base=`."""
+    repository = pytix.RepositoryConfig(str(clone), clone).resolve("api")
+    subprocess.run(["git", "remote", "remove", "origin"], cwd=clone, check=True)
+
+    with pytest.raises(pytix.TixError, match="default branch of 'api'") as raised:
+        repository.resolve_base()
+    assert "pass an explicit base=" in str(raised.value)
+    assert "--base" not in str(raised.value)
