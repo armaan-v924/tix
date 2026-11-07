@@ -63,13 +63,28 @@ cargo install --path tix/tix-cli
 tix cli update
 ```
 
-It asks GitHub for the latest release, compares it with the running version,
-and stops if you are already current. Otherwise it downloads the asset for
-your platform and replaces the binary **in place** — the executable you ran
-it from.
+It lists tix's releases on GitHub and installs the newest one **in the major
+version you are running**: tix 3.3.0 moves to 3.3.1 or 3.4.0, never to 4.0.0
+on its own. Drafts and prereleases are ignored. If you are already current it
+stops; otherwise it downloads the asset for your platform, verifies its
+checksum, and replaces the binary **in place** — the executable you ran it
+from.
+
+A new major version always means what is on disk changed, so the new binary
+cannot use your config and tickets until you run `tix migrate`. When one is
+out, `tix cli update` tells you, with a link to its release notes, and only
+installs it with your consent:
+
+- In a terminal, it asks. Declining still installs the newest release in
+  your current major.
+- With `--major`, it installs the newest release of any major without asking.
+- Without a terminal (scripts, CI) and without `--major`, it installs the
+  in-major update if there is one, then **exits non-zero** naming the flag,
+  so automation never crosses a major silently.
 
 ```sh
-tix cli update --dry-run   # report what it would do, download nothing
+tix cli update --dry-run   # report the update and any skipped major, download nothing
+tix cli update --major     # cross into a new major; run `tix migrate` next
 ```
 
 <Aside type="tip">

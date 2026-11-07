@@ -35,7 +35,7 @@ tix cli completions <SHELL>
 
 ## `tix cli update`
 
-Update tix to the latest release
+Update tix to the newest release in its major version
 
 ```sh frame="none"
 tix cli update [OPTIONS]
@@ -47,4 +47,5 @@ tix cli update [OPTIONS]
 | Option | Description |
 | --- | --- |
 | `--dry-run` | Print what would happen without downloading or writing anything |
+| `--major` | Install a newer major version if one exists. A new major needs `tix migrate` before it can use your config and tickets |
 
