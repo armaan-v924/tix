@@ -174,6 +174,28 @@ impl WorktreeStatus {
     }
 }
 
+/// The registered repository a tracked worktree belongs to.
+///
+/// # Errors
+///
+/// [`tix_sdk::TixError::RepoNotFound`] when `entry.repo` is no longer
+/// registered, naming the worktree.
+pub fn backing_repository<'a>(
+    name: &str,
+    entry: &tix_sdk::WorktreeConfig,
+    engine: &'a tix_sdk::EngineConfig,
+) -> Result<&'a tix_sdk::RepositoryConfig, tix_sdk::SdkError> {
+    engine
+        .configured_repositories
+        .get(&entry.repo)
+        .ok_or_else(|| {
+            tix_sdk::SdkError::Engine(tix_sdk::TixError::RepoNotFound(format!(
+                "worktree '{}' belongs to '{}', which is no longer a registered repository",
+                name, entry.repo
+            )))
+        })
+}
+
 /// Prunes the worktree `name` of the ticket at `root` through its source
 /// repository, then deletes its `[ticket.worktrees.<name>]` entry. Returns
 /// what was found on disk.
@@ -190,7 +212,7 @@ impl WorktreeStatus {
 ///
 /// # Errors
 ///
-/// [`tix_sdk::TixError::RepoNotFound`] when `entry.repo` is not registered;
+/// [`backing_repository`]'s error when `entry.repo` is not registered;
 /// otherwise whatever resolving the repository, pruning, or writing the
 /// ticket document returns.
 pub fn prune_worktree(
@@ -200,17 +222,9 @@ pub fn prune_worktree(
     engine: &tix_sdk::EngineConfig,
     force: bool,
 ) -> Result<WorktreeStatus, tix_sdk::SdkError> {
-    let config = engine
-        .configured_repositories
-        .get(&entry.repo)
-        .cloned()
-        .ok_or_else(|| {
-            tix_sdk::TixError::RepoNotFound(format!(
-                "worktree '{}' belongs to '{}', which is not a registered repository",
-                name, entry.repo
-            ))
-        })?;
-    let repo = config.resolve(&entry.repo)?;
+    let repo = backing_repository(name, entry, engine)?
+        .clone()
+        .resolve(&entry.repo)?;
     let path = root.join(name);
     let status = WorktreeStatus::of(&path);
     match status {
