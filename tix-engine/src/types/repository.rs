@@ -617,6 +617,46 @@ impl Repository {
         Ok(())
     }
 
+    /// Prunes git's registration of the worktree at `path`, leaving whatever
+    /// is on disk at `path` alone.
+    ///
+    /// For a worktree whose directory is gone, or no longer a git checkout:
+    /// there is nothing to check for uncommitted changes, and nothing this
+    /// should delete. Returns whether a registration existed — `false` when
+    /// git has already forgotten it (say, after `git worktree prune`).
+    ///
+    /// # Errors
+    ///
+    /// [`TixError::GitError`] if listing or pruning registrations fails
+    /// (e.g. the worktree is locked).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use tix_engine::RepositoryConfig;
+    /// # use std::path::PathBuf;
+    /// let repo = RepositoryConfig::new(
+    ///     "https://github.com/owner/repo.git".to_string(),
+    ///     PathBuf::from("/home/user/code/repo"),
+    /// ).resolve("my-repo").unwrap();
+    /// repo.prune_worktree_registration(&PathBuf::from("/home/user/tickets/JIRA-123/my-repo"));
+    /// ```
+    pub fn prune_worktree_registration(&self, path: &Path) -> Result<bool, TixError> {
+        let Some(worktree) = self.find_worktree_by_path(path)? else {
+            debug!(alias = %self.alias, path = %path.display(), "no worktree registration to prune");
+            return Ok(false);
+        };
+        // valid(true): a registration whose directory still exists (just not
+        // as a checkout) passes git's validation, and must still go.
+        let mut opts = git2::WorktreePruneOptions::new();
+        opts.valid(true).working_tree(false);
+        worktree
+            .prune(Some(&mut opts))
+            .map_err(TixError::GitError)?;
+        debug!(alias = %self.alias, path = %path.display(), "worktree registration pruned");
+        Ok(true)
+    }
+
     /// Syncs the source checkout against origin's default branch (`main`,
     /// `master`, … — discovered per repository, see
     /// [`Self::resolve_base`]). See [`Self::sync_base`].
@@ -1471,6 +1511,44 @@ mod tests {
                 .is_ok()
         );
         assert!(!dir.path().join("worktrees/feature").exists());
+    }
+
+    // --- prune_worktree_registration ---
+
+    /// An orphaned worktree's registration is pruned, and a second call
+    /// finds nothing left to prune.
+    #[test]
+    fn test_prune_worktree_registration_orphaned() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        test_helpers::orphan_worktree(&local, "feature", &dir.path().join("worktrees/feature"));
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+        let path = dir.path().join("worktrees/feature");
+
+        assert!(repo.prune_worktree_registration(&path).unwrap());
+        assert!(repo.repo.worktrees().unwrap().is_empty());
+        assert!(!repo.prune_worktree_registration(&path).unwrap());
+    }
+
+    /// A directory that is no longer a checkout loses its registration but
+    /// keeps its contents: nothing could check them for uncommitted work.
+    #[test]
+    fn test_prune_worktree_registration_keeps_directory() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let path = dir.path().join("worktrees/feature");
+        test_helpers::add_worktree(&local, "feature", &path);
+        std::fs::remove_file(path.join(".git")).unwrap();
+        std::fs::write(path.join("notes.txt"), "keep me").unwrap();
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(repo.prune_worktree_registration(&path).unwrap());
+        assert!(repo.repo.worktrees().unwrap().is_empty());
+        assert!(path.join("notes.txt").is_file());
     }
 
     // --- sync_base ---
