@@ -55,9 +55,18 @@ repo/cwd context beyond `--tix-repo`/`--tix-repo-dir`.
 ### 2.3 Versioning
 
 - All workspace crates version in lockstep and release together.
-- Crate versions carry **no** compatibility semantics. The only
-  compatibility boundary is host ↔ plugin, governed solely by the
-  protocol integer (§5.4).
+- There are two compatibility boundaries, each with its own signal, and
+  neither covers the other:
+  - **host ↔ plugin** — governed solely by the protocol integer (§5.4).
+    Crate versions say nothing about whether a plugin runs.
+  - **tix ↔ disk** — the global config, ticket documents, and the
+    layout under `code_directory` and `tickets_directory`. A **major**
+    version, and only a major, signals that what is on disk must be
+    migrated before the new binary can use it.
+- So a major is spent on an on-disk migration and nothing else. A release
+  with no migration is a minor or a patch, however large; a release with
+  one is a major, however small. A major that ships no migration leaves
+  the next real one without a number to claim.
 
 ---
 
