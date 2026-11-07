@@ -1,8 +1,10 @@
 //! `tix ticket info` — display a ticket's metadata and worktree table.
 
-use crate::tix::ticket::{TicketSharedArgs, load_ticket_config, require_ticket_root};
+use crate::tix::ticket::{
+    TicketSharedArgs, WorktreeStatus, load_ticket_config, require_ticket_root,
+};
 use crate::tix::utils::OutputType;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tix_sdk::{SdkError, TicketConfig};
 
 /// Show a ticket's metadata and worktrees
@@ -24,41 +26,6 @@ struct WorktreeRow {
     base: Option<String>,
     path: PathBuf,
     status: WorktreeStatus,
-}
-
-/// Whether a recorded worktree actually resolves on disk.
-enum WorktreeStatus {
-    Ok,
-    MissingDirectory,
-    NotAGitRepository,
-}
-
-impl WorktreeStatus {
-    fn of(path: &Path) -> Self {
-        if !path.is_dir() {
-            WorktreeStatus::MissingDirectory
-        } else if !tix_sdk::opens_as_git_repository(path) {
-            WorktreeStatus::NotAGitRepository
-        } else {
-            WorktreeStatus::Ok
-        }
-    }
-
-    fn marker(&self) -> &'static str {
-        match self {
-            WorktreeStatus::Ok => "",
-            WorktreeStatus::MissingDirectory => "  ⚠ missing on disk",
-            WorktreeStatus::NotAGitRepository => "  ⚠ not a git repository",
-        }
-    }
-
-    fn label(&self) -> &'static str {
-        match self {
-            WorktreeStatus::Ok => "ok",
-            WorktreeStatus::MissingDirectory => "missing",
-            WorktreeStatus::NotAGitRepository => "not-a-git-repository",
-        }
-    }
 }
 
 /// Prints key, description, path, and the per-repo worktree table.
