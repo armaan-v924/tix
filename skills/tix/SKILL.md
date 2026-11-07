@@ -91,20 +91,19 @@ If every command errors with `config not found`, tix isn't set up. See
    log level. Use `-q` to keep only warnings and errors on stderr.
 7. **"Dirty" includes untracked files.** `destroy` and `remove` refuse on
    any of them. Commit, stash, or ask; don't delete the user's files to
-   get past the check.
+   get past the check, and don't pass `--force` (both commands have it; it
+   discards the changes) unless the user said to.
 8. **Don't `rm -rf` worktree directories.** Use `tix remove <name>` /
-   `tix destroy`. Once a worktree directory is gone, `tix info` flags it
-   `missing`, and as of 3.3 `tix remove` *cannot* clean it up. It errors with
-   "not in a clean state" or "worktree not found", despite what the
-   troubleshooting docs say. Recover by hand: run `git worktree prune` in
-   the source repo (its `code_path` in `tix config show`), then delete that
-   worktree's `[ticket.worktrees.<name>]` table from `.tix/ticket.toml`.
-   `tix add <alias>` can re-create it afterwards.
+   `tix destroy`, which check for uncommitted work first. If a directory is
+   already gone, `tix info` flags it `missing`; `tix remove <name>` drops
+   the entry and prunes git's stale registration, with a warning (no
+   `--force` needed). `tix add <alias>` can re-create it afterwards. A
+   worktree flagged `not-a-git-repository` is dropped too but its directory
+   is left in place, and `destroy` refuses it without `--force`.
 9. **Unknown subcommands run plugins.** `tix foo` execs `tix-foo` from
    `PATH` as an arbitrary program. Don't guess command names; `tix --help`
    lists built-ins and every plugin it can find.
-10. **Don't hand-edit `.tix/ticket.toml` to add or remove worktrees**,
-    except for the recovery in rule 8. Use `tix add`/`tix remove`, which
+10. **Don't hand-edit `.tix/ticket.toml` to add or remove worktrees.** Use `tix add`/`tix remove`, which
     create and prune the worktrees too. Unknown keys are errors. Plugin
     tables (`[<plugin>]`) are fine to leave alone; tix preserves them.
 
@@ -269,11 +268,12 @@ confirm with the user first.
 | `not a ticket root` | `--ticket` points at a subdirectory. Point at the ticket root. |
 | `'x' is not a registered repository (registered: …)` | `tix repo add`, then `tix repo clone`. |
 | `'x' is not a tracked worktree of ticket …` | `remove` takes worktree names; read them from `tix info`. |
-| `worktree not found` / `not in a clean state` on a `missing` worktree | Directory was deleted by hand. See rule 8. |
 | `ticket 'K' already exists` | Use it, or destroy it first (with the user's consent). |
 | `the branch this derives, B, is already checked out in worktree 'w'` | Pass `--branch` (and `--as` if the name is taken). |
-| `could not prune worktree 'w': worktree has uncommitted changes` | Commit/stash or ask the user. Retry; it resumes. |
-| `worktree has uncommitted changes, use force to remove` (from `remove`) | Same. `remove` has no `--force`; clean the worktree first. |
+| `could not prune worktree 'w': … has N uncommitted changes` (from `destroy`) | Commit/stash or ask the user. Retry; it resumes. |
+| `could not remove worktree 'w': … has N uncommitted changes` (from `remove`) | Same. `remove --force` discards them; only with the user's say-so. |
+| `warning: worktree 'w' is missing on disk; dropping it …` | Expected after a hand-deleted directory. Nothing to do. |
+| `worktree 'w' at … is not a git repository, so tix cannot check it …` (from `destroy`) | Ask the user what to keep from that directory, then `--force`. |
 | `left dangling: …` warning after `destroy --force` | Run `git worktree prune` in the named source repo. |
 | `unknown command 'x': … no 'tix-x' executable on PATH` | Typo, or the plugin isn't installed. |
 | `'a/b' is not a valid ticket key` (from `--key`) | Keys can't contain `/` or `\`. A positional `a/b` is read as a *path* instead, and fails with `… does not exist — create it first`. |

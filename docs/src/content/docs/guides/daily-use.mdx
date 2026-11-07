@@ -85,6 +85,11 @@ alias unless you passed `--as`. It prunes the worktree and deletes its
 entry. The ticket, its other worktrees, and the branch all survive —
 removing the last worktree leaves a valid, empty ticket.
 
+A worktree with uncommitted changes (untracked files count) is refused;
+commit or stash them, or pass `--force` to discard them. A worktree whose
+directory you already deleted needs neither: `remove` drops the entry with
+a warning.
+
 <Aside type="caution">
 `tix add` derives the branch name at add time, from current config. If
 `branch_prefix` changed since setup, the new worktree will not match its
