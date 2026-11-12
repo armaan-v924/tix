@@ -113,7 +113,12 @@ If every command errors with `config not found`, tix isn't set up. See
     so its exit code answers "would this work?". It runs the same checks as
     the real command, dirty-worktree refusals included; what it can't
     foresee is git itself failing mid-prune. Combine with `--force` to see
-    what a forced run would throw away before asking the user for it.
+    what a forced run would throw away (`discarding N uncommitted changes`)
+    before asking the user for it. `-o json` (or `toml`) prints the plan as
+    data, the same shape from every command:
+    `{dry_run, command, would_succeed, actions: [{action, summary, …}]}`.
+    A plan that would fail still prints, up to the step it would stop at,
+    with `would_succeed: false`; the error itself is on stderr.
 
 ## Workflows
 
