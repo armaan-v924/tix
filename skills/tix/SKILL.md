@@ -106,6 +106,14 @@ If every command errors with `config not found`, tix isn't set up. See
 10. **Don't hand-edit `.tix/ticket.toml` to add or remove worktrees.** Use `tix add`/`tix remove`, which
     create and prune the worktrees too. Unknown keys are errors. Plugin
     tables (`[<plugin>]`) are fine to leave alone; tix preserves them.
+11. **Preview anything destructive with `--dry-run`.** `destroy`, `remove`,
+    `config set`/`unset`/`remove`/`init`/`fmt`, and `cli update` take it. A
+    dry run asks nothing and changes nothing, prints its plan (`would …`
+    lines) on stdout, and **exits non-zero where the real run would fail**,
+    so its exit code answers "would this work?". It runs the same checks as
+    the real command, dirty-worktree refusals included; what it can't
+    foresee is git itself failing mid-prune. Combine with `--force` to see
+    what a forced run would throw away before asking the user for it.
 
 ## Workflows
 
@@ -198,9 +206,14 @@ Before destroying, check each worktree for uncommitted or unpushed work
 upstream) and tell the user what's there. Then:
 
 ```bash
+tix destroy --dry-run JIRA-123       # the plan; exit 1 names the dirty worktree
 echo y | tix destroy JIRA-123        # refuses if any worktree is dirty
 test ! -e ~/tickets/JIRA-123 && echo destroyed
 ```
+
+`tix remove <name> --dry-run` previews a single worktree the same way. The
+dry run checks for uncommitted work only, not unpushed commits; that check
+is still yours.
 
 `destroy` takes the ticket positionally (id or path) *or* via `--ticket`,
 not both. A run that stops partway can be retried; already-pruned worktrees
@@ -225,6 +238,7 @@ The error for an unknown alias lists the registered ones.
 ```bash
 tix config get defaults.branch_prefix
 tix config set defaults.branch_prefix feature
+tix config set defaults.branch_prefix fix --dry-run   # validate; print what it replaces
 tix config unset defaults.branch_prefix
 tix config set defaults.repositories '["api", "web"]'
 tix config add defaults.repositories infra      # a duplicate prompts; EOF declines it
@@ -272,6 +286,7 @@ confirm with the user first.
 | `the branch this derives, B, is already checked out in worktree 'w'` | Pass `--branch` (and `--as` if the name is taken). |
 | `could not prune worktree 'w': … has N uncommitted changes` (from `destroy`) | Commit/stash or ask the user. Retry; it resumes. |
 | `could not remove worktree 'w': … has N uncommitted changes` (from `remove`) | Same. `remove --force` discards them; only with the user's say-so. |
+| `destroy would stop at worktree 'w': …` / `would refuse to remove worktree 'w': …` (from `--dry-run`) | The real run would fail the same way. Nothing was touched. Fix it, or ask. |
 | `warning: worktree 'w' is missing on disk; dropping it …` | Expected after a hand-deleted directory. Nothing to do. |
 | `worktree 'w' at … is not a git repository, so tix cannot check it …` (from `destroy`) | Ask the user what to keep from that directory, then `--force`. |
 | `left dangling: …` warning after `destroy --force` | Run `git worktree prune` in the named source repo. |
