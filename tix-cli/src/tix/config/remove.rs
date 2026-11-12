@@ -1,6 +1,7 @@
 //! `tix config remove` — drop one element from a list key.
 
 use crate::tix::config::{ConfigKeyPath, edit, validate_section};
+use crate::tix::plan::{Action, Plan};
 use tix_sdk::SdkError;
 use tix_sdk::document::{TixDocument, with_write};
 
@@ -34,7 +35,8 @@ pub struct Args {
 /// created them.
 ///
 /// `--dry-run` removes from a copy in memory, validation included, and
-/// prints the list that would be left on stdout instead of writing.
+/// prints the list that would be left as a [`Plan`] in the `--output`
+/// format instead of writing.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let value = edit::parse_value(&args.value);
 
@@ -50,23 +52,40 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         })?;
         edit::remove_in_layout(array, index);
         let rendered = edit::render(array);
+        let remaining = toml_edit::Item::Value(toml_edit::Value::Array(array.clone()));
         validate_section(document, key.section())?;
-        Ok(rendered)
+        Ok((rendered, remaining))
     };
 
     if args.dry_run {
-        let list = apply(&mut TixDocument::load(&app.context.config_path)?)?;
-        println!(
-            "would remove {} from {}, leaving {} = {list} ({})",
-            edit::literal(&value),
-            args.key,
-            args.key,
-            app.context.config_path.display()
+        let mut plan = Plan::new("config remove");
+        let (list, remaining) = match apply(&mut TixDocument::load(&app.context.config_path)?) {
+            Ok(edited) => edited,
+            Err(e) => return plan.finish(app.output, Err(e)),
+        };
+        plan.push(
+            Action::new(
+                "remove",
+                format!(
+                    "would remove {} from {}, leaving {} = {list} ({})",
+                    edit::literal(&value),
+                    args.key,
+                    args.key,
+                    app.context.config_path.display()
+                ),
+            )
+            .with("key", args.key.to_string())
+            .with_some(
+                "value",
+                edit::to_data(&toml_edit::Item::Value(value.clone())),
+            )
+            .with_some("remaining", edit::to_data(&remaining))
+            .with_path("path", &app.context.config_path),
         );
-        return Ok(());
+        return plan.finish(app.output, Ok(()));
     }
 
-    let list = with_write(&app.context.config_path, apply)?;
+    let (list, _) = with_write(&app.context.config_path, apply)?;
 
     tracing::info!(
         "{} = {list} ({})",

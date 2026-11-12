@@ -1,7 +1,8 @@
 //! `tix config fmt` — rewrite a document in house style, on demand.
 
+use crate::tix::plan::{Action, Plan};
 use crate::tix::ticket::{TicketRef, require_ticket_root};
-use crate::tix::utils::{App, confirm};
+use crate::tix::utils::{App, OutputType, confirm};
 use std::path::{Path, PathBuf};
 use tix_sdk::SdkError;
 use tix_sdk::discovery::ticket_document_path;
@@ -34,7 +35,8 @@ pub struct Args {
     #[arg(long, conflicts_with_all = ["dry_run", "force"])]
     pub check: bool,
 
-    /// Print the formatted document to stdout instead of writing it
+    /// Print the formatted document to stdout instead of writing it (with
+    /// --output json or toml, a plan carrying it)
     #[arg(long, conflicts_with = "force")]
     pub dry_run: bool,
 
@@ -66,10 +68,7 @@ pub fn run(app: &App, args: Args) -> Result<(), SdkError> {
 
     let document = TixDocument::load(&path)?;
     if args.dry_run {
-        let mut formatted = document;
-        formatted.normalize();
-        print!("{formatted}");
-        return Ok(());
+        return dry_run(app, &path, document);
     }
 
     if document.is_normalized() {
@@ -91,6 +90,34 @@ pub fn run(app: &App, args: Args) -> Result<(), SdkError> {
     write_formatted(&path)?;
     println!("formatted {}", path.display());
     Ok(())
+}
+
+/// `--dry-run`: the formatted document itself in the default output — the
+/// thing to read before letting `fmt` rewrite a file — and a [`Plan`] in
+/// JSON or TOML, whose one `rewrite` action carries the formatted text. A
+/// document already in house style plans no action: the real run writes
+/// nothing.
+fn dry_run(app: &App, path: &Path, document: TixDocument) -> Result<(), SdkError> {
+    let already = document.is_normalized();
+    let mut formatted = document;
+    formatted.normalize();
+    if app.output == OutputType::Default {
+        print!("{formatted}");
+        return Ok(());
+    }
+
+    let mut plan = Plan::new("config fmt");
+    if !already {
+        plan.push(
+            Action::new(
+                "rewrite",
+                format!("would rewrite {} in house style", path.display()),
+            )
+            .with_path("path", path)
+            .with("formatted", formatted.to_string()),
+        );
+    }
+    plan.finish(app.output, Ok(()))
 }
 
 /// The document `fmt` operates on: the global config, or the `--ticket`

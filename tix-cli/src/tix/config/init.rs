@@ -1,6 +1,8 @@
 //! `tix config init` — interactive first-time config creation.
 
 use crate::tix::config::validate_section;
+use crate::tix::plan::{Action, Plan};
+use crate::tix::utils::OutputType;
 use crate::tix::utils::{prompt, prompt_optional};
 use tix_sdk::SdkError;
 use tix_sdk::document::TixDocument;
@@ -13,7 +15,8 @@ pub struct Args {
     pub force: bool,
 
     /// Prompt as usual, then print the config that would be written to
-    /// stdout instead of writing it
+    /// stdout instead of writing it (with --output json or toml, a plan
+    /// carrying it)
     #[arg(long)]
     pub dry_run: bool,
 }
@@ -35,14 +38,21 @@ pub struct Args {
 ///
 /// `--dry-run` runs every prompt and check — an existing file is still
 /// refused without `--force` — and prints the document instead of saving
-/// it, so `--dry-run --force` shows what an overwrite would leave.
+/// it, so `--dry-run --force` shows what an overwrite would leave. With
+/// `--output json` or `toml` it prints a [`Plan`] whose action carries the
+/// document's data.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let path = &app.context.config_path;
-    if path.exists() && !args.force {
-        return Err(SdkError::Message(format!(
+    let exists = path.exists();
+    if exists && !args.force {
+        let refusal = SdkError::Message(format!(
             "config already exists at {} — pass --force to overwrite",
             path.display()
-        )));
+        ));
+        return match args.dry_run {
+            true => Plan::new("config init").finish(app.output, Err(refusal)),
+            false => Err(refusal),
+        };
     }
 
     let home = dirs::home_dir();
@@ -77,8 +87,25 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     validate_section(&document, "cli")?;
     validate_section(&document, "defaults")?;
     if args.dry_run {
-        print!("{document}");
-        return Ok(());
+        if app.output == OutputType::Default {
+            print!("{document}");
+            return Ok(());
+        }
+        let content: toml::Table = toml::from_str(&document.to_string())?;
+        let mut plan = Plan::new("config init");
+        plan.push(
+            Action::new(
+                if exists { "overwrite" } else { "write" },
+                format!(
+                    "would {} {}",
+                    if exists { "overwrite" } else { "write" },
+                    path.display()
+                ),
+            )
+            .with_path("path", path)
+            .with("content", content),
+        );
+        return plan.finish(app.output, Ok(()));
     }
     document.save(path)?;
 

@@ -4,6 +4,7 @@ pub mod repo;
 pub mod ticket;
 
 pub mod logging;
+pub mod plan;
 pub mod plugin;
 pub mod plugin_listing;
 pub mod utils;

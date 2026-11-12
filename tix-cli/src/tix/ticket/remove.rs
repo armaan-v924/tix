@@ -2,9 +2,10 @@
 //! destroying it.
 
 use crate::tix::config::load_engine_config;
+use crate::tix::plan::{Action, Plan};
 use crate::tix::ticket::{
-    TicketSharedArgs, WorktreeStatus, backing_repository, check_prune_worktree, load_ticket_config,
-    prune_worktree, require_ticket_root,
+    PrunePlan, TicketSharedArgs, WorktreeStatus, backing_repository, load_ticket_config,
+    plan_prune, prune_worktree, require_ticket_root, uncommitted,
 };
 use tix_sdk::{SdkError, TixError};
 use tracing::{info, warn};
@@ -52,9 +53,10 @@ pub struct Args {
 /// written back immediately through the format-preserving layer.
 ///
 /// `--dry-run` walks the same batch through the same checks
-/// ([`check_prune_worktree`]) and prints one `would …` line per worktree on
-/// stdout. It stops where the real run would stop, on the same refusal
-/// (worded as a prediction), so its exit code answers "would this work?".
+/// ([`plan_prune`]) and prints the result as a [`Plan`] in the `--output`
+/// format. It stops where the real run would stop, on the same refusal
+/// (worded as a prediction), so its exit code answers "would this work?";
+/// with `--force` it says how many uncommitted changes would be discarded.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let root = require_ticket_root(
         &app.context,
@@ -86,24 +88,47 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     }
 
     if args.dry_run {
+        let mut plan = Plan::new("remove");
         for name in &args.names {
+            let entry = &ticket.worktrees[name];
             let path = root.join(name);
-            let status =
-                check_prune_worktree(&root, name, &ticket.worktrees[name], &engine, args.force)
-                    .map_err(|e| refusal(name, e, true))?;
-            match status {
-                WorktreeStatus::Ok => println!("would remove worktree {name} ({})", path.display()),
-                WorktreeStatus::MissingDirectory => {
-                    println!("would drop worktree {name} from the ticket: missing on disk")
+            let found = match plan_prune(&root, name, entry, &engine, args.force) {
+                Ok(found) => found,
+                Err(e) => return plan.finish(app.output, Err(refusal(name, e, true))),
+            };
+            let summary = match &found {
+                PrunePlan::Prune => format!("would remove worktree {name} ({})", path.display()),
+                PrunePlan::Discard { changes } => format!(
+                    "would remove worktree {name} ({}), discarding {} (--force)",
+                    path.display(),
+                    uncommitted(*changes)
+                ),
+                PrunePlan::ForcePast { reason } => format!(
+                    "would remove worktree {name} ({}) past: {reason} (--force)",
+                    path.display()
+                ),
+                PrunePlan::Missing => {
+                    format!("would drop worktree {name} from the ticket: missing on disk")
                 }
-                WorktreeStatus::NotAGitRepository => println!(
+                PrunePlan::NotAGitRepository => format!(
                     "would drop worktree {name} from the ticket: not a git repository \
                      ({} would be left in place)",
                     path.display()
                 ),
-            }
+            };
+            plan.push(prune_action(
+                match found {
+                    PrunePlan::Missing | PrunePlan::NotAGitRepository => "drop",
+                    _ => "remove",
+                },
+                summary,
+                name,
+                &entry.repo,
+                &path,
+                &found,
+            ));
         }
-        return Ok(());
+        return plan.finish(app.output, Ok(()));
     }
 
     for name in &args.names {
@@ -133,5 +158,32 @@ fn refusal(name: &str, error: SdkError, dry_run: bool) -> SdkError {
             "{lead} worktree '{name}': {dirty} — commit or stash the changes, or pass --force to discard them"
         )),
         e => e,
+    }
+}
+
+/// The plan entry for pruning worktree `name`, with what [`plan_prune`]
+/// found recorded alongside it.
+pub(crate) fn prune_action(
+    kind: &'static str,
+    summary: String,
+    name: &str,
+    repo: &str,
+    path: &std::path::Path,
+    found: &PrunePlan,
+) -> Action {
+    let action = Action::new(kind, summary)
+        .with("worktree", name)
+        .with("repo", repo)
+        .with_path("path", path);
+    match found {
+        PrunePlan::Prune => action,
+        PrunePlan::Discard { changes } => action
+            .with("forced", true)
+            .with("uncommitted_changes", *changes as i64),
+        PrunePlan::ForcePast { reason } => {
+            action.with("forced", true).with("reason", reason.as_str())
+        }
+        PrunePlan::Missing => action.with("reason", "missing on disk"),
+        PrunePlan::NotAGitRepository => action.with("reason", "not a git repository"),
     }
 }

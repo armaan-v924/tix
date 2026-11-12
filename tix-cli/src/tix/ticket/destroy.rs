@@ -1,9 +1,11 @@
 //! `tix ticket destroy` — prune every worktree, then delete the ticket.
 
 use crate::tix::config::load_engine_config;
+use crate::tix::plan::{Action, Plan};
+use crate::tix::ticket::remove::prune_action;
 use crate::tix::ticket::{
-    TicketRef, TicketSharedArgs, WorktreeStatus, check_prune_worktree, load_ticket_config,
-    prune_worktree, require_ticket_root,
+    PrunePlan, TicketRef, TicketSharedArgs, WorktreeStatus, load_ticket_config, plan_prune,
+    prune_worktree, require_ticket_root, uncommitted,
 };
 use std::path::Path;
 use tix_sdk::{SdkError, TixError, WorktreeConfig};
@@ -54,11 +56,12 @@ pub struct Args {
 /// pointer at `git worktree prune`.
 ///
 /// **`--dry-run`** — the same checks, nothing done: no question is asked,
-/// and each worktree is run through [`check_prune_worktree`] instead of
-/// pruned, with a `would …` line on stdout. Without `--force` it stops
-/// where the real run would stop, on the same refusal; with it, a worktree
-/// that fails its checks is reported and the plan carries on, as the real
-/// forced run would.
+/// and each worktree is run through [`plan_prune`] instead of pruned. The
+/// result is a [`Plan`] printed in the `--output` format. Without `--force`
+/// it stops where the real run would stop, on the same refusal; with it, it
+/// says what force would get past (how many uncommitted changes it would
+/// discard), and a worktree that would fail to prune is reported and the
+/// plan carries on, as the real forced run would.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let selector = args.target.as_ref().or(args.shared.ticket.as_ref());
     let root = require_ticket_root(&app.context, selector, args.shared.project.as_deref())?;
@@ -66,25 +69,12 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
 
     let engine = load_engine_config(&app.context)?;
 
-    // Deleting the ticket deletes a worktree directory that is no longer a
-    // checkout too, and nothing can check it for uncommitted work first.
-    if !args.force {
-        let mut names: Vec<&String> = ticket.worktrees.keys().collect();
-        names.sort();
-        if let Some(name) = names
-            .into_iter()
-            .find(|name| WorktreeStatus::of(&root.join(name)) == WorktreeStatus::NotAGitRepository)
-        {
-            return Err(SdkError::Message(format!(
-                "worktree '{name}' at {} is not a git repository, so tix cannot check it for \
-                 uncommitted work — move anything you need out of it, then pass --force",
-                root.join(name).display()
-            )));
-        }
+    if args.dry_run {
+        return dry_run(app, &root, &ticket, &engine, args.force);
     }
 
-    if args.dry_run {
-        return dry_run(&root, &ticket, &engine, args.force);
+    if !args.force {
+        preflight(&root, &ticket)?;
     }
 
     if !args.force
@@ -130,46 +120,118 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     Ok(())
 }
 
-/// `--dry-run`: what [`run`] would do to the ticket at `root`, printed, with
-/// nothing done.
+/// Refuses a ticket holding a worktree directory that is no longer a
+/// checkout: deleting the ticket deletes it too, and nothing can check it
+/// for uncommitted work first. `--force` skips this.
+fn preflight(root: &Path, ticket: &tix_sdk::TicketConfig) -> Result<(), SdkError> {
+    let mut names: Vec<&String> = ticket.worktrees.keys().collect();
+    names.sort();
+    match names
+        .into_iter()
+        .find(|name| WorktreeStatus::of(&root.join(name)) == WorktreeStatus::NotAGitRepository)
+    {
+        Some(name) => Err(SdkError::Message(format!(
+            "worktree '{name}' at {} is not a git repository, so tix cannot check it for \
+             uncommitted work — move anything you need out of it, then pass --force",
+            root.join(name).display()
+        ))),
+        None => Ok(()),
+    }
+}
+
+/// `--dry-run`: what [`run`] would do to the ticket at `root`, planned and
+/// printed in the requested output format, with nothing done.
 fn dry_run(
+    app: &crate::tix::utils::App,
     root: &Path,
     ticket: &tix_sdk::TicketConfig,
     engine: &tix_sdk::EngineConfig,
     force: bool,
 ) -> Result<(), SdkError> {
+    let mut plan = Plan::new("destroy");
+    if !force && let Err(e) = preflight(root, ticket) {
+        return plan.finish(app.output, Err(e));
+    }
+
     let mut entries: Vec<(&String, &WorktreeConfig)> = ticket.worktrees.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
 
     for (name, entry) in entries {
         let path = root.join(name);
-        match check_prune_worktree(root, name, entry, engine, force) {
-            Ok(WorktreeStatus::Ok) if force => println!(
-                "would force-prune worktree {name} ({}), discarding any uncommitted changes",
-                path.display()
+        let found = match plan_prune(root, name, entry, engine, force) {
+            Ok(found) => found,
+            Err(e) if force => {
+                plan.push(
+                    Action::new(
+                        "prune-fails",
+                        format!(
+                            "would fail to prune worktree {name} ({e}) and delete it anyway \
+                             (--force), leaving its registration in {} dangling",
+                            entry.repo
+                        ),
+                    )
+                    .with("worktree", name.as_str())
+                    .with("repo", entry.repo.as_str())
+                    .with_path("path", &path)
+                    .with("forced", true)
+                    .with("reason", e.to_string()),
+                );
+                continue;
+            }
+            Err(e) => return plan.finish(app.output, Err(refusal(name, e, true))),
+        };
+        let (kind, summary) = match &found {
+            PrunePlan::Prune => (
+                "prune",
+                format!("would prune worktree {name} ({})", path.display()),
             ),
-            Ok(WorktreeStatus::Ok) => {
-                println!("would prune worktree {name} ({})", path.display())
-            }
-            Ok(WorktreeStatus::MissingDirectory) => {
-                println!("would drop worktree {name}: missing on disk")
-            }
+            PrunePlan::Discard { changes } => (
+                "prune",
+                format!(
+                    "would prune worktree {name} ({}), discarding {} (--force)",
+                    path.display(),
+                    uncommitted(*changes)
+                ),
+            ),
+            PrunePlan::ForcePast { reason } => (
+                "prune",
+                format!(
+                    "would prune worktree {name} ({}) past: {reason} (--force)",
+                    path.display()
+                ),
+            ),
+            PrunePlan::Missing => (
+                "drop",
+                format!("would drop worktree {name}: missing on disk"),
+            ),
             // Only reachable with --force: the pre-flight refused it otherwise.
-            Ok(WorktreeStatus::NotAGitRepository) => println!(
-                "would delete {} unchecked: not a git repository (--force)",
-                path.display()
+            PrunePlan::NotAGitRepository => (
+                "delete-unchecked",
+                format!(
+                    "would delete {} unchecked: not a git repository (--force)",
+                    path.display()
+                ),
             ),
-            Err(e) if force => println!(
-                "would fail to prune worktree {name} ({e}) and delete it anyway (--force), \
-                 leaving its registration in {} dangling",
-                entry.repo
-            ),
-            Err(e) => return Err(refusal(name, e, true)),
-        }
+        };
+        plan.push(prune_action(
+            kind,
+            summary,
+            name,
+            &entry.repo,
+            &path,
+            &found,
+        ));
     }
 
-    println!("would destroy {} ({})", ticket.key, root.display());
-    Ok(())
+    plan.push(
+        Action::new(
+            "delete-ticket",
+            format!("would destroy {} ({})", ticket.key, root.display()),
+        )
+        .with("ticket", ticket.key.as_str())
+        .with_path("path", root),
+    );
+    plan.finish(app.output, Ok(()))
 }
 
 /// The error a non-forced destroy stops with when `name` cannot be pruned —

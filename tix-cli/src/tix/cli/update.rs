@@ -6,6 +6,7 @@
 //! §2.3 a major means an on-disk migration, so crossing one silently would
 //! leave a binary that cannot read the user's files until `tix migrate`.
 
+use crate::tix::plan::{Action, Plan};
 use semver::Version;
 use serde::Deserialize;
 use sha2::Digest;
@@ -134,7 +135,7 @@ fn consent(
 /// Without a terminal and without `--major`, a newer major is refused: the
 /// in-major update (if any) still installs, then the command fails so a
 /// script sees that a migration-bearing release is waiting.
-pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let target = detect_target()?;
     let owner = std::env::var("TIX_UPDATE_OWNER").unwrap_or_else(|_| DEFAULT_OWNER.into());
     let repo = std::env::var("TIX_UPDATE_REPO").unwrap_or_else(|_| DEFAULT_REPO.into());
@@ -148,29 +149,7 @@ pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     } = select(&releases, &current);
 
     if args.dry_run {
-        if let Some((version, release)) = &newer_major {
-            let action = if args.major {
-                "would install"
-            } else {
-                "would skip (pass --major to install)"
-            };
-            println!(
-                "{action} tix {version}: a new major version, needs `tix migrate` ({})",
-                release.html_url
-            );
-        }
-        let chosen = if args.major && newer_major.is_some() {
-            &newer_major
-        } else {
-            &same_major
-        };
-        match chosen {
-            Some((version, release)) => {
-                print_plan(&target, &current, version, release)?;
-            }
-            None => println!("tix {current} is the newest {}.x release", current.major),
-        }
-        return Ok(());
+        return dry_run(app, &args, &target, &current, same_major, newer_major);
     }
 
     let mut refused = None;
@@ -201,14 +180,86 @@ pub fn run(_app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     }
 
     if let Some((version, release)) = refused {
-        return Err(SdkError::Message(format!(
-            "tix {version} is a new major version and was not installed: it needs \
-             `tix migrate` before it can use your config and tickets ({}). Rerun \
-             `tix cli update --major` to install it",
-            release.html_url
-        )));
+        return Err(major_refusal(&version, release));
     }
     Ok(())
+}
+
+/// The error a run without a terminal and without `--major` ends with when
+/// a newer major was left uninstalled.
+fn major_refusal(version: &Version, release: &Release) -> SdkError {
+    SdkError::Message(format!(
+        "tix {version} is a new major version and was not installed: it needs \
+         `tix migrate` before it can use your config and tickets ({}). Rerun \
+         `tix cli update --major` to install it",
+        release.html_url
+    ))
+}
+
+/// `--dry-run`: what [`run`] would install, skip, or ask about, as a
+/// [`Plan`] in the `--output` format, with nothing downloaded or written.
+///
+/// It decides about a newer major the way the real run would: `--major`
+/// installs it, a terminal would be asked, and anything else skips it and
+/// fails, so the plan fails too.
+fn dry_run(
+    app: &crate::tix::utils::App,
+    args: &Args,
+    target: &Target,
+    current: &Version,
+    same_major: Option<(Version, &Release)>,
+    newer_major: Option<(Version, &Release)>,
+) -> Result<(), SdkError> {
+    let mut plan = Plan::new("cli update");
+    let mut outcome = Ok(());
+    let chosen = match newer_major {
+        Some((version, release)) if args.major => Some((version, release)),
+        Some((version, release)) => {
+            let action = if std::io::stdin().is_terminal() {
+                Action::new(
+                    "ask",
+                    format!(
+                        "would ask whether to install tix {version}, a new major version that \
+                         needs `tix migrate` ({}); declining keeps to {}.x",
+                        release.html_url, current.major
+                    ),
+                )
+            } else {
+                outcome = Err(major_refusal(&version, release));
+                Action::new(
+                    "skip",
+                    format!(
+                        "would skip tix {version}: a new major version, needs `tix migrate` \
+                         (pass --major to install; {})",
+                        release.html_url
+                    ),
+                )
+            };
+            plan.push(
+                action
+                    .with("version", version.to_string())
+                    .with("url", release.html_url.as_str())
+                    .with("major", true),
+            );
+            same_major
+        }
+        None => same_major,
+    };
+
+    match chosen {
+        Some((version, release)) => match install_action(target, current, &version, release) {
+            Ok(action) => plan.push(action),
+            Err(e) => return plan.finish(app.output, Err(e)),
+        },
+        None => plan.push(
+            Action::new(
+                "up-to-date",
+                format!("tix {current} is the newest {}.x release", current.major),
+            )
+            .with("version", current.to_string()),
+        ),
+    }
+    plan.finish(app.output, outcome)
 }
 
 /// The asset and checksum names `release` must publish for this platform.
@@ -246,19 +297,39 @@ fn assets<'a>(
     Ok((asset, checksum_asset))
 }
 
-fn print_plan(
+/// The plan entry for installing `version` over `current`. Fails as the
+/// real install would when the release lacks this platform's asset or its
+/// checksum.
+fn install_action(
     target: &Target,
     current: &Version,
     version: &Version,
     release: &Release,
-) -> Result<(), SdkError> {
+) -> Result<Action, SdkError> {
     let (asset, checksum) = assets(target, version, release)?;
     let destination = install_destination(target)?;
-    println!("would update tix {current} -> {version}");
-    println!("  asset:       {}", asset.name);
-    println!("  checksum:    {}", checksum.name);
-    println!("  destination: {}", destination.display());
-    Ok(())
+    let major = version.major > current.major;
+    let mut summary = format!(
+        "would update tix {current} -> {version}\n  asset:       {}\n  checksum:    {}\n  \
+         destination: {}",
+        asset.name,
+        checksum.name,
+        destination.display()
+    );
+    if major {
+        summary.push_str(&format!(
+            "\n  note:        a new major version: run `tix migrate` after ({})",
+            release.html_url
+        ));
+    }
+    Ok(Action::new("install", summary)
+        .with("from", current.to_string())
+        .with("to", version.to_string())
+        .with("major", major)
+        .with("asset", asset.name.as_str())
+        .with("checksum", checksum.name.as_str())
+        .with_path("destination", &destination)
+        .with("url", release.html_url.as_str()))
 }
 
 fn install(
