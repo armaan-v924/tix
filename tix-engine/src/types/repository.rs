@@ -581,6 +581,53 @@ impl Repository {
     pub fn remove_worktree(&self, path: &Path, force: bool) -> Result<(), TixError> {
         debug!(alias = %self.alias, path = %path.display(), "removing worktree");
 
+        let worktree = self.removable_worktree(path, force)?;
+
+        let mut opts = git2::WorktreePruneOptions::new();
+        opts.working_tree(true).valid(true);
+
+        worktree.prune(Some(&mut opts)).map_err(|e| {
+            debug!(alias = %self.alias, path = %path.display(), "failed to remove worktree: {e}");
+            TixError::GitError(e)
+        })?;
+        debug!(alias = %self.alias, path = %path.display(), "worktree removed");
+        Ok(())
+    }
+
+    /// Runs every check [`Self::remove_worktree`] runs before it prunes, and
+    /// prunes nothing: `Ok(())` means `remove_worktree(path, force)` would
+    /// get as far as asking git to prune.
+    ///
+    /// What backs dry runs. It cannot promise the prune itself succeeds —
+    /// a lock or a filesystem error only shows up when git tries — but every
+    /// refusal tix makes on its own account is reported exactly as the real
+    /// call would report it.
+    ///
+    /// # Errors
+    ///
+    /// The same [`TixError::WorktreeNotFound`], [`TixError::InvalidWorktree`]
+    /// and [`TixError::Dirty`] as [`Self::remove_worktree`];
+    /// [`TixError::GitError`] if git cannot be asked.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use tix_engine::RepositoryConfig;
+    /// # use std::path::PathBuf;
+    /// let repo = RepositoryConfig::new(
+    ///     "https://github.com/owner/repo.git".to_string(),
+    ///     PathBuf::from("/home/user/code/repo"),
+    /// ).resolve("my-repo").unwrap();
+    /// repo.check_remove_worktree(&PathBuf::from("/home/user/tickets/JIRA-123/my-repo"), false);
+    /// ```
+    pub fn check_remove_worktree(&self, path: &Path, force: bool) -> Result<(), TixError> {
+        self.removable_worktree(path, force).map(drop)
+    }
+
+    /// The registered worktree at `path`, once it has passed the checks
+    /// removal makes: always that it is registered, and without `force`,
+    /// that git validates it and it has no uncommitted changes.
+    fn removable_worktree(&self, path: &Path, force: bool) -> Result<git2::Worktree, TixError> {
         let worktree = self
             .find_worktree_by_path(path)?
             .ok_or_else(|| TixError::WorktreeNotFound(path.display().to_string()))?;
@@ -607,16 +654,7 @@ impl Repository {
                 });
             }
         }
-
-        let mut opts = git2::WorktreePruneOptions::new();
-        opts.working_tree(true).valid(true);
-
-        worktree.prune(Some(&mut opts)).map_err(|e| {
-            debug!(alias = %self.alias, path = %path.display(), "failed to remove worktree: {e}");
-            TixError::GitError(e)
-        })?;
-        debug!(alias = %self.alias, path = %path.display(), "worktree removed");
-        Ok(())
+        Ok(worktree)
     }
 
     /// Prunes git's registration of the worktree at `path`, leaving whatever
@@ -1539,6 +1577,34 @@ mod tests {
                 .is_ok()
         );
         assert!(!dir.path().join("worktrees/feature").exists());
+    }
+
+    /// The check reports what removal would refuse, and touches nothing:
+    /// the dirty worktree, its changes, and its registration all survive.
+    #[test]
+    fn test_check_remove_worktree_matches_remove() {
+        let dir = tempdir().unwrap();
+        let remote = test_helpers::init_bare_repo(&dir.path().join("remote"));
+        test_helpers::add_commit_to_bare(&remote, "initial commit");
+        let local = test_helpers::clone_repo(&dir.path().join("remote"), &dir.path().join("local"));
+        let path = dir.path().join("worktrees/feature");
+        test_helpers::add_worktree(&local, "feature", &path);
+        let repo = test_helpers::tix_repo(&dir.path().join("remote"), local);
+
+        assert!(repo.check_remove_worktree(&path, false).is_ok());
+        std::fs::write(path.join("dirty.txt"), "wip").unwrap();
+        assert!(matches!(
+            repo.check_remove_worktree(&path, false),
+            Err(TixError::Dirty { changes: 1, .. })
+        ));
+        assert!(repo.check_remove_worktree(&path, true).is_ok());
+        assert!(path.join("dirty.txt").is_file());
+        assert_eq!(repo.repo.worktrees().unwrap().len(), 1);
+
+        assert!(matches!(
+            repo.check_remove_worktree(&dir.path().join("worktrees/nope"), true),
+            Err(TixError::WorktreeNotFound(_))
+        ));
     }
 
     // --- prune_worktree_registration ---
