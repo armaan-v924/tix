@@ -69,6 +69,7 @@ Also available as `tix destroy` — the same command, spelled without the group.
 | `-t, --ticket <TICKET>` | The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted |
 | `-p, --project <NAME>` | The project a bare ticket id resolves in. Inferred from the current directory when omitted; with a path or a discovered ticket, asserts the ticket belongs to it |
 | `-f, --force` | Skip confirmation, force-prune (discarding uncommitted changes), and delete the ticket directory even if pruning fails |
+| `--dry-run` | Print what would be pruned and deleted, and what would stop the destroy, without asking or touching anything; exits non-zero where the real run would fail. Combine with --force to preview a forced destroy |
 
 
 ## `tix ticket info`
@@ -134,6 +135,7 @@ Also available as `tix remove` — the same command, spelled without the group.
 | `-t, --ticket <TICKET>` | The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted |
 | `-p, --project <NAME>` | The project a bare ticket id resolves in. Inferred from the current directory when omitted; with a path or a discovered ticket, asserts the ticket belongs to it |
 | `-f, --force` | Remove worktrees with uncommitted changes, discarding them |
+| `--dry-run` | Print what would be removed, and what would be refused, without removing anything; exits non-zero where the real run would fail |
 
 
 ## `tix ticket setup`

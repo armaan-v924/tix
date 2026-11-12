@@ -285,6 +285,41 @@ pub fn prune_worktree(
     Ok(status)
 }
 
+/// What [`prune_worktree`] would do to the worktree `name`, found out
+/// without doing it: the status it would find on disk, or the error it
+/// would stop with. Nothing is pruned and the ticket document is not
+/// written.
+///
+/// A worktree that is [missing](WorktreeStatus::MissingDirectory) or
+/// [not a git repository](WorktreeStatus::NotAGitRepository) has nothing to
+/// check, so it reports its status as `prune_worktree` would. For one that
+/// is there, the engine runs the same checks a real prune runs
+/// ([`tix_sdk::Repository::check_remove_worktree`]), so a refusal comes
+/// back as the same error. What it cannot foresee is git failing during the
+/// prune itself.
+///
+/// # Errors
+///
+/// As [`prune_worktree`], short of anything only the prune or the write
+/// would hit.
+pub fn check_prune_worktree(
+    root: &std::path::Path,
+    name: &str,
+    entry: &tix_sdk::WorktreeConfig,
+    engine: &tix_sdk::EngineConfig,
+    force: bool,
+) -> Result<WorktreeStatus, tix_sdk::SdkError> {
+    let repo = backing_repository(name, entry, engine)?
+        .clone()
+        .resolve(&entry.repo)?;
+    let path = root.join(name);
+    let status = WorktreeStatus::of(&path);
+    if status == WorktreeStatus::Ok {
+        repo.check_remove_worktree(&path, force)?;
+    }
+    Ok(status)
+}
+
 /// Resolves the ticket a command operates on — `--ticket` override or the
 /// discovery walk — and errors clearly when neither yields one.
 ///
