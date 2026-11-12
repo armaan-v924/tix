@@ -254,18 +254,36 @@ pub fn literal(value: &Value) -> String {
     value.to_string()
 }
 
-/// What `key` holds right now, for the `replacing …` a dry run prints:
-/// a value's literal, or `a table` for anything that is not a value.
-/// `None` when the key is unset. Reads only; nothing is created.
-pub fn current(document: &TixDocument, key: &ConfigKeyPath) -> Option<String> {
+/// What `key` holds right now, for the dry runs that report what an edit
+/// would replace. `None` when the key is unset. Reads only; nothing is
+/// created.
+pub fn current(document: &TixDocument, key: &ConfigKeyPath) -> Option<Item> {
     let mut item = document.doc().as_item();
     for segment in key.segments() {
         item = item.get(segment)?;
     }
-    Some(match item.as_value() {
+    Some(item.clone())
+}
+
+/// An item as a dry run's summary line shows it: a value's literal, or
+/// `a table` for anything that is not a value.
+pub fn describe(item: &Item) -> String {
+    match item.as_value() {
         Some(value) => literal(value),
         None => "a table".to_string(),
-    })
+    }
+}
+
+/// An item as plain data, for a dry run's JSON or TOML plan: what it means,
+/// with its comments and layout gone. `None` for an item with no data.
+pub fn to_data(item: &Item) -> Option<toml::Value> {
+    // toml_edit has no serde impls of its own: render the item under a
+    // throwaway key and read it back.
+    let mut document = toml_edit::DocumentMut::new();
+    document.insert("v", item.clone());
+    toml::from_str::<toml::Table>(&document.to_string())
+        .ok()?
+        .remove("v")
 }
 
 /// The array as it now reads, for the line a command prints back.

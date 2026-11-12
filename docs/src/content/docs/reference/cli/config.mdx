@@ -59,7 +59,7 @@ Unlike ordinary writes, this rewrites the document wholesale, so comments and fo
 | --- | --- |
 | `-t, --ticket <TICKET>` | Format a ticket's `.tix/ticket.toml` instead of the global config: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`) |
 | `--check` | Write and print nothing; exit non-zero when the document is not already formatted (for pre-commit hooks and CI) |
-| `--dry-run` | Print the formatted document to stdout instead of writing it |
+| `--dry-run` | Print the formatted document to stdout instead of writing it (with --output json or toml, a plan carrying it) |
 | `-f, -y, --force, --yes` | Rewrite without confirming |
 
 
@@ -93,7 +93,7 @@ tix config init [OPTIONS]
 | Option | Description |
 | --- | --- |
 | `--force` | Overwrite an existing config file |
-| `--dry-run` | Prompt as usual, then print the config that would be written to stdout instead of writing it |
+| `--dry-run` | Prompt as usual, then print the config that would be written to stdout instead of writing it (with --output json or toml, a plan carrying it) |
 
 
 ## `tix config remove`

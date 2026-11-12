@@ -285,39 +285,79 @@ pub fn prune_worktree(
     Ok(status)
 }
 
+/// `changes` uncommitted change(s), counted the way the engine words it.
+pub fn uncommitted(changes: usize) -> String {
+    match changes {
+        1 => "1 uncommitted change".to_string(),
+        n => format!("{n} uncommitted changes"),
+    }
+}
+
+/// What [`prune_worktree`] would do to a worktree, as found by
+/// [`plan_prune`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrunePlan {
+    /// A clean checkout, pruned with or without `force`.
+    Prune,
+    /// A checkout `force` prunes past `changes` uncommitted changes,
+    /// discarding them.
+    Discard { changes: usize },
+    /// A checkout `force` prunes past a check it would otherwise fail
+    /// (`reason`), such as git's own validation.
+    ForcePast { reason: String },
+    /// No directory: only git's registration and the entry go.
+    Missing,
+    /// A directory that is not a checkout: only git's registration and the
+    /// entry go, and the directory is left alone.
+    NotAGitRepository,
+}
+
 /// What [`prune_worktree`] would do to the worktree `name`, found out
-/// without doing it: the status it would find on disk, or the error it
-/// would stop with. Nothing is pruned and the ticket document is not
+/// without doing it: nothing is pruned and the ticket document is not
 /// written.
 ///
-/// A worktree that is [missing](WorktreeStatus::MissingDirectory) or
-/// [not a git repository](WorktreeStatus::NotAGitRepository) has nothing to
-/// check, so it reports its status as `prune_worktree` would. For one that
-/// is there, the engine runs the same checks a real prune runs
-/// ([`tix_sdk::Repository::check_remove_worktree`]), so a refusal comes
-/// back as the same error. What it cannot foresee is git failing during the
-/// prune itself.
+/// The engine runs the same checks a real prune runs
+/// ([`tix_sdk::Repository::check_remove_worktree`]), so without `force` a
+/// refusal comes back as the same error. With `force` there is no refusal,
+/// so the checks are run as if without it to say what `force` would get
+/// past — how many uncommitted changes it would discard, say. What this
+/// cannot foresee is git failing during the prune itself.
 ///
 /// # Errors
 ///
 /// As [`prune_worktree`], short of anything only the prune or the write
 /// would hit.
-pub fn check_prune_worktree(
+pub fn plan_prune(
     root: &std::path::Path,
     name: &str,
     entry: &tix_sdk::WorktreeConfig,
     engine: &tix_sdk::EngineConfig,
     force: bool,
-) -> Result<WorktreeStatus, tix_sdk::SdkError> {
+) -> Result<PrunePlan, tix_sdk::SdkError> {
+    use tix_sdk::{SdkError, TixError};
+
     let repo = backing_repository(name, entry, engine)?
         .clone()
         .resolve(&entry.repo)?;
     let path = root.join(name);
-    let status = WorktreeStatus::of(&path);
-    if status == WorktreeStatus::Ok {
-        repo.check_remove_worktree(&path, force)?;
+    match WorktreeStatus::of(&path) {
+        WorktreeStatus::MissingDirectory => return Ok(PrunePlan::Missing),
+        WorktreeStatus::NotAGitRepository => return Ok(PrunePlan::NotAGitRepository),
+        WorktreeStatus::Ok => {}
     }
-    Ok(status)
+    match repo.check_remove_worktree(&path, false) {
+        Ok(()) => Ok(PrunePlan::Prune),
+        Err(e) if !force => Err(SdkError::Engine(e)),
+        Err(e) => {
+            repo.check_remove_worktree(&path, true)?;
+            Ok(match e {
+                TixError::Dirty { changes, .. } => PrunePlan::Discard { changes },
+                e => PrunePlan::ForcePast {
+                    reason: e.to_string(),
+                },
+            })
+        }
+    }
 }
 
 /// Resolves the ticket a command operates on — `--ticket` override or the
