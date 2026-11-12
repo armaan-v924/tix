@@ -51,14 +51,22 @@ repositories, tickets, and worktrees without writing a plugin at all:
 
 ## Agent skill
 
-[`skills/tix`](skills/tix/SKILL.md) is an agent skill that teaches a coding
-agent to drive tix: the mental model, the safe teardown pattern, and the
-traps that bite non-interactive callers (confirmation prompts read stdin, so
-EOF declines with exit 0). Install it for Claude Code with:
+The agent skill — the mental model, the safe teardown pattern, and the traps
+that bite non-interactive callers (confirmation prompts read stdin, so EOF
+declines with exit 0) — is published with the docs, versioned per release:
+[Driving tix from an agent](https://tix.armaanv.dev/latest/guides/agents/),
+or as plain Markdown for an agent to fetch at
+`https://tix.armaanv.dev/<vX.Y|latest>/skill.md`.
+
+[`skills/tix`](skills/tix/SKILL.md) is the installable stub: it tells the
+agent which version of the guide to fetch and carries the few rules needed to
+stay safe offline. Install it for Claude Code with:
 
 ```bash
 cp -r skills/tix ~/.claude/skills/
 ```
+
+For agents that read `AGENTS.md`, paste the stub's body into it instead.
 
 ## Repository layout
 
