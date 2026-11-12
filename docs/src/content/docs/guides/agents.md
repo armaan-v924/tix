@@ -326,6 +326,3 @@ safe offline. Install it for Claude Code with:
 ```bash
 cp -r skills/tix ~/.claude/skills/
 ```
-
-For agents that read an `AGENTS.md` instead, paste the stub's body (everything
-below its frontmatter) into it.

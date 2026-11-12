@@ -66,8 +66,6 @@ stay safe offline. Install it for Claude Code with:
 cp -r skills/tix ~/.claude/skills/
 ```
 
-For agents that read `AGENTS.md`, paste the stub's body into it instead.
-
 ## Repository layout
 
 | Crate | Role |
