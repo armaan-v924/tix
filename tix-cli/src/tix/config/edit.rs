@@ -254,6 +254,20 @@ pub fn literal(value: &Value) -> String {
     value.to_string()
 }
 
+/// What `key` holds right now, for the `replacing …` a dry run prints:
+/// a value's literal, or `a table` for anything that is not a value.
+/// `None` when the key is unset. Reads only; nothing is created.
+pub fn current(document: &TixDocument, key: &ConfigKeyPath) -> Option<String> {
+    let mut item = document.doc().as_item();
+    for segment in key.segments() {
+        item = item.get(segment)?;
+    }
+    Some(match item.as_value() {
+        Some(value) => literal(value),
+        None => "a table".to_string(),
+    })
+}
+
 /// The array as it now reads, for the line a command prints back.
 pub fn render(array: &Array) -> String {
     let mut array = array.clone();

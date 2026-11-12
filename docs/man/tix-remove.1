@@ -4,7 +4,7 @@
 .SH NAME
 tix\-remove \- Remove a worktree from a ticket without destroying it
 .SH SYNOPSIS
-\fBtix remove\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-f\fR|\fB\-\-force\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
+\fBtix remove\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-f\fR|\fB\-\-force\fR] [\fB\-\-log\-level\fR] [\fB\-\-dry\-run\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
 .SH DESCRIPTION
 Remove a worktree from a ticket without destroying it
 .SH OPTIONS
@@ -38,6 +38,9 @@ Remove worktrees with uncommitted changes, discarding them
 .TP
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)
+.TP
+\fB\-\-dry\-run\fR
+Print what would be removed, and what would be refused, without removing anything; exits non\-zero where the real run would fail
 .TP
 \fB\-v\fR, \fB\-\-verbose\fR
 Set the log level to trace (shorthand for \-\-log\-level trace)

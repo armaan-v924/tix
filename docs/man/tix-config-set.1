@@ -4,13 +4,16 @@
 .SH NAME
 tix\-config\-set \- Set a value in the config document
 .SH SYNOPSIS
-\fBtix config set\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
+\fBtix config set\fR [\fB\-\-config\fR] [\fB\-\-dry\-run\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
 .SH DESCRIPTION
 Set a value in the config document
 .SH OPTIONS
 .TP
 \fB\-\-config\fR \fI<CONFIG>\fR
 Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
+.TP
+\fB\-\-dry\-run\fR
+Validate the change and print it, with the value it replaces, without writing
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
 Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)

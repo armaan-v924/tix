@@ -93,6 +93,7 @@ tix config init [OPTIONS]
 | Option | Description |
 | --- | --- |
 | `--force` | Overwrite an existing config file |
+| `--dry-run` | Prompt as usual, then print the config that would be written to stdout instead of writing it |
 
 
 ## `tix config remove`
@@ -100,7 +101,7 @@ tix config init [OPTIONS]
 Remove a value from a list in the config document
 
 ```sh frame="none"
-tix config remove <KEY> <VALUE>
+tix config remove [OPTIONS] <KEY> <VALUE>
 ```
 
 
@@ -111,13 +112,19 @@ tix config remove <KEY> <VALUE>
 | `<KEY>` | The `<section>.<key>` path of the list (e.g. `defaults.repositories`) |
 | `<VALUE>` | The value to remove (parsed as a TOML value when possible, else a string) |
 
+### Options
+
+| Option | Description |
+| --- | --- |
+| `--dry-run` | Validate the removal and print the list it would leave, without writing |
+
 
 ## `tix config set`
 
 Set a value in the config document
 
 ```sh frame="none"
-tix config set <KEY> <VALUE>
+tix config set [OPTIONS] <KEY> <VALUE>
 ```
 
 
@@ -127,6 +134,12 @@ tix config set <KEY> <VALUE>
 | --- | --- |
 | `<KEY>` | The `<section>.<key>` path to set (e.g. `defaults.branch_prefix`) |
 | `<VALUE>` | The new value (parsed as a TOML value when possible, else a string) |
+
+### Options
+
+| Option | Description |
+| --- | --- |
+| `--dry-run` | Validate the change and print it, with the value it replaces, without writing |
 
 
 ## `tix config show`
@@ -144,7 +157,7 @@ tix config show
 Remove a key from the config document
 
 ```sh frame="none"
-tix config unset <KEY>
+tix config unset [OPTIONS] <KEY>
 ```
 
 
@@ -153,4 +166,10 @@ tix config unset <KEY>
 | Argument | Description |
 | --- | --- |
 | `<KEY>` | The `<section>.<key>` path to remove (e.g. `defaults.branch_prefix`) |
+
+### Options
+
+| Option | Description |
+| --- | --- |
+| `--dry-run` | Validate the removal and print it, with the value it would delete, without writing |
 

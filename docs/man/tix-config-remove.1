@@ -4,13 +4,16 @@
 .SH NAME
 tix\-config\-remove \- Remove a value from a list in the config document
 .SH SYNOPSIS
-\fBtix config remove\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
+\fBtix config remove\fR [\fB\-\-config\fR] [\fB\-\-dry\-run\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
 .SH DESCRIPTION
 Remove a value from a list in the config document
 .SH OPTIONS
 .TP
 \fB\-\-config\fR \fI<CONFIG>\fR
 Path to the global config file (overrides TIX_CONFIG_PATH and the platform default)
+.TP
+\fB\-\-dry\-run\fR
+Validate the removal and print the list it would leave, without writing
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
 Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)

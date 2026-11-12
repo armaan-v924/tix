@@ -11,6 +11,11 @@ pub struct Args {
     /// Overwrite an existing config file
     #[arg(long)]
     pub force: bool,
+
+    /// Prompt as usual, then print the config that would be written to
+    /// stdout instead of writing it
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 /// Creates the global config interactively.
@@ -27,6 +32,10 @@ pub struct Args {
 /// they are stamped into a ticket at creation and never re-read (#137): a
 /// `branch_prefix` set after the first `tix ticket setup` is a prefix that
 /// ticket will never have.
+///
+/// `--dry-run` runs every prompt and check — an existing file is still
+/// refused without `--force` — and prints the document instead of saving
+/// it, so `--dry-run --force` shows what an overwrite would leave.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let path = &app.context.config_path;
     if path.exists() && !args.force {
@@ -67,6 +76,10 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     // what it scaffolds must be what they parse.
     validate_section(&document, "cli")?;
     validate_section(&document, "defaults")?;
+    if args.dry_run {
+        print!("{document}");
+        return Ok(());
+    }
     document.save(path)?;
 
     tracing::info!("wrote {}", path.display());
