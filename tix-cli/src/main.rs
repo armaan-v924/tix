@@ -24,15 +24,25 @@ fn main() {
     // default) and hand it to every subcommand. Existence is enforced here,
     // centrally, for every command except the two that must run before a
     // config exists (`tix config init`, `tix cli completions`).
-    let context = Context::resolve(parsed.config.clone()).unwrap_or_else(|e| fail(e));
-    if parsed.command.requires_config()
-        && let Err(e) = context.require_config_path()
-    {
-        fail(e);
-    }
+    let output = parsed.output.unwrap_or(tix::utils::OutputType::Default);
+    let context = Context::resolve(parsed.config.clone())
+        .and_then(|context| {
+            if parsed.command.requires_config() {
+                context.require_config_path()?;
+            }
+            Ok(context)
+        })
+        .unwrap_or_else(|error| {
+            if let Some((command, dry_run)) = parsed.command.ticket_mutation() {
+                fail(ticket::report_context_failure(
+                    command, dry_run, output, error,
+                ));
+            }
+            fail(error);
+        });
     let app = App {
         context,
-        output: parsed.output.unwrap_or(tix::utils::OutputType::Default),
+        output,
         log_level,
     };
 

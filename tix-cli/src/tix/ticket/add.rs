@@ -1,13 +1,14 @@
 //! `tix ticket add` — add repository worktrees to an existing ticket.
 
 use crate::tix::repo::RepoAlias;
+use crate::tix::ticket::result::TicketOutput;
 use crate::tix::ticket::{
     TicketSharedArgs, derive_branch_name, load_ticket_config, require_ticket_root,
     worktree_creation_error,
 };
 use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::{TixDocument, with_write};
-use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig, TixError};
+use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig, TixError, WorktreeConfig};
 use tracing::{error, info};
 
 /// Add repository worktrees to a ticket
@@ -91,11 +92,22 @@ impl Branch<'_> {
 /// format-preserving layer, so plugin tables and comments in
 /// `.tix/ticket.toml` survive.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let mut output = TicketOutput::new("add", false);
+    let result = execute(app, args, &mut output);
+    output.finish(app.output, result)
+}
+
+fn execute(
+    app: &crate::tix::utils::App,
+    args: Args,
+    output: &mut TicketOutput,
+) -> Result<(), SdkError> {
     let root = require_ticket_root(
         &app.context,
         args.shared.ticket.as_ref(),
         args.shared.project.as_deref(),
     )?;
+    output.ticket(&root)?;
     let ticket = load_ticket_config(&root)?;
 
     let document = TixDocument::load(&app.context.config_path)?;
@@ -144,7 +156,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let planned = plan(&aliases, args.name.as_deref(), branch, &ticket)?;
 
     let ticket_document_path = ticket_document_path(&root);
-    let mut failures: Vec<(String, TixError)> = Vec::new();
+    let mut failures = Vec::new();
     for worktree in &planned {
         let repo_config = engine.configured_repositories[&worktree.alias].clone();
         let path = root.join(&worktree.name);
@@ -157,6 +169,12 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                     "added worktree {} ({}) on {}",
                     worktree.name, worktree.alias, created.branch
                 );
+                let worktree_entry = WorktreeConfig {
+                    repo: worktree.alias.clone(),
+                    branch: created.branch,
+                    base: created.base,
+                };
+                output.created(&worktree.name, &path, &worktree_entry);
                 // Record each success immediately — a later failure must not
                 // lose the worktrees that already exist on disk.
                 with_write(&ticket_document_path, |doc| {
@@ -166,15 +184,17 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                     // collapse the worktrees into one inline line (#146).
                     let mut entry = toml_edit::Table::new();
                     entry["repo"] = toml_edit::value(worktree.alias.as_str());
-                    entry["branch"] = toml_edit::value(created.branch.as_str());
-                    if let Some(base) = &created.base {
+                    entry["branch"] = toml_edit::value(worktree_entry.branch.as_str());
+                    if let Some(base) = &worktree_entry.base {
                         entry["base"] = toml_edit::value(base.as_str());
                     }
                     doc.table_at(&["ticket", "worktrees"])?
                         .insert(&worktree.name, toml_edit::Item::Table(entry));
                     Ok(())
                 })?;
-                println!("{}", path.display());
+                if app.output != crate::tix::utils::OutputType::Json {
+                    println!("{}", path.display());
+                }
             }
             Err(e) => {
                 error!(
@@ -182,18 +202,18 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                     worktree.name,
                     worktree_creation_error(&e, true)
                 );
-                failures.push((worktree.name.clone(), e));
+                output.worktree_failed(&worktree.name, &path, &worktree.alias, &e.into());
+                failures.push(worktree.name.as_str());
             }
         }
     }
 
     if !failures.is_empty() {
-        let names: Vec<&str> = failures.iter().map(|(name, _)| name.as_str()).collect();
         return Err(SdkError::Message(format!(
             "{} of {} worktrees failed: {}",
             failures.len(),
             planned.len(),
-            names.join(", ")
+            failures.join(", ")
         )));
     }
     Ok(())

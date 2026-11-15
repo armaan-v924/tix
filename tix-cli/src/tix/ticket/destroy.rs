@@ -3,6 +3,7 @@
 use crate::tix::config::load_engine_config;
 use crate::tix::plan::{Action, Plan};
 use crate::tix::ticket::remove::prune_action;
+use crate::tix::ticket::result::TicketOutput;
 use crate::tix::ticket::{
     PrunePlan, TicketRef, TicketSharedArgs, WorktreeStatus, load_ticket_config, plan_prune,
     prune_worktree, require_ticket_root, uncommitted,
@@ -64,21 +65,36 @@ pub struct Args {
 /// discard), and a worktree that would fail to prune is reported and the
 /// plan carries on, as the real forced run would.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let mut output = TicketOutput::new("destroy", args.dry_run);
+    let result = execute(app, args, &mut output);
+    output.finish(app.output, result)
+}
+
+fn execute(
+    app: &crate::tix::utils::App,
+    args: Args,
+    output: &mut TicketOutput,
+) -> Result<(), SdkError> {
     let selector = args.target.as_ref().or(args.shared.ticket.as_ref());
     let root = require_ticket_root(&app.context, selector, args.shared.project.as_deref())?;
+    output.ticket(&root)?;
     let ticket = load_ticket_config(&root)?;
 
     let engine = load_engine_config(&app.context)?;
 
     let mut entries: Vec<_> = ticket.worktrees.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
-    if args.dry_run {
-        return dry_run(app, &root, &ticket, &engine, &entries, args.force);
+    if let Some(plan) = &mut output.plan {
+        return dry_run(plan, &root, &ticket, &engine, &entries, args.force);
     }
 
     if !args.force {
         for (name, entry) in &entries {
-            check_worktree(&root, name, entry, &engine, false, false)?;
+            check_worktree(&root, name, entry, &engine, false).map_err(|error| {
+                output.worktree_failed(name, &root.join(name), &entry.repo, &error);
+                output.set_error(&error);
+                refusal(name, error, false)
+            })?;
         }
     }
 
@@ -90,27 +106,38 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         ))?
     {
         info!("aborted");
+        output.declined();
         return Ok(());
     }
 
     let mut leftovers: Vec<String> = Vec::new();
     for (name, entry) in entries {
         let pruned = prune_worktree(&root, name, entry, &engine, args.force);
+        let path = root.join(name);
         match (pruned, args.force) {
-            (Ok(WorktreeStatus::Ok), _) => info!("pruned worktree {name}"),
-            // Already gone or no checkout: prune_worktree warned.
-            (Ok(_), _) => {}
+            (Ok(status), _) => {
+                output.pruned(name, &path, &entry.repo, status);
+                if status == WorktreeStatus::Ok {
+                    info!("pruned worktree {name}");
+                }
+            }
             // Forced deletion means deleted: pruning failures are warnings.
             (Err(e), true) => {
+                output.worktree_failed(name, &path, &entry.repo, &e);
                 warn!(name = %name, error = %e, "could not prune worktree, continuing (--force)");
                 leftovers.push(format!("{} ({})", name, entry.repo));
             }
             // The default path aborts before deleting anything further.
-            (Err(e), false) => return Err(refusal(name, e, false)),
+            (Err(e), false) => {
+                output.worktree_failed(name, &path, &entry.repo, &e);
+                output.set_error(&e);
+                return Err(refusal(name, e, false));
+            }
         }
     }
 
     std::fs::remove_dir_all(&root).map_err(SdkError::from)?;
+    output.changed();
     info!("destroyed {} ({})", ticket.key, root.display());
 
     if !leftovers.is_empty() {
@@ -129,7 +156,6 @@ fn check_worktree(
     entry: &WorktreeConfig,
     engine: &EngineConfig,
     force: bool,
-    dry_run: bool,
 ) -> Result<PrunePlan, SdkError> {
     let path = root.join(name);
     if !force && WorktreeStatus::of(&path) == WorktreeStatus::NotAGitRepository {
@@ -139,29 +165,22 @@ fn check_worktree(
             path.display()
         )));
     }
-    plan_prune(root, name, entry, engine, force).map_err(|error| {
-        if force {
-            error
-        } else {
-            refusal(name, error, dry_run)
-        }
-    })
+    plan_prune(root, name, entry, engine, force)
 }
 
 /// `--dry-run`: what [`run`] would do to the ticket at `root`, planned and
 /// printed in the requested output format, with nothing done.
 fn dry_run(
-    app: &crate::tix::utils::App,
+    plan: &mut Plan,
     root: &Path,
     ticket: &TicketConfig,
     engine: &EngineConfig,
     entries: &[(&String, &WorktreeConfig)],
     force: bool,
 ) -> Result<(), SdkError> {
-    let mut plan = Plan::new("destroy");
     for (name, entry) in entries {
         let path = root.join(name);
-        let found = match check_worktree(root, name, entry, engine, force, true) {
+        let found = match check_worktree(root, name, entry, engine, force) {
             Ok(found) => found,
             Err(e) if force => {
                 plan.push(
@@ -181,7 +200,11 @@ fn dry_run(
                 );
                 continue;
             }
-            Err(e) => return Plan::new("destroy").finish(app.output, Err(e)),
+            Err(e) => {
+                plan.clear_actions();
+                plan.set_error(&e);
+                return Err(refusal(name, e, true));
+            }
         };
         let (kind, summary) = match &found {
             PrunePlan::Prune => (
@@ -228,7 +251,10 @@ fn dry_run(
 
     let unmanaged = match unmanaged_entries(root, ticket) {
         Ok(entries) => entries,
-        Err(e) => return Plan::new("destroy").finish(app.output, Err(e.into())),
+        Err(e) => {
+            plan.clear_actions();
+            return Err(e.into());
+        }
     };
     let mut summary = format!("would destroy {} ({})", ticket.key, root.display());
     if !unmanaged.is_empty() {
@@ -242,7 +268,7 @@ fn dry_run(
             .with_path("path", root)
             .with("unmanaged_entries", unmanaged),
     );
-    plan.finish(app.output, Ok(()))
+    Ok(())
 }
 
 /// Direct ticket-root entries outside the tix metadata directory and
@@ -272,6 +298,7 @@ fn unmanaged_entries(root: &Path, ticket: &TicketConfig) -> std::io::Result<Vec<
 /// or, for `dry_run`, would stop with.
 fn refusal(name: &str, error: SdkError, dry_run: bool) -> SdkError {
     let fix = match error {
+        SdkError::Message(_) => return error,
         SdkError::Engine(TixError::Dirty { .. }) => "commit or stash the changes",
         _ => "fix it",
     };

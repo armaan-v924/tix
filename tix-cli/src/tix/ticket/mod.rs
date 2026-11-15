@@ -3,6 +3,7 @@ pub mod destroy;
 pub mod info;
 pub mod list;
 pub mod remove;
+mod result;
 pub mod setup;
 
 // ---
@@ -578,4 +579,17 @@ pub enum TicketCommands {
     List(list::Args),
     Remove(remove::Args),
     Setup(setup::Args),
+}
+
+/// Reports a ticket mutation that could not obtain its CLI context.
+/// The caller retains control of stderr and the process exit status.
+pub fn report_context_failure(
+    command: &'static str,
+    dry_run: bool,
+    output: crate::tix::utils::OutputType,
+    error: tix_sdk::SdkError,
+) -> tix_sdk::SdkError {
+    result::TicketOutput::new(command, dry_run)
+        .finish(output, Err(error))
+        .unwrap_err()
 }
