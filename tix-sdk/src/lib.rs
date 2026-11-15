@@ -42,6 +42,7 @@ pub mod host;
 pub mod project;
 pub mod spawn;
 pub mod state;
+pub mod ticket_mutation;
 
 pub use error::SdkError;
 // Re-export the engine wholesale: the dependency chain is linear

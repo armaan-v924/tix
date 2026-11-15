@@ -66,7 +66,7 @@ pub fn run(app: &App, args: Args) -> Result<(), SdkError> {
         return Ok(());
     }
 
-    let document = TixDocument::load(&path)?;
+    let document = TixDocument::load_snapshot(&path)?;
     if args.dry_run {
         return dry_run(app, &path, document);
     }
@@ -143,7 +143,7 @@ fn document_path(app: &App, ticket: Option<&TicketRef>) -> Result<PathBuf, SdkEr
 /// Whether the document at `path` is already in house style — the test
 /// behind `--check`.
 fn check(path: &Path) -> Result<bool, SdkError> {
-    Ok(TixDocument::load(path)?.is_normalized())
+    Ok(TixDocument::load_snapshot(path)?.is_normalized())
 }
 
 /// Normalizes the document at `path` in place, through the locked atomic

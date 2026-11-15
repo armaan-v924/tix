@@ -125,3 +125,63 @@ fn test_missing_config_reports_json_for_mutation_and_preview() {
     assert_eq!(preview["would_succeed"], false);
     assert_eq!(preview["error"]["code"], "config-not-found");
 }
+
+#[test]
+fn creation_reports_the_resolved_commit_and_fetch_outcome() {
+    let world = World::new();
+    let revision = |repo, rev| {
+        String::from_utf8(git(repo, &["rev-parse", rev]).stdout)
+            .unwrap()
+            .trim()
+            .to_string()
+    };
+    let source = world.source();
+    let seed = world.root().join("seed");
+    let original = revision(&source, "main");
+    git(
+        &seed,
+        &["commit", "-q", "--allow-empty", "-m", "advance origin"],
+    );
+    git(&seed, &["push", "-q", "../origin.git", "main"]);
+    let tip = revision(&seed, "main");
+    assert_ne!(tip, original);
+    assert_eq!(revision(&source, "origin/main"), original);
+
+    let output = world.tix(&["setup", "K", "api", "-o", "json"]);
+    let fetched = report(&output, 0);
+    assert_eq!(fetched["worktrees"][0]["base"], "origin/main");
+    assert_eq!(fetched["worktrees"][0]["base_commit"], tip);
+    assert_eq!(fetched["worktrees"][0]["base_fetch"], "fetched");
+
+    git(&source, &["remote", "set-url", "origin", "unavailable.git"]);
+    let add = |name, branch, base| {
+        let mut args = vec![
+            "add", "--ticket", "K", "api", "--as", name, "--branch", branch, "-o", "json",
+        ];
+        if let Some(base) = base {
+            args.extend(["--base", base]);
+        }
+        report(&world.tix(&args), 0)["worktrees"][0].clone()
+    };
+    let fallback = add("offline", "offline", Some("origin/main"));
+    assert_eq!(fallback["base"], "origin/main");
+    assert_eq!(fallback["base_commit"], tip);
+    assert_eq!(fallback["base_fetch"], "local-fallback");
+
+    let literal = add("literal", "literal", Some(original.as_str()));
+    assert_eq!(literal["base"], original);
+    assert_eq!(literal["base_commit"], original);
+    assert_eq!(literal["base_fetch"], "not-needed");
+
+    git(&source, &["branch", "existing", "origin/main"]);
+    let reused = add("existing", "existing", None);
+    for field in ["base", "base_commit", "base_fetch"] {
+        assert!(reused.get(field).is_none());
+    }
+
+    git(&source, &["branch", "checked", "origin/main"]);
+    let checked = add("checked", "checked", Some(original.as_str()));
+    assert_eq!(checked["base_commit"], original);
+    assert_eq!(checked["base_fetch"], "not-needed");
+    assert_eq!(revision(&world.ticket("K").join("checked"), "HEAD"), tip);
+}

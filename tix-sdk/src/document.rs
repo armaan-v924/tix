@@ -64,8 +64,8 @@ impl TixDocument {
     }
 
     /// Reads and parses the document at `path`, holding a shared advisory
-    /// lock for the duration of the read so a concurrent atomic write cannot
-    /// tear it.
+    /// lock for the duration of the read. Use [`Self::load_snapshot`] when
+    /// the document can be read without coordinating with writers.
     ///
     /// # Errors
     ///
@@ -73,6 +73,19 @@ impl TixDocument {
     /// - [`SdkError::Message`] on invalid TOML
     pub fn load(path: &Path) -> Result<Self, SdkError> {
         let _lock = SidecarLock::shared(path)?;
+        Self::load_snapshot(path)
+    }
+
+    /// Reads and parses one snapshot without opening or creating a lock file.
+    ///
+    /// SDK writers replace the document atomically. The reader opens either
+    /// the old or the new file and reads it from a single handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error if the document cannot be opened or read, or a
+    /// parse diagnostic for invalid TOML.
+    pub fn load_snapshot(path: &Path) -> Result<Self, SdkError> {
         let text = std::fs::read_to_string(path).map_err(SdkError::from)?;
         Self::parse(&text)
     }

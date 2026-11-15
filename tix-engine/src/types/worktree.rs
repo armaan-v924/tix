@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use crate::TixError;
 
 /// The recorded state of one worktree in a ticket document — the value type of
 /// [`TicketConfig::worktrees`](crate::TicketConfig::worktrees).
@@ -45,13 +47,12 @@ pub struct WorktreeConfig {
     pub repo: String,
     /// The branch checked out in this worktree.
     pub branch: String,
-    /// The ref `branch` was cut from, as resolved at creation — a name such
-    /// as `origin/main` or a sibling's `stack/JIRA-1-part-1`, never a SHA.
+    /// The base resolved at creation, used to cut the branch or check the
+    /// ancestry of an existing branch. It can be a ref such as `origin/main`
+    /// or a literal commit SHA.
     ///
-    /// A name is what a pull request's base takes, and it is what makes
-    /// stack topology recoverable from disk: git itself only remembers the
-    /// merge-base. Absent when tix did not cut the branch (it already
-    /// existed) or the entry predates the field.
+    /// A named base preserves the intended target for a stacked pull request.
+    /// This field is absent when no base was resolved or the entry predates it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base: Option<String>,
 }
@@ -76,4 +77,97 @@ pub struct Worktree {
     pub branch: String,
     /// The ref the branch was cut from — see [`WorktreeConfig::base`].
     pub base: Option<String>,
+}
+
+/// Live Git state in a local checkout.
+#[derive(Debug, Serialize)]
+pub struct CheckoutStatus {
+    /// The current local branch, absent for a detached HEAD.
+    pub branch: Option<String>,
+    /// Whether HEAD is detached.
+    pub detached: bool,
+    /// The full object ID of HEAD.
+    pub head: String,
+    /// Paths with changes staged in the index.
+    pub staged: usize,
+    /// Paths with unstaged tracked changes, including unresolved conflicts.
+    pub unstaged: usize,
+    /// Untracked files, excluding ignored files.
+    pub untracked: usize,
+    /// Tracking information, when the upstream ref is available locally.
+    pub upstream: Option<UpstreamStatus>,
+}
+
+/// The relationship between HEAD and the locally known upstream ref.
+#[derive(Debug, Serialize)]
+pub struct UpstreamStatus {
+    /// The full upstream ref name.
+    pub reference: String,
+    /// Commits on HEAD that the upstream does not contain.
+    pub ahead: usize,
+    /// Commits on the upstream that HEAD does not contain.
+    pub behind: usize,
+}
+
+/// Inspects the given checkout using only local Git state.
+///
+/// # Errors
+///
+/// Returns a Git error when the checkout, HEAD, index, or upstream cannot
+/// be inspected. An unconfigured or missing upstream is a valid result.
+pub fn inspect_checkout(path: &Path) -> Result<CheckoutStatus, TixError> {
+    let repo = git2::Repository::open(path)?;
+    let head = repo.head()?;
+    let commit = head.peel_to_commit()?.id();
+    let detached = repo.head_detached()?;
+    let (branch, upstream) = if detached {
+        (None, None)
+    } else {
+        let branch = git2::Branch::wrap(head);
+        let name = branch.name()?.map(str::to_owned);
+        let upstream = match branch.upstream() {
+            Ok(upstream) => {
+                let reference = upstream.get();
+                let (ahead, behind) =
+                    repo.graph_ahead_behind(commit, reference.peel_to_commit()?.id())?;
+                Some(UpstreamStatus {
+                    reference: String::from_utf8_lossy(reference.name_bytes()).into_owned(),
+                    ahead,
+                    behind,
+                })
+            }
+            Err(e) if e.code() == git2::ErrorCode::NotFound => None,
+            Err(e) => return Err(e.into()),
+        };
+        (name, upstream)
+    };
+
+    let mut status = CheckoutStatus {
+        branch,
+        detached,
+        head: commit.to_string(),
+        staged: 0,
+        unstaged: 0,
+        untracked: 0,
+        upstream,
+    };
+    use git2::Status;
+    let staged = Status::INDEX_NEW
+        | Status::INDEX_MODIFIED
+        | Status::INDEX_DELETED
+        | Status::INDEX_RENAMED
+        | Status::INDEX_TYPECHANGE;
+    let unstaged = Status::WT_MODIFIED
+        | Status::WT_DELETED
+        | Status::WT_RENAMED
+        | Status::WT_TYPECHANGE
+        | Status::WT_UNREADABLE
+        | Status::CONFLICTED;
+    for entry in crate::utils::worktree_statuses(&repo)?.iter() {
+        let changes = entry.status();
+        status.staged += usize::from(changes.intersects(staged));
+        status.unstaged += usize::from(changes.intersects(unstaged));
+        status.untracked += usize::from(changes.contains(Status::WT_NEW));
+    }
+    Ok(status)
 }

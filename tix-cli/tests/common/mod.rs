@@ -6,7 +6,7 @@
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Child, Command, Output, Stdio};
 use tempfile::TempDir;
 
 pub struct World {
@@ -52,10 +52,8 @@ impl World {
         self.dir.path().join("code/api")
     }
 
-    /// Runs `tix <args>` from the world's root, with `stdin` fed to it.
-    pub fn tix_with_input(&self, args: &[&str], stdin: &str) -> Output {
-        use std::io::Write;
-        let mut child = Command::new(env!("CARGO_BIN_EXE_tix"))
+    pub fn spawn_tix(&self, args: &[&str]) -> Child {
+        Command::new(env!("CARGO_BIN_EXE_tix"))
             .args(args)
             .current_dir(self.dir.path())
             .env("PWD", self.dir.path())
@@ -65,7 +63,13 @@ impl World {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .unwrap();
+            .unwrap()
+    }
+
+    /// Runs `tix <args>` from the world's root, with `stdin` fed to it.
+    pub fn tix_with_input(&self, args: &[&str], stdin: &str) -> Output {
+        use std::io::Write;
+        let mut child = self.spawn_tix(args);
         child
             .stdin
             .take()

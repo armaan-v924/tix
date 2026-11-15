@@ -4,7 +4,7 @@
 .SH NAME
 tix\-ticket\-info \- Show a ticket\*(Aqs metadata and worktrees
 .SH SYNOPSIS
-\fBtix ticket info\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-\-log\-level\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR]
+\fBtix ticket info\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-\-log\-level\fR] [\fB\-\-status\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 Show a ticket\*(Aqs metadata and worktrees
 .SH OPTIONS
@@ -20,6 +20,9 @@ The project a bare ticket id resolves in. Inferred from the current directory wh
 .TP
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)
+.TP
+\fB\-\-status\fR
+Include live branch, HEAD, changes, and locally known upstream
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
 Output format

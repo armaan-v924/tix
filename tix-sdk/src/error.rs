@@ -26,6 +26,10 @@ pub enum SdkError {
     /// revalidation) — a bug in the plugin, not a tix failure, and nothing
     /// was written.
     PluginImplementation(String),
+    /// The ticket root is occupied or another ticket mutation holds its lock.
+    TicketConflict(String),
+    /// An interrupted setup encountered data that disagrees with its plan.
+    SetupConflict(String),
     /// A freeform SDK-level error message.
     Message(String),
 }
@@ -42,7 +46,9 @@ impl fmt::Display for SdkError {
                 "plugin implementation error: {} — this is a bug in the plugin; nothing was written",
                 s
             ),
-            SdkError::Message(s) => write!(f, "{}", s),
+            SdkError::TicketConflict(s) | SdkError::SetupConflict(s) | SdkError::Message(s) => {
+                write!(f, "{}", s)
+            }
         }
     }
 }

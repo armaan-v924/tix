@@ -47,7 +47,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
 
     if args.dry_run {
         let mut plan = Plan::new("config unset");
-        let previous = match apply(&mut TixDocument::load(&app.context.config_path)?) {
+        let previous = match apply(&mut TixDocument::load_snapshot(&app.context.config_path)?) {
             Ok(previous) => previous,
             Err(e) => return plan.finish(app.output, Err(e)),
         };

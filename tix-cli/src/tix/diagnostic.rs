@@ -31,6 +31,8 @@ impl From<&SdkError> for Diagnostic {
                 TixError::UnknownDefaultBranch { .. } => "unknown-default-branch",
                 _ => "operation-failed",
             },
+            SdkError::TicketConflict(_) => "ticket-conflict",
+            SdkError::SetupConflict(_) => "setup-conflict",
             SdkError::Message(_) => "operation-failed",
         };
         Self {

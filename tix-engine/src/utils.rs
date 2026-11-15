@@ -28,7 +28,10 @@ pub fn opens_as_git_repository(path: &Path) -> bool {
 pub fn ignored_worktree_paths(path: &Path) -> Result<Vec<String>, crate::TixError> {
     let repo = git2::Repository::open(path)?;
     let mut options = git2::StatusOptions::new();
-    options.include_ignored(true).include_untracked(false);
+    options
+        .include_ignored(true)
+        .include_untracked(false)
+        .no_refresh(true);
     let statuses = repo.statuses(Some(&mut options))?;
     let mut paths: Vec<_> = statuses
         .iter()
@@ -37,4 +40,16 @@ pub fn ignored_worktree_paths(path: &Path) -> Result<Vec<String>, crate::TixErro
         .collect();
     paths.sort();
     Ok(paths)
+}
+
+pub(crate) fn worktree_statuses(
+    repo: &git2::Repository,
+) -> Result<git2::Statuses<'_>, crate::TixError> {
+    let mut options = git2::StatusOptions::new();
+    options
+        .include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false)
+        .no_refresh(true);
+    Ok(repo.statuses(Some(&mut options))?)
 }

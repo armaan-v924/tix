@@ -112,7 +112,7 @@ fn tickets_in(directory: &Path) -> Vec<ListedTicket> {
             continue;
         }
         let parsed: Result<Option<TicketConfig>, SdkError> =
-            TixDocument::load(&ticket_path).and_then(|doc| doc.section("ticket"));
+            TixDocument::load_snapshot(&ticket_path).and_then(|doc| doc.section("ticket"));
         match parsed {
             Ok(Some(config)) => tickets.push(ListedTicket { path, config }),
             Ok(None) => warn!(path = %ticket_path.display(), "no [ticket] section — skipping"),

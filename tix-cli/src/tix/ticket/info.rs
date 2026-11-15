@@ -4,14 +4,19 @@ use crate::tix::ticket::{
     TicketSharedArgs, WorktreeStatus, load_ticket_config, require_ticket_root,
 };
 use crate::tix::utils::OutputType;
+use serde::Serialize;
 use std::path::PathBuf;
-use tix_sdk::{SdkError, TicketConfig};
+use tix_sdk::{CheckoutStatus, SdkError, TicketConfig, inspect_checkout};
 
 /// Show a ticket's metadata and worktrees
 #[derive(clap::Args, Debug)]
 pub struct Args {
     #[command(flatten)]
     pub shared: TicketSharedArgs,
+
+    /// Include live branch, HEAD, changes, and locally known upstream
+    #[arg(long)]
+    pub status: bool,
 
     /// Output format
     #[arg(short, long)]
@@ -26,6 +31,51 @@ struct WorktreeRow {
     base: Option<String>,
     path: PathBuf,
     status: WorktreeStatus,
+    git: Option<GitState>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "state", rename_all = "kebab-case")]
+enum GitState {
+    Available(CheckoutStatus),
+    Unavailable { error: String },
+}
+
+impl GitState {
+    fn inspect(path: &std::path::Path) -> Self {
+        match inspect_checkout(path) {
+            Ok(status) => Self::Available(status),
+            Err(error) => Self::Unavailable {
+                error: error.to_string(),
+            },
+        }
+    }
+}
+
+impl std::fmt::Display for GitState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let status = match self {
+            Self::Available(status) => status,
+            Self::Unavailable { error } => return write!(f, "Git status unavailable: {error}"),
+        };
+        write!(
+            f,
+            "{} at {} ({} staged, {} unstaged, {} untracked)",
+            status.branch.as_deref().unwrap_or("detached HEAD"),
+            status.head,
+            status.staged,
+            status.unstaged,
+            status.untracked,
+        )?;
+        match &status.upstream {
+            Some(upstream) => write!(
+                f,
+                ", {} ahead and {} behind {}",
+                upstream.ahead, upstream.behind, upstream.reference,
+            ),
+            None => write!(f, ", no known upstream"),
+        }
+    }
 }
 
 /// Prints key, description, path, and the per-repo worktree table.
@@ -58,6 +108,7 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 branch: entry.branch.clone(),
                 base: entry.base.clone(),
                 status: WorktreeStatus::of(&path),
+                git: args.status.then(|| GitState::inspect(&path)),
                 path,
             }
         })
@@ -98,6 +149,9 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                             .unwrap_or_default(),
                     );
                     println!("{}{}", line.trim_end(), row.status.marker());
+                    if let Some(git) = &row.git {
+                        println!("  {git}");
+                    }
                 }
             }
         }
@@ -105,14 +159,18 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             let worktrees: Vec<serde_json::Value> = rows
                 .iter()
                 .map(|row| {
-                    serde_json::json!({
+                    let mut value = serde_json::json!({
                         "name": row.name,
                         "repo": row.repo,
                         "branch": row.branch,
                         "base": row.base,
                         "path": row.path,
                         "status": row.status.label(),
-                    })
+                    });
+                    if let Some(git) = &row.git {
+                        value["git"] = serde_json::json!(git);
+                    }
+                    value
                 })
                 .collect();
             let value = serde_json::json!({
@@ -131,6 +189,15 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
             }
             println!();
             print!("{}", toml::to_string(&ticket)?);
+            if args.status {
+                let git: std::collections::BTreeMap<_, _> = rows
+                    .iter()
+                    .filter_map(|row| row.git.as_ref().map(|git| (&row.name, git)))
+                    .collect();
+                let mut document = tix_sdk::document::TixDocument::empty();
+                document.set_section("git", &git)?;
+                println!("\n{document}");
+            }
         }
     }
     Ok(())

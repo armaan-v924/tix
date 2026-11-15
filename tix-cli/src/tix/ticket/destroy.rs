@@ -82,6 +82,9 @@ fn execute(
     let selector = args.target.as_ref().or(args.shared.ticket.as_ref());
     let root = require_ticket_root(&app.context, selector, args.shared.project.as_deref())?;
     output.ticket(&root)?;
+    let _guard = (!args.dry_run)
+        .then(|| super::lock_existing_ticket(&root))
+        .transpose()?;
     let ticket = load_ticket_config(&root)?;
 
     let engine = load_engine_config(&app.context)?;

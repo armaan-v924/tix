@@ -61,10 +61,11 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
 
     if args.dry_run {
         let mut plan = Plan::new("config set");
-        let (item, previous) = match apply(&mut TixDocument::load(&app.context.config_path)?) {
-            Ok(edited) => edited,
-            Err(e) => return plan.finish(app.output, Err(e)),
-        };
+        let (item, previous) =
+            match apply(&mut TixDocument::load_snapshot(&app.context.config_path)?) {
+                Ok(edited) => edited,
+                Err(e) => return plan.finish(app.output, Err(e)),
+            };
         plan.push(
             Action::new(
                 "set",
