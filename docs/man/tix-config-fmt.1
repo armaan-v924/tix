@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-config-fmt 1  "fmt " 
+.TH tix-config-fmt 1  "fmt "
 .SH NAME
 tix\-config\-fmt \- Rewrite the global config (or a ticket document) in tix\*(Aqs house style
 .SH SYNOPSIS
-\fBtix config fmt\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-\-check\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-dry\-run\fR] [\fB\-\-log\-level\fR] [\fB\-f\fR|\fB\-\-force\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBtix config fmt\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-\-check\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-dry\-run\fR] [\fB\-\-log\-level\fR] [\fB\-f\fR|\fB\-\-force\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 Rewrite the global config (or a ticket document) in tix\*(Aqs house style
 .PP
@@ -51,6 +51,9 @@ Set the log level to trace (shorthand for \-\-log\-level trace)
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help (see a summary with \*(Aq\-h\*(Aq)

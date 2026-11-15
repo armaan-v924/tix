@@ -81,7 +81,7 @@ tix config get <KEY>...
 
 ## `tix config init`
 
-Create the global config interactively
+Create the global config with prompts or explicit options
 
 ```sh frame="none"
 tix config init [OPTIONS]
@@ -93,7 +93,13 @@ tix config init [OPTIONS]
 | Option | Description |
 | --- | --- |
 | `--force` | Overwrite an existing config file |
-| `--dry-run` | Prompt as usual, then print the config that would be written to stdout instead of writing it (with --output json or toml, a plan carrying it) |
+| `--dry-run` | Print the config that would be written, using the same inputs as initialization (with --output json or toml, a plan carrying it) |
+| `--tickets-directory <PATH>` | Directory for tickets. Supply both directories to skip all prompts |
+| `--code-directory <PATH>` | Directory where repositories are cloned |
+| `--branch-prefix <BRANCH_PREFIX>` | Branch prefix for newly created worktrees |
+| `--github-base-url <GITHUB_BASE_URL>` | Base URL for GitHub repositories |
+| `--default-repository-owner <DEFAULT_REPOSITORY_OWNER>` | Owner to use for bare repository names |
+| `--repositories <ALIAS>...` | Repository aliases included in new tickets, comma-separated or repeated |
 
 
 ## `tix config remove`

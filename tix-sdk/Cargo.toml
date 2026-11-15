@@ -7,6 +7,7 @@ edition = "2024"
 dirs = "7.0.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+tempfile = "3.27.0"
 tix-engine = { path = "../tix-engine" }
 toml = "1.2.0"
 toml_edit = { version = "0.25.18", features = ["serde"] }
@@ -16,6 +17,3 @@ tracing = "0.1.44"
 # Passthrough so a frontend can reach the engine's schema derives without
 # depending on tix-engine directly.
 schema = ["tix-engine/schema"]
-
-[dev-dependencies]
-tempfile = "3.27.0"

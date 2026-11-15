@@ -42,6 +42,10 @@ pub struct TixParser {
     #[arg(short, long, global = true)]
     pub quiet: bool,
 
+    /// Disable external plugin dispatch and plugin discovery in root help
+    #[arg(long, global = true)]
+    pub no_plugins: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -56,13 +60,31 @@ impl TixParser {
     /// top-level commands only.
     pub fn parse_with_plugin_help() -> Self {
         let mut command = TixParser::command();
-        if root_help_requested()
+        // Help renders during parsing. External subcommands also capture
+        // their trailing arguments verbatim, including any global flags.
+        let disable_plugins = std::env::args_os()
+            .skip(1)
+            .take_while(|arg| arg != "--")
+            .any(|arg| arg == "--no-plugins");
+        if !disable_plugins
+            && root_help_requested()
             && let Some(section) = plugin_listing::plugins_help_section()
         {
             command = command.after_help(section);
         }
         let mut matches = command.get_matches();
         match TixParser::from_arg_matches_mut(&mut matches) {
+            Ok(parsed)
+                if (disable_plugins || parsed.no_plugins)
+                    && matches!(parsed.command, Commands::External(_)) =>
+            {
+                TixParser::command()
+                    .error(
+                        ErrorKind::InvalidSubcommand,
+                        "external commands are disabled by --no-plugins",
+                    )
+                    .exit()
+            }
             Ok(parsed) => parsed,
             Err(e) => e.format(&mut TixParser::command()).exit(),
         }
@@ -95,13 +117,13 @@ impl TixParser {
 /// non-global-flag token is `-h`/`--help`, or it is a bare `help` with no
 /// subcommand after it.
 fn root_help_requested() -> bool {
-    let mut args = std::env::args().skip(1).peekable();
+    let mut args = std::env::args_os().skip(1).peekable();
     while let Some(arg) = args.next() {
-        match arg.as_str() {
+        match arg.to_str().unwrap_or_default() {
             "-h" | "--help" => return true,
             "help" => return args.peek().is_none(),
             // Global flags (and their values) may precede the subcommand.
-            "-v" | "--verbose" | "-q" | "--quiet" => continue,
+            "-v" | "--verbose" | "-q" | "--quiet" | "--no-plugins" => continue,
             "--log-level" | "--config" | "-o" | "--output" => {
                 args.next();
             }

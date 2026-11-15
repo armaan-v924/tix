@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-config 1  "config " 
+.TH tix-config 1  "config "
 .SH NAME
 tix\-config \- Manage the global tix config
 .SH SYNOPSIS
-\fBtix config\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBtix config\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
 .SH DESCRIPTION
 Manage the global tix config
 .SH OPTIONS
@@ -36,6 +36,9 @@ Set the log level to trace (shorthand for \-\-log\-level trace)
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
 .TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH SUBCOMMANDS
@@ -50,7 +53,7 @@ tix\-config\-get(1)
 Read a value from the config document
 .TP
 tix\-config\-init(1)
-Create the global config interactively
+Create the global config with prompts or explicit options
 .TP
 tix\-config\-remove(1)
 Remove a value from a list in the config document

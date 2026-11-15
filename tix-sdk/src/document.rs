@@ -271,6 +271,29 @@ impl TixDocument {
         self.save_unlocked(path)
     }
 
+    /// Saves a new document atomically and exclusively. Creates parent
+    /// directories as needed. Even a concurrent writer outside tix cannot
+    /// cause this operation to replace an existing document.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error with kind `AlreadyExists` if the destination
+    /// exists, or the underlying I/O error if the write fails.
+    pub fn save_new(&self, path: &Path) -> Result<(), SdkError> {
+        use std::io::Write;
+        let parent = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        std::fs::create_dir_all(parent)?;
+        let _lock = SidecarLock::exclusive(path)?;
+        let mut tmp = tempfile::NamedTempFile::new_in(parent)?;
+        tmp.write_all(self.doc.to_string().as_bytes())?;
+        tmp.persist_noclobber(path).map_err(|error| error.error)?;
+        debug!(path = %path.display(), "new document saved atomically");
+        Ok(())
+    }
+
     /// The atomic tmp-write + rename, without locking — [`with_write`] holds
     /// its own exclusive lock across the full load → mutate → rename cycle.
     /// Parent directories must already exist (the lock lives in the same
@@ -866,6 +889,22 @@ mod tests {
     use serde::Deserialize;
     use tempfile::tempdir;
     use tix_engine::{Defaults, TicketConfig};
+
+    #[test]
+    fn save_new_preserves_existing_document() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("nested/config.toml");
+        TixDocument::empty().save_new(&path).unwrap();
+        std::fs::write(&path, "# keep me").unwrap();
+
+        let error = TixDocument::empty().save_new(&path).unwrap_err();
+        assert!(matches!(
+            error,
+            SdkError::Engine(tix_engine::TixError::IoError(error))
+                if error.kind() == std::io::ErrorKind::AlreadyExists
+        ));
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "# keep me");
+    }
 
     const DOCUMENT: &str = r#"# global tix config
 [engine.configured_repositories.my-repo]

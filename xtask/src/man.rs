@@ -37,6 +37,14 @@ fn walk(command: &Command, parent_slug: Option<&str>, out: &mut Vec<ManPage>) ->
     let titled = command.clone().display_name(&slug);
     let mut body = Vec::new();
     clap_mangen::Man::new(titled).render(&mut body)?;
+    // clap_mangen adds a trailing space to synopsis lines. Normalize the
+    // output here so regenerating new flags keeps the checked-in diff clean.
+    let rendered = String::from_utf8(body).map_err(io::Error::other)?;
+    let mut body = Vec::with_capacity(rendered.len());
+    for line in rendered.lines() {
+        body.extend_from_slice(line.trim_end().as_bytes());
+        body.push(b'\n');
+    }
     out.push(ManPage {
         path: format!("{slug}.1"),
         body,

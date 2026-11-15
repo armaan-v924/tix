@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-ticket-info 1  "info " 
+.TH tix-ticket-info 1  "info "
 .SH NAME
 tix\-ticket\-info \- Show a ticket\*(Aqs metadata and worktrees
 .SH SYNOPSIS
-\fBtix ticket info\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-\-log\-level\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBtix ticket info\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-\-log\-level\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 Show a ticket\*(Aqs metadata and worktrees
 .SH OPTIONS
@@ -41,6 +41,9 @@ Set the log level to trace (shorthand for \-\-log\-level trace)
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
