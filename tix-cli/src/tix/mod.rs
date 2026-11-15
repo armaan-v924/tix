@@ -3,6 +3,7 @@ pub mod config;
 pub mod repo;
 pub mod ticket;
 
+mod diagnostic;
 pub mod logging;
 pub mod plan;
 pub mod plugin;
@@ -132,6 +133,30 @@ pub enum Commands {
 }
 
 impl Commands {
+    /// The ticket operation and its preview mode, when applicable.
+    pub fn ticket_mutation(&self) -> Option<(&'static str, bool)> {
+        use crate::tix::ticket::{TicketArgs, TicketCommands};
+        match self {
+            Commands::Setup(_)
+            | Commands::Ticket(TicketArgs {
+                command: TicketCommands::Setup(_),
+            }) => Some(("setup", false)),
+            Commands::Add(_)
+            | Commands::Ticket(TicketArgs {
+                command: TicketCommands::Add(_),
+            }) => Some(("add", false)),
+            Commands::Remove(args)
+            | Commands::Ticket(TicketArgs {
+                command: TicketCommands::Remove(args),
+            }) => Some(("remove", args.dry_run)),
+            Commands::Destroy(args)
+            | Commands::Ticket(TicketArgs {
+                command: TicketCommands::Destroy(args),
+            }) => Some(("destroy", args.dry_run)),
+            _ => None,
+        }
+    }
+
     /// Whether this subcommand requires the global config file to exist.
     ///
     /// Everything does, except the two commands that must be able to run

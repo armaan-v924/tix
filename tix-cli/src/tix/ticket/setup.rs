@@ -2,6 +2,7 @@
 
 use crate::tix::config::cli_section;
 use crate::tix::repo::RepoAlias;
+use crate::tix::ticket::result::TicketOutput;
 use crate::tix::ticket::{TicketRef, derive_branch_name, worktree_creation_error};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -285,6 +286,16 @@ fn create_ticket_root(target: &Target) -> Result<(), SdkError> {
 /// records only them in `.tix/ticket.toml`; the command then errors naming
 /// the repos that failed.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let mut output = TicketOutput::new("setup", false);
+    let result = execute(app, args, &mut output);
+    output.finish(app.output, result)
+}
+
+fn execute(
+    app: &crate::tix::utils::App,
+    args: Args,
+    output: &mut TicketOutput,
+) -> Result<(), SdkError> {
     let document = TixDocument::load(&app.context.config_path)?;
     let cli = cli_section(&document)?;
     let engine: EngineConfig = document.section_or_default("engine")?;
@@ -303,6 +314,8 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         tickets_home(project.as_ref(), &cli.tickets_directory),
         &cwd,
     )?;
+
+    output.ticket(&target.root)?;
 
     // --- select repositories ---
     let selected: Vec<String> = if args.all {
@@ -348,39 +361,36 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         project.ensure()?;
     }
     create_ticket_root(&target)?;
+    output.changed();
     let ticket_root = &target.root;
 
     // --- create worktrees; collect successes and failures ---
     let mut worktrees: HashMap<String, WorktreeConfig> = HashMap::new();
-    let mut failures: Vec<(String, TixError)> = Vec::new();
+    let mut failures = Vec::new();
     for alias in &selected {
         let repo_config = engine.configured_repositories[alias].clone();
-        let result = repo_config.ensure(alias).and_then(|repo| {
-            repo.create_worktree(
-                alias,
-                &branch,
-                &ticket_root.join(alias),
-                args.base.as_deref(),
-            )
-        });
+        let path = ticket_root.join(alias);
+        let result = repo_config
+            .ensure(alias)
+            .and_then(|repo| repo.create_worktree(alias, &branch, &path, args.base.as_deref()));
         match result {
             Ok(worktree) => {
                 info!("created worktree {alias} on {}", worktree.branch);
-                worktrees.insert(
-                    alias.clone(),
-                    WorktreeConfig {
-                        repo: alias.clone(),
-                        branch: worktree.branch,
-                        base: worktree.base,
-                    },
-                );
+                let entry = WorktreeConfig {
+                    repo: alias.clone(),
+                    branch: worktree.branch,
+                    base: worktree.base,
+                };
+                output.created(alias, &path, &entry);
+                worktrees.insert(alias.clone(), entry);
             }
             Err(e) => {
                 error!(
                     "{alias}: could not create worktree: {}",
                     worktree_creation_error(&e, false)
                 );
-                failures.push((alias.clone(), e));
+                output.worktree_failed(alias, &path, alias, &e.into());
+                failures.push(alias.as_str());
             }
         }
     }
@@ -395,15 +405,16 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     ticket_document.set_section("ticket", &ticket)?;
     ticket_document.save(&ticket_document_path(ticket_root))?;
 
-    println!("{}", ticket_root.display());
+    if app.output != crate::tix::utils::OutputType::Json {
+        println!("{}", ticket_root.display());
+    }
 
     if !failures.is_empty() {
-        let names: Vec<&str> = failures.iter().map(|(alias, _)| alias.as_str()).collect();
         return Err(SdkError::Message(format!(
             "ticket created, but {} of {} worktrees failed: {} — fix and `tix ticket add` them",
             failures.len(),
             selected.len(),
-            names.join(", ")
+            failures.join(", ")
         )));
     }
     Ok(())

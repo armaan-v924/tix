@@ -2,7 +2,8 @@
 //! destroying it.
 
 use crate::tix::config::load_engine_config;
-use crate::tix::plan::{Action, Plan};
+use crate::tix::plan::Action;
+use crate::tix::ticket::result::TicketOutput;
 use crate::tix::ticket::{
     PrunePlan, TicketSharedArgs, WorktreeStatus, backing_repository, load_ticket_config,
     plan_prune, prune_worktree, require_ticket_root, uncommitted,
@@ -58,11 +59,22 @@ pub struct Args {
 /// (worded as a prediction), so its exit code answers "would this work?";
 /// with `--force` it says how many uncommitted changes would be discarded.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
+    let mut output = TicketOutput::new("remove", args.dry_run);
+    let result = execute(app, args, &mut output);
+    output.finish(app.output, result)
+}
+
+fn execute(
+    app: &crate::tix::utils::App,
+    args: Args,
+    output: &mut TicketOutput,
+) -> Result<(), SdkError> {
     let root = require_ticket_root(
         &app.context,
         args.shared.ticket.as_ref(),
         args.shared.project.as_deref(),
     )?;
+    output.ticket(&root)?;
     let ticket = load_ticket_config(&root)?;
 
     let engine = load_engine_config(&app.context)?;
@@ -87,14 +99,16 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         backing_repository(name, entry, &engine)?;
     }
 
-    if args.dry_run {
-        let mut plan = Plan::new("remove");
+    if let Some(plan) = &mut output.plan {
         for name in &args.names {
             let entry = &ticket.worktrees[name];
             let path = root.join(name);
             let found = match plan_prune(&root, name, entry, &engine, args.force) {
                 Ok(found) => found,
-                Err(e) => return plan.finish(app.output, Err(refusal(name, e, true))),
+                Err(e) => {
+                    plan.set_error(&e);
+                    return Err(refusal(name, e, true));
+                }
             };
             let summary = match &found {
                 PrunePlan::Prune => format!("would remove worktree {name} ({})", path.display()),
@@ -128,12 +142,18 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
                 &found,
             ));
         }
-        return plan.finish(app.output, Ok(()));
+        return Ok(());
     }
 
     for name in &args.names {
-        let status = prune_worktree(&root, name, &ticket.worktrees[name], &engine, args.force)
-            .map_err(|e| refusal(name, e, false))?;
+        let entry = &ticket.worktrees[name];
+        let path = root.join(name);
+        let status = prune_worktree(&root, name, entry, &engine, args.force).map_err(|error| {
+            output.worktree_failed(name, &path, &entry.repo, &error);
+            output.set_error(&error);
+            refusal(name, error, false)
+        })?;
+        output.pruned(name, &path, &entry.repo, status);
         match status {
             WorktreeStatus::NotAGitRepository => warn!(
                 "left {} in place: it is not a git checkout, so tix cannot tell whether it holds work",

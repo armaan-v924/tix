@@ -3,7 +3,7 @@
 
 use crate::tix::config::load_cli_config;
 use crate::tix::utils::OutputType;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tix_sdk::discovery::ticket_document_path;
 use tix_sdk::document::TixDocument;
 use tix_sdk::project::{Project, list_projects};
@@ -26,7 +26,13 @@ pub struct Args {
 #[derive(Debug, PartialEq)]
 struct Group {
     project: Option<String>,
-    tickets: Vec<TicketConfig>,
+    tickets: Vec<ListedTicket>,
+}
+
+#[derive(Debug, PartialEq)]
+struct ListedTicket {
+    path: PathBuf,
+    config: TicketConfig,
 }
 
 /// Lists every ticket under `tickets_directory`: loose tickets first, then
@@ -44,7 +50,8 @@ struct Group {
 /// document warns and is skipped — a broken ticket never breaks the listing.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     let cli = load_cli_config(&app.context)?;
-    let groups = collect(&cli.tickets_directory, args.project.as_deref())?;
+    let directory = std::path::absolute(&cli.tickets_directory)?;
+    let groups = collect(&directory, args.project.as_deref())?;
     print_groups(&groups, app.output, args.project.is_some())
 }
 
@@ -93,27 +100,28 @@ fn collect(tickets_directory: &Path, project: Option<&str>) -> Result<Vec<Group>
 
 /// The tickets directly inside `directory`, sorted by key. A missing
 /// directory has none.
-fn tickets_in(directory: &Path) -> Vec<TicketConfig> {
+fn tickets_in(directory: &Path) -> Vec<ListedTicket> {
     let Ok(entries) = std::fs::read_dir(directory) else {
         return Vec::new();
     };
-    let mut tickets: Vec<TicketConfig> = Vec::new();
+    let mut tickets = Vec::new();
     for entry in entries.filter_map(Result::ok) {
-        let ticket_path = ticket_document_path(&entry.path());
+        let path = entry.path();
+        let ticket_path = ticket_document_path(&path);
         if !ticket_path.is_file() {
             continue;
         }
         let parsed: Result<Option<TicketConfig>, SdkError> =
             TixDocument::load(&ticket_path).and_then(|doc| doc.section("ticket"));
         match parsed {
-            Ok(Some(ticket)) => tickets.push(ticket),
+            Ok(Some(config)) => tickets.push(ListedTicket { path, config }),
             Ok(None) => warn!(path = %ticket_path.display(), "no [ticket] section — skipping"),
             Err(e) => {
                 warn!(path = %ticket_path.display(), error = %e, "malformed ticket document — skipping")
             }
         }
     }
-    tickets.sort_by(|a, b| a.key.cmp(&b.key));
+    tickets.sort_by(|a, b| a.config.key.cmp(&b.config.key));
     tickets
 }
 
@@ -134,10 +142,11 @@ fn print_groups(groups: &[Group], output: OutputType, filtered: bool) -> Result<
                 .flat_map(|group| {
                     group.tickets.iter().map(|t| {
                         serde_json::json!({
-                            "key": t.key,
-                            "description": t.description,
+                            "key": t.config.key,
+                            "path": t.path.display().to_string(),
+                            "description": t.config.description,
                             "project": group.project,
-                            "worktrees": t.worktrees.len(),
+                            "worktrees": t.config.worktrees.len(),
                         })
                     })
                 })
@@ -147,7 +156,7 @@ fn print_groups(groups: &[Group], output: OutputType, filtered: bool) -> Result<
         OutputType::Toml => {
             for group in groups {
                 for ticket in &group.tickets {
-                    let text = toml::to_string(ticket)?;
+                    let text = toml::to_string(&ticket.config)?;
                     let project = group
                         .project
                         .as_ref()
@@ -167,7 +176,7 @@ fn render_default(groups: &[Group], filtered: bool) -> String {
     let width = groups
         .iter()
         .flat_map(|g| &g.tickets)
-        .map(|t| t.key.len())
+        .map(|t| t.config.key.len())
         .max()
         .unwrap_or(0);
     let line = |indent: &str, ticket: &TicketConfig| {
@@ -191,12 +200,12 @@ fn render_default(groups: &[Group], filtered: bool) -> String {
                     out.push_str("  no tickets\n");
                 }
                 for ticket in &group.tickets {
-                    out.push_str(&line("  ", ticket));
+                    out.push_str(&line("  ", &ticket.config));
                 }
             }
             _ => {
                 for ticket in &group.tickets {
-                    out.push_str(&line("", ticket));
+                    out.push_str(&line("", &ticket.config));
                 }
             }
         }
@@ -219,7 +228,11 @@ mod tests {
     }
 
     fn keys(group: &Group) -> Vec<&str> {
-        group.tickets.iter().map(|t| t.key.as_str()).collect()
+        group
+            .tickets
+            .iter()
+            .map(|t| t.config.key.as_str())
+            .collect()
     }
 
     /// A tickets directory holding loose tickets, two projects (one empty),

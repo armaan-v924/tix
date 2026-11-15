@@ -119,7 +119,7 @@ If every command errors with `config not found`, tix isn't set up. See
     data, the same shape from every command:
     `{dry_run, command, would_succeed, actions: [{action, summary, …}]}`.
     A plan that would fail still prints, up to the step it would stop at,
-    with `would_succeed: false`. The error itself is on stderr. A destroy
+    with `would_succeed: false` and a structured `error`. A destroy
     that fails its preflight reports an empty action list because it would
     stop before removing anything.
 
@@ -206,6 +206,14 @@ than assuming. `base` is `null` when tix didn't cut the branch. `tix list
 
 To check whether a ticket exists: `tix info --ticket "$key" -o json
 >/dev/null 2>&1` (exit 0 means it exists).
+
+### Recover a partial mutation
+
+Use `-o json` with `setup`, `add`, `remove`, and `destroy`. Read
+`outcome` alongside the exit status. A partial setup leaves a ticket at
+`ticket_path`. Review its `worktrees`, fix the failures, then use
+`tix add --ticket <ticket_path>` for the missing repos. See the
+[scripting guide](../scripting/) for the result fields.
 
 ### Tear down
 

@@ -22,6 +22,7 @@
 //! it would stop at, and then the error is returned as usual — stderr and a
 //! non-zero exit — so `would_succeed` and the exit code always agree.
 
+use crate::tix::diagnostic::Diagnostic;
 use crate::tix::utils::OutputType;
 use serde::Serialize;
 use tix_sdk::SdkError;
@@ -37,6 +38,10 @@ pub struct Plan {
     would_succeed: bool,
     /// What the real run would do, in order.
     actions: Vec<Action>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ticket_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<Diagnostic>,
 }
 
 /// One step of a [`Plan`]: what would happen, said once for people
@@ -60,12 +65,26 @@ impl Plan {
             command,
             would_succeed: true,
             actions: Vec::new(),
+            ticket_path: None,
+            error: None,
         }
     }
 
     /// Appends `action`.
     pub fn push(&mut self, action: Action) {
         self.actions.push(action);
+    }
+
+    pub(crate) fn set_ticket_path(&mut self, path: String) {
+        self.ticket_path = Some(path);
+    }
+
+    pub(crate) fn set_error(&mut self, error: &SdkError) {
+        self.error = Some(error.into());
+    }
+
+    pub(crate) fn clear_actions(&mut self) {
+        self.actions.clear();
     }
 
     /// Prints the plan in `output`, then returns `outcome`: what the real
@@ -77,6 +96,9 @@ impl Plan {
         outcome: Result<(), SdkError>,
     ) -> Result<(), SdkError> {
         self.would_succeed = outcome.is_ok();
+        if self.error.is_none() {
+            self.error = outcome.as_ref().err().map(Diagnostic::from);
+        }
         self.print(output)?;
         outcome
     }
