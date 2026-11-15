@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{World, stderr, ticket_document};
+use common::{World, git, stderr, ticket_document};
 use std::process::Output;
 
 fn stdout(output: &Output) -> String {
@@ -269,6 +269,91 @@ fn test_destroy_dry_run_json() {
     assert_eq!(action["forced"], true);
     assert_eq!(action["uncommitted_changes"], 1);
     assert!(ticket.join("api/wip.txt").is_file());
+}
+
+#[test]
+fn test_destroy_preview_reports_ignored_and_unmanaged_entries() {
+    let world = World::new();
+    let ticket = world.setup("K");
+    let ticket_arg = ticket.to_str().unwrap();
+    git(
+        &world.source(),
+        &[
+            "config",
+            "core.excludesFile",
+            world.root().join("ignores").to_str().unwrap(),
+        ],
+    );
+    std::fs::write(world.root().join("ignores"), ".env\ncache/\n").unwrap();
+    std::fs::write(ticket.join("api/.env"), "example").unwrap();
+    std::fs::create_dir(ticket.join("api/cache")).unwrap();
+    std::fs::write(ticket.join("api/cache/data"), "example").unwrap();
+    std::fs::write(ticket.join("notes.txt"), "notes").unwrap();
+
+    let text = world.tix(&["destroy", "--dry-run", ticket_arg]);
+    assert!(text.status.success(), "{}", stderr(&text));
+    assert!(stdout(&text).contains("ignored entries"));
+    assert!(stdout(&text).contains(".env"));
+    assert!(stdout(&text).contains("unmanaged ticket entries"));
+    assert!(stdout(&text).contains("notes.txt"));
+
+    let output = world.tix(&["destroy", "--dry-run", "-o", "json", ticket_arg]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let plan = json(&output);
+    assert_eq!(
+        plan["actions"][0]["ignored_paths"],
+        serde_json::json!([".env", "cache/"])
+    );
+    assert_eq!(
+        plan["actions"][1]["unmanaged_entries"],
+        serde_json::json!(["notes.txt"])
+    );
+
+    assert!(ticket.join("api/.env").is_file());
+    assert!(ticket.join("notes.txt").is_file());
+    let output = world.tix_with_input(&["destroy", ticket_arg], "y\n");
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(!ticket.exists());
+}
+
+#[test]
+fn test_destroy_preflights_later_worktrees_before_pruning() {
+    let world = World::new();
+    let ticket = world.setup("K");
+    let ticket_arg = ticket.to_str().unwrap();
+    let output = world.tix(&[
+        "add", "api", "--as", "zz", "--branch", "other", "--ticket", ticket_arg,
+    ]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    let before = ticket_document(&ticket);
+
+    git(
+        &world.source(),
+        &["worktree", "lock", ticket.join("zz").to_str().unwrap()],
+    );
+    let preview = world.tix(&["destroy", "--dry-run", "-o", "json", ticket_arg]);
+    assert!(!preview.status.success());
+    assert_eq!(json(&preview)["actions"], serde_json::json!([]));
+    assert!(stderr(&preview).contains("locked"), "{}", stderr(&preview));
+    let output = world.tix_with_input(&["destroy", ticket_arg], "y\n");
+    assert!(!output.status.success());
+    assert!(!stderr(&output).contains("[y/N]"), "{}", stderr(&output));
+    git(
+        &world.source(),
+        &["worktree", "unlock", ticket.join("zz").to_str().unwrap()],
+    );
+
+    std::fs::write(ticket.join("zz/wip.txt"), "keep me").unwrap();
+    let preview = world.tix(&["destroy", "--dry-run", "-o", "json", ticket_arg]);
+    assert!(!preview.status.success());
+    assert_eq!(json(&preview)["actions"], serde_json::json!([]));
+    let output = world.tix_with_input(&["destroy", ticket_arg], "y\n");
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("could not prune worktree 'zz'"));
+    assert!(ticket.join("api").is_dir());
+    assert!(ticket.join("zz/wip.txt").is_file());
+    assert_eq!(ticket_document(&ticket), before);
+    assert_eq!(world.registered_worktrees().len(), 2);
 }
 
 /// The default output names the count too.

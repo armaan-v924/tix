@@ -69,7 +69,7 @@ pub use types::ticket::Ticket;
 pub use types::ticket::TicketConfig;
 pub use types::worktree::Worktree;
 pub use types::worktree::WorktreeConfig;
-pub use utils::opens_as_git_repository;
+pub use utils::{ignored_worktree_paths, opens_as_git_repository};
 
 #[cfg(test)]
 mod build_config {

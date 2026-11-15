@@ -341,8 +341,14 @@ pub fn plan_prune(
         .resolve(&entry.repo)?;
     let path = root.join(name);
     match WorktreeStatus::of(&path) {
-        WorktreeStatus::MissingDirectory => return Ok(PrunePlan::Missing),
-        WorktreeStatus::NotAGitRepository => return Ok(PrunePlan::NotAGitRepository),
+        WorktreeStatus::MissingDirectory => {
+            repo.check_prune_worktree_registration(&path)?;
+            return Ok(PrunePlan::Missing);
+        }
+        WorktreeStatus::NotAGitRepository => {
+            repo.check_prune_worktree_registration(&path)?;
+            return Ok(PrunePlan::NotAGitRepository);
+        }
         WorktreeStatus::Ok => {}
     }
     match repo.check_remove_worktree(&path, false) {
