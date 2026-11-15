@@ -8,7 +8,8 @@ use crate::tix::ticket::{
     prune_worktree, require_ticket_root, uncommitted,
 };
 use std::path::Path;
-use tix_sdk::{SdkError, TixError, WorktreeConfig};
+use tix_sdk::discovery::TIX_DIR;
+use tix_sdk::{EngineConfig, SdkError, TicketConfig, TixError, WorktreeConfig};
 use tracing::{info, warn};
 
 /// Destroy a ticket: prune its worktrees, delete its directory
@@ -38,9 +39,9 @@ pub struct Args {
 /// Destroys a ticket workspace: every tracked worktree pruned, then the
 /// directory removed.
 ///
-/// **Default path** — confirms first, prunes each worktree *without* force
-/// (dirty worktrees abort), and deletes the directory only after every
-/// tracked worktree pruned cleanly. Each successful prune deletes its entry
+/// **Default path** — checks each worktree before confirming or pruning.
+/// The directory is deleted only after every worktree prunes cleanly.
+/// Each successful prune deletes its entry
 /// from the ticket document immediately, so an abort partway leaves a
 /// resolvable ticket for a retry.
 ///
@@ -69,12 +70,16 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
 
     let engine = load_engine_config(&app.context)?;
 
+    let mut entries: Vec<_> = ticket.worktrees.iter().collect();
+    entries.sort_by(|a, b| a.0.cmp(b.0));
     if args.dry_run {
-        return dry_run(app, &root, &ticket, &engine, args.force);
+        return dry_run(app, &root, &ticket, &engine, &entries, args.force);
     }
 
     if !args.force {
-        preflight(&root, &ticket)?;
+        for (name, entry) in &entries {
+            check_worktree(&root, name, entry, &engine, false, false)?;
+        }
     }
 
     if !args.force
@@ -87,9 +92,6 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
         info!("aborted");
         return Ok(());
     }
-
-    let mut entries: Vec<(&String, &WorktreeConfig)> = ticket.worktrees.iter().collect();
-    entries.sort_by(|a, b| a.0.cmp(b.0));
 
     let mut leftovers: Vec<String> = Vec::new();
     for (name, entry) in entries {
@@ -120,23 +122,30 @@ pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
     Ok(())
 }
 
-/// Refuses a ticket holding a worktree directory that is no longer a
-/// checkout: deleting the ticket deletes it too, and nothing can check it
-/// for uncommitted work first. `--force` skips this.
-fn preflight(root: &Path, ticket: &tix_sdk::TicketConfig) -> Result<(), SdkError> {
-    let mut names: Vec<&String> = ticket.worktrees.keys().collect();
-    names.sort();
-    match names
-        .into_iter()
-        .find(|name| WorktreeStatus::of(&root.join(name)) == WorktreeStatus::NotAGitRepository)
-    {
-        Some(name) => Err(SdkError::Message(format!(
+/// Checks deletion of a single worktree before any worktree is pruned.
+fn check_worktree(
+    root: &Path,
+    name: &str,
+    entry: &WorktreeConfig,
+    engine: &EngineConfig,
+    force: bool,
+    dry_run: bool,
+) -> Result<PrunePlan, SdkError> {
+    let path = root.join(name);
+    if !force && WorktreeStatus::of(&path) == WorktreeStatus::NotAGitRepository {
+        return Err(SdkError::Message(format!(
             "worktree '{name}' at {} is not a git repository, so tix cannot check it for \
              uncommitted work — move anything you need out of it, then pass --force",
-            root.join(name).display()
-        ))),
-        None => Ok(()),
+            path.display()
+        )));
     }
+    plan_prune(root, name, entry, engine, force).map_err(|error| {
+        if force {
+            error
+        } else {
+            refusal(name, error, dry_run)
+        }
+    })
 }
 
 /// `--dry-run`: what [`run`] would do to the ticket at `root`, planned and
@@ -144,21 +153,15 @@ fn preflight(root: &Path, ticket: &tix_sdk::TicketConfig) -> Result<(), SdkError
 fn dry_run(
     app: &crate::tix::utils::App,
     root: &Path,
-    ticket: &tix_sdk::TicketConfig,
-    engine: &tix_sdk::EngineConfig,
+    ticket: &TicketConfig,
+    engine: &EngineConfig,
+    entries: &[(&String, &WorktreeConfig)],
     force: bool,
 ) -> Result<(), SdkError> {
     let mut plan = Plan::new("destroy");
-    if !force && let Err(e) = preflight(root, ticket) {
-        return plan.finish(app.output, Err(e));
-    }
-
-    let mut entries: Vec<(&String, &WorktreeConfig)> = ticket.worktrees.iter().collect();
-    entries.sort_by(|a, b| a.0.cmp(b.0));
-
     for (name, entry) in entries {
         let path = root.join(name);
-        let found = match plan_prune(root, name, entry, engine, force) {
+        let found = match check_worktree(root, name, entry, engine, force, true) {
             Ok(found) => found,
             Err(e) if force => {
                 plan.push(
@@ -178,7 +181,7 @@ fn dry_run(
                 );
                 continue;
             }
-            Err(e) => return plan.finish(app.output, Err(refusal(name, e, true))),
+            Err(e) => return Plan::new("destroy").finish(app.output, Err(e)),
         };
         let (kind, summary) = match &found {
             PrunePlan::Prune => (
@@ -223,15 +226,46 @@ fn dry_run(
         ));
     }
 
+    let unmanaged = match unmanaged_entries(root, ticket) {
+        Ok(entries) => entries,
+        Err(e) => return Plan::new("destroy").finish(app.output, Err(e.into())),
+    };
+    let mut summary = format!("would destroy {} ({})", ticket.key, root.display());
+    if !unmanaged.is_empty() {
+        summary.push_str(&format!(
+            ", including unmanaged ticket entries: {unmanaged:?}"
+        ));
+    }
     plan.push(
-        Action::new(
-            "delete-ticket",
-            format!("would destroy {} ({})", ticket.key, root.display()),
-        )
-        .with("ticket", ticket.key.as_str())
-        .with_path("path", root),
+        Action::new("delete-ticket", summary)
+            .with("ticket", ticket.key.as_str())
+            .with_path("path", root)
+            .with("unmanaged_entries", unmanaged),
     );
     plan.finish(app.output, Ok(()))
+}
+
+/// Direct ticket-root entries outside the tix metadata directory and
+/// tracked worktree directories.
+fn unmanaged_entries(root: &Path, ticket: &TicketConfig) -> std::io::Result<Vec<String>> {
+    let mut entries = Vec::new();
+    for entry in std::fs::read_dir(root)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if name == TIX_DIR {
+            continue;
+        }
+        if name
+            .to_str()
+            .is_some_and(|name| ticket.worktrees.contains_key(name))
+            && entry.file_type()?.is_dir()
+        {
+            continue;
+        }
+        entries.push(name.to_string_lossy().into_owned());
+    }
+    entries.sort();
+    Ok(entries)
 }
 
 /// The error a non-forced destroy stops with when `name` cannot be pruned —
@@ -242,10 +276,7 @@ fn refusal(name: &str, error: SdkError, dry_run: bool) -> SdkError {
         _ => "fix it",
     };
     SdkError::Message(if dry_run {
-        format!(
-            "destroy would stop at worktree '{name}': {error} — nothing would be deleted \
-             past it; {fix} (or pass --force) first"
-        )
+        format!("destroy would stop at worktree '{name}': {error}. {fix} (or pass --force) first")
     } else {
         format!(
             "could not prune worktree '{name}': {error} — nothing further was deleted; \

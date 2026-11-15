@@ -7,7 +7,7 @@ use crate::tix::ticket::{
     PrunePlan, TicketSharedArgs, WorktreeStatus, backing_repository, load_ticket_config,
     plan_prune, prune_worktree, require_ticket_root, uncommitted,
 };
-use tix_sdk::{SdkError, TixError};
+use tix_sdk::{SdkError, TixError, ignored_worktree_paths};
 use tracing::{info, warn};
 
 /// Remove a worktree from a ticket without destroying it
@@ -165,16 +165,36 @@ fn refusal(name: &str, error: SdkError, dry_run: bool) -> SdkError {
 /// found recorded alongside it.
 pub(crate) fn prune_action(
     kind: &'static str,
-    summary: String,
+    mut summary: String,
     name: &str,
     repo: &str,
     path: &std::path::Path,
     found: &PrunePlan,
 ) -> Action {
-    let action = Action::new(kind, summary)
+    let inventory = match found {
+        PrunePlan::Prune | PrunePlan::Discard { .. } | PrunePlan::ForcePast { .. } => {
+            match ignored_worktree_paths(path) {
+                Ok(paths) => {
+                    if !paths.is_empty() {
+                        summary.push_str(&format!(", including ignored entries: {paths:?}"));
+                    }
+                    Some(("ignored_paths", toml::Value::from(paths)))
+                }
+                Err(error) => {
+                    summary.push_str(&format!(", ignored entries could not be listed ({error})"));
+                    Some(("ignored_paths_error", toml::Value::from(error.to_string())))
+                }
+            }
+        }
+        PrunePlan::Missing | PrunePlan::NotAGitRepository => None,
+    };
+    let mut action = Action::new(kind, summary)
         .with("worktree", name)
         .with("repo", repo)
         .with_path("path", path);
+    if let Some((key, value)) = inventory {
+        action = action.with(key, value);
+    }
     match found {
         PrunePlan::Prune => action,
         PrunePlan::Discard { changes } => action

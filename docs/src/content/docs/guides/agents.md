@@ -119,7 +119,9 @@ If every command errors with `config not found`, tix isn't set up. See
     data, the same shape from every command:
     `{dry_run, command, would_succeed, actions: [{action, summary, …}]}`.
     A plan that would fail still prints, up to the step it would stop at,
-    with `would_succeed: false`; the error itself is on stderr.
+    with `would_succeed: false`. The error itself is on stderr. A destroy
+    that fails its preflight reports an empty action list because it would
+    stop before removing anything.
 
 ## Workflows
 
@@ -218,12 +220,15 @@ test ! -e ~/tickets/JIRA-123 && echo destroyed
 ```
 
 `tix remove <name> --dry-run` previews a single worktree the same way. The
-dry run checks for uncommitted work only, not unpushed commits; that check
-is still yours.
+dry run checks for uncommitted work. Check for unpushed commits separately.
+A teardown preview lists ignored paths relative to each worktree it would
+remove. A destroy preview also lists unmanaged entries relative to the
+ticket root. Keep anything you need before confirming.
 
 `destroy` takes the ticket positionally (id or path) *or* via `--ticket`,
-not both. A run that stops partway can be retried; already-pruned worktrees
-stay pruned. Branches remain in the source repos afterwards; deleting them is
+not both. The non-forced command checks all worktrees before pruning.
+If an error happens during execution, a retry resumes from the remaining
+worktrees. Branches remain in the source repos afterwards; deleting them is
 plain git and the user's call.
 
 ### Register repositories

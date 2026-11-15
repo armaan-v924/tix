@@ -583,8 +583,7 @@ impl Repository {
 
         let worktree = self.removable_worktree(path, force)?;
 
-        let mut opts = git2::WorktreePruneOptions::new();
-        opts.working_tree(true).valid(true);
+        let mut opts = prune_options(true);
 
         worktree.prune(Some(&mut opts)).map_err(|e| {
             debug!(alias = %self.alias, path = %path.display(), "failed to remove worktree: {e}");
@@ -599,7 +598,7 @@ impl Repository {
     /// get as far as asking git to prune.
     ///
     /// What backs dry runs. It cannot promise the prune itself succeeds —
-    /// a lock or a filesystem error only shows up when git tries — but every
+    /// a lock acquired after this check or a filesystem error can surface later — but every
     /// refusal tix makes on its own account is reported exactly as the real
     /// call would report it.
     ///
@@ -621,7 +620,7 @@ impl Repository {
     /// repo.check_remove_worktree(&PathBuf::from("/home/user/tickets/JIRA-123/my-repo"), false);
     /// ```
     pub fn check_remove_worktree(&self, path: &Path, force: bool) -> Result<(), TixError> {
-        self.removable_worktree(path, force).map(drop)
+        check_prunable(path, &self.removable_worktree(path, force)?, true)
     }
 
     /// The registered worktree at `path`, once it has passed the checks
@@ -686,15 +685,25 @@ impl Repository {
             debug!(alias = %self.alias, path = %path.display(), "no worktree registration to prune");
             return Ok(false);
         };
-        // valid(true): a registration whose directory still exists (just not
-        // as a checkout) passes git's validation, and must still go.
-        let mut opts = git2::WorktreePruneOptions::new();
-        opts.valid(true).working_tree(false);
+        let mut opts = prune_options(false);
         worktree
             .prune(Some(&mut opts))
             .map_err(TixError::GitError)?;
         debug!(alias = %self.alias, path = %path.display(), "worktree registration pruned");
         Ok(true)
+    }
+
+    /// Checks whether an existing worktree registration could be pruned.
+    /// A registration that is already gone is valid for this operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the registration cannot be looked up or pruned.
+    pub fn check_prune_worktree_registration(&self, path: &Path) -> Result<(), TixError> {
+        if let Some(worktree) = self.find_worktree_by_path(path)? {
+            check_prunable(path, &worktree, false)?;
+        }
+        Ok(())
     }
 
     /// Syncs the source checkout against origin's default branch (`main`,
@@ -914,6 +923,27 @@ impl Repository {
 struct ResolvedBase {
     name: String,
     commit: git2::Oid,
+}
+
+fn prune_options(working_tree: bool) -> git2::WorktreePruneOptions {
+    let mut options = git2::WorktreePruneOptions::new();
+    // A registration can remain valid even if its directory is no longer a checkout.
+    options.valid(true).working_tree(working_tree);
+    options
+}
+
+fn check_prunable(
+    path: &Path,
+    worktree: &git2::Worktree,
+    working_tree: bool,
+) -> Result<(), TixError> {
+    if worktree.is_prunable(Some(&mut prune_options(working_tree)))? {
+        return Ok(());
+    }
+    Err(TixError::InvalidWorktree {
+        path: path.to_path_buf(),
+        reason: "git considers its registration unprunable (the worktree may be locked)".into(),
+    })
 }
 
 /// Counts the working-tree entries that would be lost by discarding local
