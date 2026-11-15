@@ -54,7 +54,7 @@ pub struct Args {
 /// written back immediately through the format-preserving layer.
 ///
 /// `--dry-run` walks the same batch through the same checks
-/// ([`plan_prune`]) and prints the result as a [`Plan`] in the `--output`
+/// ([`plan_prune`]) and prints the result as a [`Plan`](crate::tix::plan::Plan) in the `--output`
 /// format. It stops where the real run would stop, on the same refusal
 /// (worded as a prediction), so its exit code answers "would this work?";
 /// with `--force` it says how many uncommitted changes would be discarded.
