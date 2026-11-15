@@ -123,13 +123,46 @@ pub fn load_ticket_config(
     ticket_root: &std::path::Path,
 ) -> Result<tix_sdk::TicketConfig, tix_sdk::SdkError> {
     let path = tix_sdk::discovery::ticket_document_path(ticket_root);
-    let document = tix_sdk::document::TixDocument::load(&path)?;
+    let document = tix_sdk::document::TixDocument::load_snapshot(&path)?;
     document.section("ticket")?.ok_or_else(|| {
         tix_sdk::SdkError::Engine(tix_sdk::TixError::TicketNotFound(format!(
             "{} has no [ticket] section",
             path.display()
         )))
     })
+}
+
+/// Records a worktree in its own table, preserving the rest of the document.
+fn record_worktree(
+    doc: &mut tix_sdk::document::TixDocument,
+    name: &str,
+    worktree: &tix_sdk::WorktreeConfig,
+) -> Result<(), tix_sdk::SdkError> {
+    let mut entry = toml_edit::Table::new();
+    entry["repo"] = toml_edit::value(worktree.repo.as_str());
+    entry["branch"] = toml_edit::value(worktree.branch.as_str());
+    if let Some(base) = &worktree.base {
+        entry["base"] = toml_edit::value(base.as_str());
+    }
+    doc.table_at(&["ticket", "worktrees"])?
+        .insert(name, toml_edit::Item::Table(entry));
+    Ok(())
+}
+
+/// Claims a ticket for mutation and checks that it still exists under the guard.
+fn lock_existing_ticket(
+    root: &std::path::Path,
+) -> Result<tix_sdk::ticket_mutation::TicketMutation, tix_sdk::SdkError> {
+    use tix_sdk::{SdkError, TixError, discovery, ticket_mutation::TicketMutation};
+
+    let guard = TicketMutation::acquire(root)?;
+    if !discovery::is_ticket_root(root) {
+        return Err(SdkError::Engine(TixError::TicketNotFound(format!(
+            "no ticket document at {}",
+            discovery::ticket_document_path(root).display()
+        ))));
+    }
+    Ok(guard)
 }
 
 /// Whether a recorded worktree actually resolves on disk — what `tix info`

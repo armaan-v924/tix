@@ -4,12 +4,17 @@ use crate::tix::config::cli_section;
 use crate::tix::repo::RepoAlias;
 use crate::tix::ticket::result::TicketOutput;
 use crate::tix::ticket::{TicketRef, derive_branch_name, worktree_creation_error};
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use tix_sdk::discovery::ticket_document_path;
-use tix_sdk::document::TixDocument;
+use tix_sdk::discovery::{is_ticket_root, ticket_document_path};
+use tix_sdk::document::{TixDocument, with_write};
 use tix_sdk::project::{Project, resolve_project, tickets_home};
-use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig, TixError, WorktreeConfig};
+use tix_sdk::ticket_mutation::TicketMutation;
+use tix_sdk::{
+    BaseResolution, Defaults, EngineConfig, RepositoryConfig, SdkError, TicketConfig, TixError,
+    WorktreeConfig,
+};
 use tracing::{error, info};
 
 /// Create a new ticket workspace with worktrees
@@ -41,6 +46,10 @@ pub struct Args {
     /// repository's own default branch on origin
     #[arg(long, value_name = "REFISH")]
     pub base: Option<String>,
+
+    /// Resume an interrupted setup using the saved branch, base, and repositories
+    #[arg(long, conflicts_with_all = ["description", "base", "repos"])]
+    pub resume: bool,
 
     /// Include every registered repository
     #[arg(short, long, group = "repos")]
@@ -228,32 +237,35 @@ fn validated_key(key: &str) -> Result<String, SdkError> {
 /// tree of worktrees somewhere the user never meant, and unwinding that costs
 /// more than the `mkdir -p` the error asks for. Creating parents is the
 /// loosening we could still make later; requiring them is not.
-fn create_ticket_root(target: &Target) -> Result<(), SdkError> {
-    if target.root.exists() {
-        return Err(SdkError::Message(format!(
-            "ticket '{}' already exists at {}",
-            target.key,
+fn create_ticket_root(target: &Target) -> Result<TicketMutation, SdkError> {
+    let parent = target.root.parent().ok_or_else(|| {
+        SdkError::Message(format!(
+            "{} has no parent directory to create the ticket in",
             target.root.display()
-        )));
-    }
+        ))
+    })?;
     match target.form {
-        Form::Key => std::fs::create_dir_all(&target.root).map_err(SdkError::from),
-        Form::Path => {
-            let parent = target.root.parent().ok_or_else(|| {
-                SdkError::Message(format!(
-                    "{} has no parent directory to create the ticket in",
-                    target.root.display()
-                ))
-            })?;
-            if !parent.is_dir() {
-                return Err(SdkError::Message(format!(
-                    "{} does not exist — create it first (`mkdir -p`), or pass a bare key to \
-                     create the ticket under the tickets directory",
-                    parent.display()
-                )));
-            }
-            std::fs::create_dir(&target.root).map_err(SdkError::from)
+        Form::Key => std::fs::create_dir_all(parent)?,
+        Form::Path if !parent.is_dir() => {
+            return Err(SdkError::Message(format!(
+                "{} does not exist — create it first (`mkdir -p`), or pass a bare key to \
+                 create the ticket under the tickets directory",
+                parent.display()
+            )));
         }
+        Form::Path => {}
+    }
+    let guard = TicketMutation::acquire(&target.root)?;
+    match std::fs::create_dir(&target.root) {
+        Ok(()) => Ok(guard),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            Err(SdkError::TicketConflict(format!(
+                "ticket '{}' already exists at {}",
+                target.key,
+                target.root.display()
+            )))
+        }
+        Err(error) => Err(error.into()),
     }
 }
 
@@ -296,7 +308,7 @@ fn execute(
     args: Args,
     output: &mut TicketOutput,
 ) -> Result<(), SdkError> {
-    let document = TixDocument::load(&app.context.config_path)?;
+    let document = TixDocument::load_snapshot(&app.context.config_path)?;
     let cli = cli_section(&document)?;
     let engine: EngineConfig = document.section_or_default("engine")?;
     let defaults: Defaults = document.section_or_default("defaults")?;
@@ -317,7 +329,158 @@ fn execute(
 
     output.ticket(&target.root)?;
 
-    // --- select repositories ---
+    let document_path = ticket_document_path(&target.root);
+    let (_guard, ticket, mut plan) = if args.resume {
+        if !is_ticket_root(&target.root) {
+            return Err(no_interrupted_setup(&target.root));
+        }
+        let guard = super::lock_existing_ticket(&target.root)?;
+        let document = TixDocument::load_snapshot(&document_path)?;
+        let ticket: TicketConfig = document
+            .section("ticket")?
+            .ok_or_else(|| no_interrupted_setup(&target.root))?;
+        let plan = document
+            .section(SETUP_SECTION)?
+            .ok_or_else(|| no_interrupted_setup(&target.root))?;
+        if (target.form == Form::Key || args.key.is_some()) && ticket.key != target.key {
+            return Err(SdkError::SetupConflict(format!(
+                "ticket at {} records key '{}', expected '{}'",
+                target.root.display(),
+                ticket.key,
+                target.key
+            )));
+        }
+        (guard, ticket, plan)
+    } else {
+        let plan = plan_setup(&args, &target, &engine, &defaults)?;
+        let ticket = TicketConfig {
+            key: target.key.clone(),
+            description: args.description.unwrap_or_default(),
+            worktrees: Default::default(),
+        };
+        let mut ticket_document = TixDocument::empty();
+        ticket_document.set_section("ticket", &ticket)?;
+        plan.write_to(&mut ticket_document)?;
+
+        if let Some(project) = &project {
+            project.ensure()?;
+        }
+        let guard = create_ticket_root(&target)?;
+        output.changed();
+        ticket_document.save_new(&document_path)?;
+        (guard, ticket, plan)
+    };
+
+    let mut failures = Vec::new();
+    let pending = plan.pending.clone();
+    for expected in &pending {
+        let alias = &expected.alias;
+        let path = target.root.join(alias);
+        let recorded = ticket.worktrees.get(alias);
+        let result = expected
+            .repository(&engine)
+            .and_then(|repo| finish_worktree(repo, expected, &path, &plan, recorded, args.resume));
+        match result {
+            Ok((entry, completion)) => {
+                match completion {
+                    Completion::Created(resolution) => {
+                        info!("created worktree {alias} on {}", entry.branch);
+                        output.created(alias, &path, &entry, resolution);
+                    }
+                    Completion::Adopted => {
+                        info!("adopted worktree {alias} on {}", entry.branch);
+                        output.adopted(alias, &path, &entry);
+                    }
+                }
+                plan.pending.retain(|repo| repo.alias != *alias);
+                with_write(&document_path, |doc| {
+                    if recorded.is_none() {
+                        super::record_worktree(doc, alias, &entry)?;
+                    }
+                    plan.write_to(doc)
+                })?;
+            }
+            Err(err) => {
+                let message = match &err {
+                    SdkError::Engine(err) => worktree_creation_error(err, false),
+                    _ => err.to_string(),
+                };
+                error!("{alias}: could not complete worktree: {message}");
+                output.worktree_failed(alias, &path, alias, &err);
+                failures.push(alias.as_str());
+            }
+        }
+    }
+
+    if app.output != crate::tix::utils::OutputType::Json {
+        println!("{}", target.root.display());
+    }
+    if !failures.is_empty() {
+        return Err(SdkError::Message(format!(
+            "{} of {} worktrees failed: {} — fix the listed problems and run `tix setup --resume <ticket-path>`",
+            failures.len(),
+            pending.len(),
+            failures.join(", ")
+        )));
+    }
+    Ok(())
+}
+
+const SETUP_SECTION: &str = "ticket_setup";
+
+/// Setup inputs that must survive a restart, especially a change to defaults.
+#[derive(Serialize, Deserialize)]
+struct SetupPlan {
+    branch: String,
+    base: Option<String>,
+    pending: Vec<PendingRepository>,
+}
+
+impl SetupPlan {
+    fn write_to(&self, document: &mut TixDocument) -> Result<(), SdkError> {
+        if self.pending.is_empty() {
+            document.doc_mut().remove(SETUP_SECTION);
+            return Ok(());
+        }
+        document.set_section(SETUP_SECTION, self)
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct PendingRepository {
+    alias: String,
+    code_path: PathBuf,
+}
+
+impl PendingRepository {
+    fn repository<'a>(&self, engine: &'a EngineConfig) -> Result<&'a RepositoryConfig, SdkError> {
+        super::add::validate_name(&self.alias)?;
+        let config = engine
+            .configured_repositories
+            .get(&self.alias)
+            .ok_or_else(|| {
+                SdkError::SetupConflict(format!(
+                    "repository '{}' is no longer registered",
+                    self.alias
+                ))
+            })?;
+        if std::path::absolute(&config.code_path)? != self.code_path {
+            return Err(SdkError::SetupConflict(format!(
+                "repository '{}' no longer points to {}",
+                self.alias,
+                self.code_path.display()
+            )));
+        }
+        Ok(config)
+    }
+}
+
+fn plan_setup(
+    args: &Args,
+    target: &Target,
+    engine: &EngineConfig,
+    defaults: &Defaults,
+) -> Result<SetupPlan, SdkError> {
     let selected: Vec<String> = if args.all {
         let mut aliases: Vec<String> = engine.configured_repositories.keys().cloned().collect();
         aliases.sort();
@@ -330,94 +493,112 @@ fn execute(
     } else {
         defaults.repositories.clone()
     };
-    for alias in &selected {
-        if !engine.configured_repositories.contains_key(alias) {
+    let mut seen = HashSet::new();
+    let mut pending = Vec::with_capacity(selected.len());
+    for alias in selected {
+        if !seen.insert(alias.clone()) {
+            continue;
+        }
+        let config = engine.configured_repositories.get(&alias).ok_or_else(|| {
             let mut known: Vec<&str> = engine
                 .configured_repositories
                 .keys()
                 .map(String::as_str)
                 .collect();
             known.sort();
-            return Err(SdkError::Engine(TixError::RepoNotFound(format!(
+            SdkError::Engine(TixError::RepoNotFound(format!(
                 "'{alias}' is not a registered repository (registered: {})",
                 if known.is_empty() {
                     "none".to_string()
                 } else {
                     known.join(", ")
                 }
-            ))));
-        }
+            )))
+        })?;
+        super::add::validate_name(&alias)?;
+        pending.push(PendingRepository {
+            alias,
+            code_path: std::path::absolute(&config.code_path)?,
+        });
     }
+    Ok(SetupPlan {
+        branch: derive_branch_name(
+            defaults.branch_prefix.as_deref(),
+            &target.key,
+            args.description.as_deref(),
+        ),
+        base: args.base.clone(),
+        pending,
+    })
+}
 
-    // --- seed reads: derivation happens once, now ---
-    let branch = derive_branch_name(
-        defaults.branch_prefix.as_deref(),
-        &target.key,
-        args.description.as_deref(),
-    );
-    let description = args.description.clone().unwrap_or_default();
+fn no_interrupted_setup(root: &Path) -> SdkError {
+    SdkError::SetupConflict(format!("no interrupted setup at {}", root.display()))
+}
 
-    if let Some(project) = &project {
-        project.ensure()?;
-    }
-    create_ticket_root(&target)?;
-    output.changed();
-    let ticket_root = &target.root;
+enum Completion {
+    Created(Option<BaseResolution>),
+    Adopted,
+}
 
-    // --- create worktrees; collect successes and failures ---
-    let mut worktrees: HashMap<String, WorktreeConfig> = HashMap::new();
-    let mut failures = Vec::new();
-    for alias in &selected {
-        let repo_config = engine.configured_repositories[alias].clone();
-        let path = ticket_root.join(alias);
-        let result = repo_config
-            .ensure(alias)
-            .and_then(|repo| repo.create_worktree(alias, &branch, &path, args.base.as_deref()));
-        match result {
-            Ok(worktree) => {
-                info!("created worktree {alias} on {}", worktree.branch);
-                let entry = WorktreeConfig {
-                    repo: alias.clone(),
-                    branch: worktree.branch,
-                    base: worktree.base,
-                };
-                output.created(alias, &path, &entry);
-                worktrees.insert(alias.clone(), entry);
-            }
-            Err(e) => {
-                error!(
-                    "{alias}: could not create worktree: {}",
-                    worktree_creation_error(&e, false)
-                );
-                output.worktree_failed(alias, &path, alias, &e.into());
-                failures.push(alias.as_str());
-            }
-        }
-    }
-
-    // --- write the ticket document, recording only what actually exists ---
-    let ticket = TicketConfig {
-        key: target.key.clone(),
-        description,
-        worktrees,
+fn finish_worktree(
+    config: &RepositoryConfig,
+    expected: &PendingRepository,
+    path: &Path,
+    plan: &SetupPlan,
+    recorded: Option<&WorktreeConfig>,
+    resume: bool,
+) -> Result<(WorktreeConfig, Completion), SdkError> {
+    let alias = &expected.alias;
+    let conflict = |reason: &str| {
+        SdkError::SetupConflict(format!(
+            "cannot adopt worktree at {}: {reason}",
+            path.display()
+        ))
     };
-    let mut ticket_document = TixDocument::empty();
-    ticket_document.set_section("ticket", &ticket)?;
-    ticket_document.save(&ticket_document_path(ticket_root))?;
-
-    if app.output != crate::tix::utils::OutputType::Json {
-        println!("{}", ticket_root.display());
+    if let Some(entry) = recorded
+        && (entry.repo != *alias || entry.branch != plan.branch)
+    {
+        return Err(conflict(
+            "the recorded repository or branch disagrees with the setup plan",
+        ));
     }
 
-    if !failures.is_empty() {
-        return Err(SdkError::Message(format!(
-            "ticket created, but {} of {} worktrees failed: {} — fix and `tix ticket add` them",
-            failures.len(),
-            selected.len(),
-            failures.join(", ")
-        )));
+    match std::fs::symlink_metadata(path) {
+        Ok(_) if !resume => return Err(conflict("the path is already occupied")),
+        Ok(_) => {
+            config
+                .clone()
+                .resolve(alias)
+                .and_then(|repo| repo.validate_worktree_branch(path, &plan.branch))
+                .map_err(|error| conflict(&error.to_string()))?;
+            // A previous invocation may have created the checkout without
+            // recording its base. HEAD may have moved since, so do not infer it.
+            let entry = recorded.cloned().unwrap_or_else(|| WorktreeConfig {
+                repo: alias.clone(),
+                branch: plan.branch.clone(),
+                base: None,
+            });
+            return Ok((entry, Completion::Adopted));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
     }
-    Ok(())
+    if recorded.is_some() {
+        return Err(conflict("the recorded worktree is missing from disk"));
+    }
+    let (worktree, resolution) = config.clone().ensure(alias)?.create_worktree_with_base(
+        alias,
+        &plan.branch,
+        path,
+        plan.base.as_deref(),
+    )?;
+    let entry = WorktreeConfig {
+        repo: alias.clone(),
+        branch: worktree.branch,
+        base: worktree.base,
+    };
+    Ok((entry, Completion::Created(resolution)))
 }
 
 #[cfg(test)]
@@ -587,7 +768,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let tickets = dir.path().join("tickets");
         let loose = tickets.join("JIRA-1");
-        create_ticket_root(&target_at(loose.clone(), Form::Key)).unwrap();
+        let _guard = create_ticket_root(&target_at(loose.clone(), Form::Key)).unwrap();
 
         let target: TicketRef = "JIRA-123".parse().unwrap();
         let project = project_for(&target, Some("myproject"), &tickets, dir.path())
@@ -601,7 +782,7 @@ mod tests {
         )
         .unwrap();
         project.ensure().unwrap();
-        create_ticket_root(&resolved).unwrap();
+        let _guard = create_ticket_root(&resolved).unwrap();
 
         assert!(tickets.join("myproject/JIRA-123").is_dir());
         assert!(tickets.join("myproject/.tix/project.toml").is_file());
@@ -649,7 +830,7 @@ mod tests {
     fn test_key_form_creates_missing_parents() {
         let dir = tempdir().unwrap();
         let root = dir.path().join("tickets/JIRA-1");
-        create_ticket_root(&target_at(root.clone(), Form::Key)).unwrap();
+        let _guard = create_ticket_root(&target_at(root.clone(), Form::Key)).unwrap();
         assert!(root.is_dir());
     }
 
@@ -670,7 +851,7 @@ mod tests {
         let parent = dir.path().join("client-work");
         std::fs::create_dir(&parent).unwrap();
         let root = parent.join("JIRA-1");
-        create_ticket_root(&target_at(root.clone(), Form::Path)).unwrap();
+        let _guard = create_ticket_root(&target_at(root.clone(), Form::Path)).unwrap();
         assert!(root.is_dir());
     }
 

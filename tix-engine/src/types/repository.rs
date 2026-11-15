@@ -212,6 +212,25 @@ impl Repository {
         path: &Path,
         base: Option<&str>,
     ) -> Result<Worktree, TixError> {
+        self.create_worktree_with_base(name, branch, path, base)
+            .map(|(worktree, _)| worktree)
+    }
+
+    /// Creates a worktree and returns the commit and fetch outcome for its base.
+    ///
+    /// A reused branch without an explicit base has no resolution. With an
+    /// explicit base, the result describes the commit checked for ancestry.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`Self::create_worktree`].
+    pub fn create_worktree_with_base(
+        &self,
+        name: &str,
+        branch: &str,
+        path: &Path,
+        base: Option<&str>,
+    ) -> Result<(Worktree, Option<BaseResolution>), TixError> {
         debug!(alias = %self.alias, name, branch, base, "creating worktree");
 
         // The worktree must open on `branch` by that exact name. Without an
@@ -239,7 +258,7 @@ impl Repository {
                                 base: resolved.name,
                             });
                         }
-                        Some(resolved.name)
+                        Some(resolved)
                     }
                 };
                 debug!(alias = %self.alias, branch, "reusing existing local branch");
@@ -256,7 +275,7 @@ impl Repository {
                     .repo
                     .branch(branch, &commit, false)
                     .map_err(TixError::GitError)?;
-                (created, Some(resolved.name))
+                (created, Some(resolved))
             }
         };
         let reference = Some(local_branch.into_reference());
@@ -280,7 +299,7 @@ impl Repository {
             .map(|_| Worktree {
                 name: name.to_string(),
                 branch: branch.to_string(),
-                base: recorded_base,
+                base: recorded_base.as_ref().map(|base| base.name.clone()),
                 repo_alias: self.alias.clone(),
                 path: path.to_path_buf(),
             })
@@ -289,7 +308,54 @@ impl Repository {
                 TixError::GitError(e)
             })?;
         debug!(alias = %self.alias, name, path = %path.display(), base = worktree.base.as_deref(), "worktree created");
-        Ok(worktree)
+        Ok((
+            worktree,
+            recorded_base.map(|base| BaseResolution {
+                commit: base.commit.to_string(),
+                fetch: base.fetch,
+            }),
+        ))
+    }
+
+    /// Verifies that an occupied path holds a registered worktree of this
+    /// repository, on the expected local branch. Does not change the checkout.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a missing, invalid, or unrelated worktree, or
+    /// when HEAD is detached or points to a different branch.
+    pub fn validate_worktree_branch(&self, path: &Path, branch: &str) -> Result<(), TixError> {
+        let invalid = |reason: &str| TixError::InvalidWorktree {
+            path: path.to_path_buf(),
+            reason: reason.into(),
+        };
+        if !std::fs::symlink_metadata(path)?.is_dir() {
+            return Err(invalid("expected a worktree directory"));
+        }
+        let registered = self
+            .find_worktree_by_path(path)?
+            .ok_or_else(|| invalid("the expected repository has no worktree registered here"))?;
+        registered.validate()?;
+        let checkout = git2::Repository::open(path)?;
+        let registration = registered
+            .name()
+            .map_err(TixError::GitError)?
+            .ok_or_else(|| invalid("the Git registration name is not valid UTF-8"))?;
+        let common_dir = self.repo.commondir().canonicalize()?;
+        let git_dir = common_dir.join("worktrees").join(registration);
+        if !checkout.is_worktree()
+            || checkout.commondir().canonicalize()? != common_dir
+            || checkout.path().canonicalize()? != git_dir.canonicalize()?
+        {
+            return Err(invalid(
+                "the checkout does not match the expected Git registration",
+            ));
+        }
+        let expected = format!("refs/heads/{branch}");
+        if checkout.head()?.name()? != expected {
+            return Err(invalid(&format!("expected branch '{branch}' at this path")));
+        }
+        Ok(())
     }
 
     /// Resolves `base` to the ref a new branch should be cut from, returning
@@ -346,7 +412,7 @@ impl Repository {
     fn resolve_base_commit(&self, base: Option<&str>) -> Result<ResolvedBase, TixError> {
         let Some(spec) = base else {
             let default = self.default_branch()?;
-            self.fetch_or_warn(&default);
+            let fetch = self.fetch_or_warn(&default);
             let commit = self
                 .commit_at(&format!("refs/remotes/origin/{default}"))?
                 .ok_or_else(|| TixError::DefaultBranchNotFetched {
@@ -355,6 +421,7 @@ impl Repository {
             return Ok(ResolvedBase {
                 name: format!("origin/{default}"),
                 commit,
+                fetch,
             });
         };
 
@@ -362,39 +429,45 @@ impl Repository {
             .strip_prefix("refs/remotes/origin/")
             .or_else(|| spec.strip_prefix("origin/"))
         {
-            self.fetch_or_warn(branch);
-            return self.resolve_literal(spec);
+            return self.resolve_literal(spec, self.fetch_or_warn(branch));
         }
-        if spec.starts_with("refs/") || !git2::Branch::name_is_valid(spec).unwrap_or(false) {
-            return self.resolve_literal(spec);
+        if spec.starts_with("refs/")
+            || is_full_object_id(spec)
+            || !git2::Branch::name_is_valid(spec).unwrap_or(false)
+        {
+            return self.resolve_literal(spec, BaseFetch::NotNeeded);
         }
 
         // A bare name. Fetch it, then let ancestry decide between local and
         // origin — preferring either unconditionally is wrong one way or the
         // other: remote cuts a stacked branch from an older commit, local
         // reintroduces a stale base.
-        self.fetch_or_warn(spec);
+        let fetch = self.fetch_or_warn(spec);
         let local = self.commit_at(&format!("refs/heads/{spec}"))?;
         let remote = self.commit_at(&format!("refs/remotes/origin/{spec}"))?;
         let remote_name = format!("origin/{spec}");
         let resolved = match (local, remote) {
             // Neither is a branch: a tag or a SHA, which a bare name may also be.
-            (None, None) => return self.resolve_literal(spec),
+            (None, None) => return self.resolve_literal(spec, fetch),
             (Some(commit), None) => ResolvedBase {
                 name: spec.to_string(),
                 commit,
+                fetch,
             },
             (None, Some(commit)) => ResolvedBase {
                 name: remote_name,
                 commit,
+                fetch,
             },
             (Some(local), Some(remote)) if self.contains(remote, local)? => ResolvedBase {
                 name: remote_name,
                 commit: remote,
+                fetch,
             },
             (Some(local), Some(remote)) if self.contains(local, remote)? => ResolvedBase {
                 name: spec.to_string(),
                 commit: local,
+                fetch,
             },
             (Some(_), Some(_)) => {
                 debug!(alias = %self.alias, base = spec, "local and origin have diverged");
@@ -408,7 +481,7 @@ impl Repository {
     }
 
     /// Resolves `spec` exactly as git would, to a commit.
-    fn resolve_literal(&self, spec: &str) -> Result<ResolvedBase, TixError> {
+    fn resolve_literal(&self, spec: &str, fetch: BaseFetch) -> Result<ResolvedBase, TixError> {
         let commit = self
             .repo
             .revparse_single(spec)
@@ -423,6 +496,7 @@ impl Repository {
         Ok(ResolvedBase {
             name: spec.to_string(),
             commit: commit.id(),
+            fetch,
         })
     }
 
@@ -452,13 +526,17 @@ impl Repository {
     /// A failure is logged and swallowed: the caller resolves against local
     /// refs either way, and being offline should not stop work that a local
     /// ref can satisfy.
-    fn fetch_or_warn(&self, branch: &str) {
+    fn fetch_or_warn(&self, branch: &str) -> BaseFetch {
         debug!(alias = %self.alias, branch, "fetching from origin");
         let fetched = self.repo.find_remote("origin").and_then(|mut remote| {
             remote.fetch(&[branch], Some(&mut crate::auth::fetch_options()), None)
         });
-        if let Err(e) = fetched {
-            warn!(alias = %self.alias, branch, error = %e, "fetch failed, resolving against local refs");
+        match fetched {
+            Ok(()) => BaseFetch::Fetched,
+            Err(e) => {
+                warn!(alias = %self.alias, branch, error = %e, "fetch failed, resolving against local refs");
+                BaseFetch::LocalFallback
+            }
         }
     }
 
@@ -923,6 +1001,32 @@ impl Repository {
 struct ResolvedBase {
     name: String,
     commit: git2::Oid,
+    fetch: BaseFetch,
+}
+
+/// The immutable commit used to resolve a worktree's base and how it was found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BaseResolution {
+    /// The full object ID of the resolved commit.
+    pub commit: String,
+    /// Whether the lookup fetched from origin or used local refs.
+    pub fetch: BaseFetch,
+}
+
+/// The outcome of fetching for a worktree base lookup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BaseFetch {
+    /// The lookup successfully fetched from origin.
+    Fetched,
+    /// Origin could not be fetched and the lookup used local refs.
+    LocalFallback,
+    /// The lookup resolved a literal without fetching.
+    NotNeeded,
+}
+
+fn is_full_object_id(spec: &str) -> bool {
+    spec.len() == 40 && spec.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn prune_options(working_tree: bool) -> git2::WorktreePruneOptions {
@@ -954,15 +1058,7 @@ fn check_prunable(
 /// does not report them either. Passing explicit options matters: with
 /// `statuses(None)`, libgit2 falls back to defaults that include ignored files.
 fn uncommitted_changes(repo: &git2::Repository) -> Result<usize, TixError> {
-    let mut options = git2::StatusOptions::new();
-    options
-        .include_untracked(true)
-        .recurse_untracked_dirs(true)
-        .include_ignored(false);
-    let statuses = repo
-        .statuses(Some(&mut options))
-        .map_err(TixError::GitError)?;
-    Ok(statuses.len())
+    Ok(crate::utils::worktree_statuses(repo)?.len())
 }
 
 /// The repo-unique name a worktree is registered under: the branch with path

@@ -51,7 +51,7 @@ pub struct CliConfig {
 ///
 /// Shared by the ticket and repo subcommands. See [`cli_section`].
 pub fn load_cli_config(context: &tix_sdk::context::Context) -> Result<CliConfig, SdkError> {
-    cli_section(&TixDocument::load(&context.config_path)?)
+    cli_section(&TixDocument::load_snapshot(&context.config_path)?)
 }
 
 /// Extracts the required `[cli]` section from an already-loaded global
@@ -73,7 +73,7 @@ pub fn cli_section(document: &TixDocument) -> Result<CliConfig, SdkError> {
 pub fn load_engine_config(
     context: &tix_sdk::context::Context,
 ) -> Result<tix_sdk::EngineConfig, SdkError> {
-    TixDocument::load(&context.config_path)?.section_or_default("engine")
+    TixDocument::load_snapshot(&context.config_path)?.section_or_default("engine")
 }
 
 /// A dotted path addressing a place in the config document: a section

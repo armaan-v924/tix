@@ -6,7 +6,7 @@ use crate::tix::ticket::WorktreeStatus;
 use crate::tix::utils::OutputType;
 use serde::Serialize;
 use std::path::Path;
-use tix_sdk::{SdkError, WorktreeConfig};
+use tix_sdk::{BaseFetch, BaseResolution, SdkError, WorktreeConfig};
 
 pub(crate) struct TicketOutput {
     result: Mutation,
@@ -46,15 +46,38 @@ impl TicketOutput {
         self.result.outcome = Outcome::Declined;
     }
 
-    pub(crate) fn created(&mut self, name: &str, path: &Path, entry: &WorktreeConfig) {
+    pub(crate) fn created(
+        &mut self,
+        name: &str,
+        path: &Path,
+        entry: &WorktreeConfig,
+        resolution: Option<BaseResolution>,
+    ) {
+        self.record_worktree(name, path, entry, "created", resolution);
+    }
+
+    pub(crate) fn adopted(&mut self, name: &str, path: &Path, entry: &WorktreeConfig) {
+        self.record_worktree(name, path, entry, "adopted", None);
+    }
+
+    fn record_worktree(
+        &mut self,
+        name: &str,
+        path: &Path,
+        entry: &WorktreeConfig,
+        outcome: &'static str,
+        resolution: Option<BaseResolution>,
+    ) {
         self.changed();
         self.result.worktrees.push(WorktreeResult {
             name: name.into(),
             repo: entry.repo.clone(),
             path: display_path(path),
-            outcome: "created",
+            outcome,
             branch: Some(entry.branch.clone()),
             base: entry.base.clone(),
+            base_commit: resolution.as_ref().map(|base| base.commit.clone()),
+            base_fetch: resolution.map(|base| base.fetch),
             error: None,
         });
     }
@@ -71,6 +94,8 @@ impl TicketOutput {
             },
             branch: None,
             base: None,
+            base_commit: None,
+            base_fetch: None,
             error: None,
         });
     }
@@ -93,6 +118,8 @@ impl TicketOutput {
             outcome: "failed",
             branch: None,
             base: None,
+            base_commit: None,
+            base_fetch: None,
             error: Some(error.into()),
         });
     }
@@ -159,6 +186,10 @@ struct WorktreeResult {
     branch: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     base: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    base_commit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    base_fetch: Option<BaseFetch>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<Diagnostic>,
 }

@@ -178,6 +178,7 @@ tix warns and uses existing refs.
 
 ```bash
 tix info --ticket JIRA-123 --output json
+tix info --ticket JIRA-123 --status --output json
 tix list --output json
 tix list --project acme
 ```
@@ -203,9 +204,11 @@ tix list --project acme
 }
 ```
 
-`status` is `ok`, `missing`, or `not-a-git-repository`; check it rather
-than assuming. `base` is `null` when tix didn't cut the branch. `tix list
---output json` gives `[{key, description, project, worktrees: <count>}]`.
+`status` is `ok`, `missing`, or `not-a-git-repository`. Add `--status`
+to inspect the checkout's live branch, HEAD, change counts, and locally
+known upstream. Check each worktree's `git.state` before relying on those
+fields. `tix list --output json` gives
+`[{key, description, project, path, worktrees: <count>}]`.
 
 To check whether a ticket exists: `tix info --ticket "$key" -o json
 >/dev/null 2>&1` (exit 0 means it exists).
@@ -214,15 +217,17 @@ To check whether a ticket exists: `tix info --ticket "$key" -o json
 
 Use `-o json` with `setup`, `add`, `remove`, and `destroy`. Read
 `outcome` alongside the exit status. A partial setup leaves a ticket at
-`ticket_path`. Review its `worktrees`, fix the failures, then use
-`tix add --ticket <ticket_path>` for the missing repos. See the
-[scripting guide](../scripting/) for the result fields.
+`ticket_path`. Inspect it with `tix info`, fix the failures, then use
+`tix setup --resume <ticket_path>` to continue with the saved branch,
+base, and repositories. If an interrupted setup created a checkout before
+recording it, resume verifies the repository and branch before adopting
+it. See the [scripting guide](../scripting/) for the result fields.
 
 ### Tear down
 
 Before destroying, check each worktree for uncommitted or unpushed work
-(`git -C <path> status --short`, `git -C <path> log @{u}..` when there's an
-upstream) and tell the user what's there. Then:
+with `tix info --status` and tell the user what's there. Ahead and behind
+counts use locally known upstream refs. Then:
 
 ```bash
 tix destroy --dry-run JIRA-123       # the plan; exit 1 names the dirty worktree

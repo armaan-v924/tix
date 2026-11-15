@@ -90,6 +90,7 @@ Also available as `tix info` — the same command, spelled without the group.
 | --- | --- |
 | `-t, --ticket <TICKET>` | The ticket to act on: a bare id resolved under the tickets directory, or a path (anything containing a separator, or `.`/`..`). Discovered by walking up from the current directory when omitted |
 | `-p, --project <NAME>` | The project a bare ticket id resolves in. Inferred from the current directory when omitted; with a path or a discovered ticket, asserts the ticket belongs to it |
+| `--status` | Include live branch, HEAD, changes, and locally known upstream |
 | `-o, --output <OUTPUT>` | Output format<br />Accepts: `json`, `toml`, `default` |
 
 
@@ -165,5 +166,6 @@ Also available as `tix setup` — the same command, spelled without the group.
 | `-p, --project <NAME>` | The project to create the ticket in, created on first use. Inferred from the current directory when omitted; outside any project the ticket is loose. Key form only — a path already says where it goes |
 | `-d, --description <DESCRIPTION>` | Human-readable description; feeds branch name derivation |
 | `--base <REFISH>` | What each new branch is cut from: a branch name (local or origin's, whichever is ahead), or any ref, tag, or SHA. Defaults to each repository's own default branch on origin |
+| `--resume` | Resume an interrupted setup using the saved branch, base, and repositories |
 | `-a, --all` | Include every registered repository |
 

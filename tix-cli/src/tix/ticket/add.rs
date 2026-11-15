@@ -7,7 +7,7 @@ use crate::tix::ticket::{
     worktree_creation_error,
 };
 use tix_sdk::discovery::ticket_document_path;
-use tix_sdk::document::{TixDocument, with_write};
+use tix_sdk::document::TixDocument;
 use tix_sdk::{Defaults, EngineConfig, SdkError, TicketConfig, TixError, WorktreeConfig};
 use tracing::{error, info};
 
@@ -108,9 +108,10 @@ fn execute(
         args.shared.project.as_deref(),
     )?;
     output.ticket(&root)?;
+    let _guard = super::lock_existing_ticket(&root)?;
     let ticket = load_ticket_config(&root)?;
 
-    let document = TixDocument::load(&app.context.config_path)?;
+    let document = TixDocument::load_snapshot(&app.context.config_path)?;
     let engine: EngineConfig = document.section_or_default("engine")?;
     let defaults: Defaults = document.section_or_default("defaults")?;
 
@@ -161,10 +162,15 @@ fn execute(
         let repo_config = engine.configured_repositories[&worktree.alias].clone();
         let path = root.join(&worktree.name);
         let created = repo_config.ensure(&worktree.alias).and_then(|repo| {
-            repo.create_worktree(&worktree.name, &branch_name, &path, args.base.as_deref())
+            repo.create_worktree_with_base(
+                &worktree.name,
+                &branch_name,
+                &path,
+                args.base.as_deref(),
+            )
         });
         match created {
-            Ok(created) => {
+            Ok((created, resolution)) => {
                 info!(
                     "added worktree {} ({}) on {}",
                     worktree.name, worktree.alias, created.branch
@@ -174,23 +180,10 @@ fn execute(
                     branch: created.branch,
                     base: created.base,
                 };
-                output.created(&worktree.name, &path, &worktree_entry);
-                // Record each success immediately — a later failure must not
-                // lose the worktrees that already exist on disk.
-                with_write(&ticket_document_path, |doc| {
-                    // An explicit table reached through `table_at`, so the
-                    // entry renders as [ticket.worktrees.<name>], matching
-                    // setup's output — indexing the path directly would
-                    // collapse the worktrees into one inline line (#146).
-                    let mut entry = toml_edit::Table::new();
-                    entry["repo"] = toml_edit::value(worktree.alias.as_str());
-                    entry["branch"] = toml_edit::value(worktree_entry.branch.as_str());
-                    if let Some(base) = &worktree_entry.base {
-                        entry["base"] = toml_edit::value(base.as_str());
-                    }
-                    doc.table_at(&["ticket", "worktrees"])?
-                        .insert(&worktree.name, toml_edit::Item::Table(entry));
-                    Ok(())
+                output.created(&worktree.name, &path, &worktree_entry, resolution);
+                // Record each success before moving on to the next repository.
+                tix_sdk::document::with_write(&ticket_document_path, |doc| {
+                    super::record_worktree(doc, &worktree.name, &worktree_entry)
                 })?;
                 if app.output != crate::tix::utils::OutputType::Json {
                     println!("{}", path.display());
@@ -321,7 +314,7 @@ fn branch_holder<'a>(ticket: &'a TicketConfig, alias: &str, branch: &str) -> Opt
 /// The worktree name *is* that directory — which is what makes the
 /// filesystem enforce uniqueness for free — so separators, the relative
 /// names, and the ticket's own `.tix` metadata directory are all out.
-fn validate_name(name: &str) -> Result<(), SdkError> {
+pub(super) fn validate_name(name: &str) -> Result<(), SdkError> {
     if name.is_empty() || name.contains(['/', '\\']) || matches!(name, "." | ".." | ".tix") {
         return Err(SdkError::Message(format!(
             "'{name}' is not a valid worktree name — it becomes a directory under the ticket \

@@ -51,6 +51,19 @@ Keys come out alphabetically sorted.
 ticket document records a worktree that is not there any more — worth
 checking for rather than assuming.
 
+Add `--status` to `tix info -o json` for a `git` object on each worktree.
+The outer `branch` is the recorded branch. When `git.state` is `available`,
+the object contains the live `branch`, `detached`, HEAD commit in `head`,
+and the `staged`, `unstaged`, and `untracked` path counts. A detached HEAD
+has `branch: null`. A path with both staged and unstaged changes counts in
+both. The `upstream` object contains `reference`, `ahead`, and `behind`
+when its ref is available locally, and is `null` otherwise. Inspection uses
+local refs. If a checkout cannot be inspected, its `git.state` is
+`unavailable` and `git.error` describes the problem.
+
+Ticket and config inspection and local teardown previews work with readable
+documents on read-only filesystems.
+
 `tix config show` also takes both. TOML output is the document as written,
 comments and all; JSON output converts the values, since JSON has nowhere to
 put comments.
@@ -60,7 +73,7 @@ put comments.
 With `-o json`, `setup`, `add`, `remove`, and `destroy` print one result.
 `ticket_path` is absolute when the command has resolved the target.
 Each worktree result has a name, repo, path, and outcome. Creation results
-include the branch and, when recorded, the base. Failures include an
+include the branch and, when resolved, the base ref, commit, and fetch outcome. Failures include an
 `error` object with a stable `code` and a human-readable `message`.
 
 ```json
@@ -75,17 +88,19 @@ include the branch and, when recorded, the base. Failures include an
       "path": "/home/you/tickets/JIRA-123/api",
       "outcome": "created",
       "branch": "feature/JIRA-123",
-      "base": "origin/main"
+      "base": "origin/main",
+      "base_commit": "a1b2c3d4e5f60123456789abcdef0123456789ab",
+      "base_fetch": "fetched"
     },
     {
       "name": "web",
       "repo": "web",
       "path": "/home/you/tickets/JIRA-123/web",
       "outcome": "failed",
-      "error": {"code": "git-error", "message": "git error: could not fetch"}
+      "error": {"code": "git-error", "message": "git error: could not create worktree"}
     }
   ],
-  "error": {"code": "operation-failed", "message": "ticket created, but 1 of 2 worktrees failed: web"}
+  "error": {"code": "operation-failed", "message": "1 of 2 worktrees failed: web — fix the listed problems and run `tix setup --resume <ticket-path>`"}
 }
 ```
 
@@ -95,6 +110,21 @@ is refused, or `partial` when forced teardown completes with a prune
 failure. Use the outcome and per-worktree results to decide how to recover.
 A worktree outcome of `dropped` means its ticket entry was removed after
 the checkout was found missing or invalid.
+
+`base_fetch` is `fetched` when origin was fetched successfully,
+`local-fallback` when a fetch failed and existing local refs supplied the
+base, and `not-needed` for a lookup with no fetch, such as a full commit SHA.
+A reused branch without an explicit base omits all three base fields. When
+an explicit base is checked against a reused branch, `base_commit` is the
+verified ancestor.
+
+After partial or interrupted setup, use `tix setup --resume <ticket_path>`
+to continue the saved plan. Checkouts already created and recorded are
+skipped. A verified checkout that setup created before writing its entry is
+reported as `adopted`. Its original base may be unknown. An occupied
+directory or checkout that disagrees with the saved plan produces a
+`setup-conflict` and is left in place. A concurrent ticket mutation or an
+occupied root during fresh setup produces `ticket-conflict`.
 
 With `--dry-run -o json`, teardown commands print the preview shape
 (`dry_run`, `command`, `would_succeed`, `actions`). A failed preview

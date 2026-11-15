@@ -25,7 +25,7 @@ pub struct Args {
 /// A path that is valid but unset errors: absent and empty are different,
 /// and a script reading a key that was never written should hear about it.
 pub fn run(app: &crate::tix::utils::App, args: Args) -> Result<(), SdkError> {
-    let document = TixDocument::load(&app.context.config_path)?;
+    let document = TixDocument::load_snapshot(&app.context.config_path)?;
 
     let mut found = Vec::with_capacity(args.key.len());
     for path in &args.key {

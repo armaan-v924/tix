@@ -63,12 +63,12 @@ mod utils;
 pub use types::config::EngineConfig;
 pub use types::defaults::Defaults;
 pub use types::errors::TixError;
-pub use types::repository::Repository;
-pub use types::repository::RepositoryConfig;
+pub use types::repository::{BaseFetch, BaseResolution, Repository, RepositoryConfig};
 pub use types::ticket::Ticket;
 pub use types::ticket::TicketConfig;
-pub use types::worktree::Worktree;
-pub use types::worktree::WorktreeConfig;
+pub use types::worktree::{
+    CheckoutStatus, UpstreamStatus, Worktree, WorktreeConfig, inspect_checkout,
+};
 pub use utils::{ignored_worktree_paths, opens_as_git_repository};
 
 #[cfg(test)]
