@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["TixError"],"fn":["opens_as_git_repository"],"struct":["Defaults","EngineConfig","Repository","RepositoryConfig","Ticket","TicketConfig","Worktree","WorktreeConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["TixError"],"fn":["ignored_worktree_paths","opens_as_git_repository"],"struct":["Defaults","EngineConfig","Repository","RepositoryConfig","Ticket","TicketConfig","Worktree","WorktreeConfig"]};

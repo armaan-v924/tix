@@ -18,4 +18,24 @@
 <a href=#18 id=18 data-nosnippet>18</a></span><span class="kw">pub fn </span>opens_as_git_repository(path: <span class="kw-2">&amp;</span>Path) -&gt; bool {
 <a href=#19 id=19 data-nosnippet>19</a>    git2::Repository::open(path).is_ok()
 <a href=#20 id=20 data-nosnippet>20</a>}
+<a href=#21 id=21 data-nosnippet>21</a>
+<a href=#22 id=22 data-nosnippet>22</a><span class="doccomment">/// Lists ignored entries relative to the worktree root. Entire ignored
+<a href=#23 id=23 data-nosnippet>23</a>/// directories are represented by one entry ending in a slash.
+<a href=#24 id=24 data-nosnippet>24</a>///
+<a href=#25 id=25 data-nosnippet>25</a>/// # Errors
+<a href=#26 id=26 data-nosnippet>26</a>///
+<a href=#27 id=27 data-nosnippet>27</a>/// Returns a Git error when the worktree cannot be opened or inspected.
+<a href=#28 id=28 data-nosnippet>28</a></span><span class="kw">pub fn </span>ignored_worktree_paths(path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, <span class="kw">crate</span>::TixError&gt; {
+<a href=#29 id=29 data-nosnippet>29</a>    <span class="kw">let </span>repo = git2::Repository::open(path)<span class="question-mark">?</span>;
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="kw">let </span><span class="kw-2">mut </span>options = git2::StatusOptions::new();
+<a href=#31 id=31 data-nosnippet>31</a>    options.include_ignored(<span class="bool-val">true</span>).include_untracked(<span class="bool-val">false</span>);
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="kw">let </span>statuses = repo.statuses(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>options))<span class="question-mark">?</span>;
+<a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">let </span><span class="kw-2">mut </span>paths: Vec&lt;<span class="kw">_</span>&gt; = statuses
+<a href=#34 id=34 data-nosnippet>34</a>        .iter()
+<a href=#35 id=35 data-nosnippet>35</a>        .filter(|entry| entry.status().is_ignored())
+<a href=#36 id=36 data-nosnippet>36</a>        .map(|entry| String::from_utf8_lossy(entry.path_bytes()).into_owned())
+<a href=#37 id=37 data-nosnippet>37</a>        .collect();
+<a href=#38 id=38 data-nosnippet>38</a>    paths.sort();
+<a href=#39 id=39 data-nosnippet>39</a>    <span class="prelude-val">Ok</span>(paths)
+<a href=#40 id=40 data-nosnippet>40</a>}
 </code></pre></div></section></main></body></html>

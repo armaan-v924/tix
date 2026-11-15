@@ -72,28 +72,27 @@
 <a href=#72 id=72 data-nosnippet>72</a><span class="doccomment">/// Asks a yes/no question, defaulting to no.
 <a href=#73 id=73 data-nosnippet>73</a>///
 <a href=#74 id=74 data-nosnippet>74</a>/// One place for the CLI's confirmation convention: `[y/N]`, an empty
-<a href=#75 id=75 data-nosnippet>75</a>/// answer declines, and only `y`/`yes` accepts. A command that offers a way
-<a href=#76 id=76 data-nosnippet>76</a>/// past the question spells it `--force`.
-<a href=#77 id=77 data-nosnippet>77</a>///
-<a href=#78 id=78 data-nosnippet>78</a>/// Reads through `ask` rather than [`prompt`], whose own `[default]`
-<a href=#79 id=79 data-nosnippet>79</a>/// suffix would print a second bracket after the `[y/N]`.
-<a href=#80 id=80 data-nosnippet>80</a></span><span class="kw">pub fn </span>confirm(question: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;bool, tix_sdk::SdkError&gt; {
-<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">let </span>answer = ask(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{question} [y/N]"</span>))<span class="question-mark">?</span>;
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="prelude-val">Ok</span>(<span class="macro">matches!</span>(answer.to_lowercase().as_str(), <span class="string">"y" </span>| <span class="string">"yes"</span>))
-<a href=#83 id=83 data-nosnippet>83</a>}
-<a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a><span class="doccomment">/// Writes `label` to stderr and reads one trimmed line from stdin.
-<a href=#86 id=86 data-nosnippet>86</a></span><span class="kw">fn </span>ask(label: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, tix_sdk::SdkError&gt; {
-<a href=#87 id=87 data-nosnippet>87</a>    <span class="kw">use </span>std::io::{BufRead, Write};
-<a href=#88 id=88 data-nosnippet>88</a>
-<a href=#89 id=89 data-nosnippet>89</a>    <span class="macro">eprint!</span>(<span class="string">"{label}: "</span>);
-<a href=#90 id=90 data-nosnippet>90</a>    std::io::stderr().flush().map_err(tix_sdk::SdkError::from)<span class="question-mark">?</span>;
-<a href=#91 id=91 data-nosnippet>91</a>
-<a href=#92 id=92 data-nosnippet>92</a>    <span class="kw">let </span><span class="kw-2">mut </span>answer = String::new();
-<a href=#93 id=93 data-nosnippet>93</a>    std::io::stdin()
-<a href=#94 id=94 data-nosnippet>94</a>        .lock()
-<a href=#95 id=95 data-nosnippet>95</a>        .read_line(<span class="kw-2">&amp;mut </span>answer)
-<a href=#96 id=96 data-nosnippet>96</a>        .map_err(tix_sdk::SdkError::from)<span class="question-mark">?</span>;
-<a href=#97 id=97 data-nosnippet>97</a>    <span class="prelude-val">Ok</span>(answer.trim().to_string())
-<a href=#98 id=98 data-nosnippet>98</a>}
+<a href=#75 id=75 data-nosnippet>75</a>/// answer declines, and only `y`/`yes` accepts.
+<a href=#76 id=76 data-nosnippet>76</a>///
+<a href=#77 id=77 data-nosnippet>77</a>/// Reads through `ask` rather than [`prompt`], whose own `[default]`
+<a href=#78 id=78 data-nosnippet>78</a>/// suffix would print a second bracket after the `[y/N]`.
+<a href=#79 id=79 data-nosnippet>79</a></span><span class="kw">pub fn </span>confirm(question: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;bool, tix_sdk::SdkError&gt; {
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">let </span>answer = ask(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{question} [y/N]"</span>))<span class="question-mark">?</span>;
+<a href=#81 id=81 data-nosnippet>81</a>    <span class="prelude-val">Ok</span>(<span class="macro">matches!</span>(answer.to_lowercase().as_str(), <span class="string">"y" </span>| <span class="string">"yes"</span>))
+<a href=#82 id=82 data-nosnippet>82</a>}
+<a href=#83 id=83 data-nosnippet>83</a>
+<a href=#84 id=84 data-nosnippet>84</a><span class="doccomment">/// Writes `label` to stderr and reads one trimmed line from stdin.
+<a href=#85 id=85 data-nosnippet>85</a></span><span class="kw">fn </span>ask(label: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, tix_sdk::SdkError&gt; {
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">use </span>std::io::{BufRead, Write};
+<a href=#87 id=87 data-nosnippet>87</a>
+<a href=#88 id=88 data-nosnippet>88</a>    <span class="macro">eprint!</span>(<span class="string">"{label}: "</span>);
+<a href=#89 id=89 data-nosnippet>89</a>    std::io::stderr().flush().map_err(tix_sdk::SdkError::from)<span class="question-mark">?</span>;
+<a href=#90 id=90 data-nosnippet>90</a>
+<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">let </span><span class="kw-2">mut </span>answer = String::new();
+<a href=#92 id=92 data-nosnippet>92</a>    std::io::stdin()
+<a href=#93 id=93 data-nosnippet>93</a>        .lock()
+<a href=#94 id=94 data-nosnippet>94</a>        .read_line(<span class="kw-2">&amp;mut </span>answer)
+<a href=#95 id=95 data-nosnippet>95</a>        .map_err(tix_sdk::SdkError::from)<span class="question-mark">?</span>;
+<a href=#96 id=96 data-nosnippet>96</a>    <span class="prelude-val">Ok</span>(answer.trim().to_string())
+<a href=#97 id=97 data-nosnippet>97</a>}
 </code></pre></div></section></main></body></html>

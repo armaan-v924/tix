@@ -51,7 +51,7 @@ Run these first; they're read-only and cheap:
 tix --version
 tix info --output json      # exit 1 => not inside a ticket
 tix list --output json      # every ticket, with project and worktree count
-tix config show             # dirs, defaults, registered repositories
+tix config show -o json     # dirs, defaults, registered repositories
 ```
 
 If every command errors with `config not found`, tix isn't set up. See
@@ -63,14 +63,15 @@ If every command errors with `config not found`, tix isn't set up. See
    `tix destroy` with no TTY and empty stdin prints `aborted` and exits **0**
    while deleting nothing. `tix config add` (duplicate value) and
    `tix config fmt` do the same. Never take exit 0 from these as success.
-   - To destroy *safely* (still refusing on uncommitted work):
-     `echo y | tix destroy <ticket>`, then confirm the directory is gone.
+   - Use `tix destroy <ticket> --yes` to confirm without stdin. The command
+     still checks worktrees and refuses dirty ones. In JSON output, an
+     unanswered or declined prompt reports `outcome: "declined"`.
    - `--force` skips the prompt **and discards uncommitted changes**, and
      deletes the directory even if pruning fails. Use it only when the user
      has explicitly said to throw that work away.
-2. **Don't run `tix config init` unattended.** With empty stdin it silently
-   accepts every default (`~/tickets`, `~/code`, no seeds) and exits 0. Ask
-   the user, or pipe every answer explicitly (see below).
+2. **Pass both directory flags to initialize unattended.** Plain
+   `tix config init` is interactive and empty stdin takes its offered
+   defaults. See [First-time setup](#first-time-setup).
 3. **Discovery follows the working directory, and agent shells often reset
    it between calls.** For anything that must hit a specific ticket, pass
    `--ticket <absolute path>` (path form, deterministic), or `cd` in the same
@@ -100,15 +101,17 @@ If every command errors with `config not found`, tix isn't set up. See
    worktree flagged `not-a-git-repository` is dropped too but its directory
    is left in place, and `destroy` refuses it without `--force`.
 9. **Unknown subcommands run plugins.** `tix foo` execs `tix-foo` from
-   `PATH` as an arbitrary program. Don't guess command names; `tix --help`
-   lists built-ins and every plugin it can find.
+   `PATH` as an arbitrary program. Use `tix --no-plugins --help` for
+   built-in help without launching plugin discovery. Pass `--no-plugins`
+   on built-in invocations to disable external command dispatch.
 10. **Don't hand-edit `.tix/ticket.toml` to add or remove worktrees.** Use `tix add`/`tix remove`, which
     create and prune the worktrees too. Unknown keys are errors. Plugin
     tables (`[<plugin>]`) are fine to leave alone; tix preserves them.
 11. **Preview anything destructive with `--dry-run`.** `destroy`, `remove`,
     `config set`/`unset`/`remove`/`init`/`fmt`, and `cli update` take it. A
-    dry run asks nothing and changes nothing, prints its plan (`would …`
-    lines) on stdout, and **exits non-zero where the real run would fail**,
+    dry run previews changes on stdout and skips confirmation. Interactive
+    `config init --dry-run` still prompts for values. A dry run
+    **exits non-zero for a known refusal**,
     so its exit code answers "would this work?". It runs the same checks as
     the real command, dirty-worktree refusals included; what it can't
     foresee is git itself failing mid-prune. Combine with `--force` to see
@@ -117,7 +120,9 @@ If every command errors with `config not found`, tix isn't set up. See
     data, the same shape from every command:
     `{dry_run, command, would_succeed, actions: [{action, summary, …}]}`.
     A plan that would fail still prints, up to the step it would stop at,
-    with `would_succeed: false`; the error itself is on stderr.
+    with `would_succeed: false` and a structured `error`. A destroy
+    that fails its preflight reports an empty action list because it would
+    stop before removing anything.
 
 ## Workflows
 
@@ -203,6 +208,14 @@ than assuming. `base` is `null` when tix didn't cut the branch. `tix list
 To check whether a ticket exists: `tix info --ticket "$key" -o json
 >/dev/null 2>&1` (exit 0 means it exists).
 
+### Recover a partial mutation
+
+Use `-o json` with `setup`, `add`, `remove`, and `destroy`. Read
+`outcome` alongside the exit status. A partial setup leaves a ticket at
+`ticket_path`. Review its `worktrees`, fix the failures, then use
+`tix add --ticket <ticket_path>` for the missing repos. See the
+[scripting guide](../scripting/) for the result fields.
+
 ### Tear down
 
 Before destroying, check each worktree for uncommitted or unpushed work
@@ -211,17 +224,20 @@ upstream) and tell the user what's there. Then:
 
 ```bash
 tix destroy --dry-run JIRA-123       # the plan; exit 1 names the dirty worktree
-echo y | tix destroy JIRA-123        # refuses if any worktree is dirty
+tix destroy JIRA-123 --yes          # refuses if any worktree is dirty
 test ! -e ~/tickets/JIRA-123 && echo destroyed
 ```
 
 `tix remove <name> --dry-run` previews a single worktree the same way. The
-dry run checks for uncommitted work only, not unpushed commits; that check
-is still yours.
+dry run checks for uncommitted work. Check for unpushed commits separately.
+A teardown preview lists ignored paths relative to each worktree it would
+remove. A destroy preview also lists unmanaged entries relative to the
+ticket root. Keep anything you need before confirming.
 
 `destroy` takes the ticket positionally (id or path) *or* via `--ticket`,
-not both. A run that stops partway can be retried; already-pruned worktrees
-stay pruned. Branches remain in the source repos afterwards; deleting them is
+not both. The non-forced command checks all worktrees before pruning.
+If an error happens during execution, a retry resumes from the remaining
+worktrees. Branches remain in the source repos afterwards; deleting them is
 plain git and the user's call.
 
 ### Register repositories
@@ -260,22 +276,20 @@ otherwise as strings. The config lives at `--config`, else
 
 ### First-time setup
 
-Prefer handing `tix config init` to the user. If they've given you every
-answer, pipe them in this order (blank lines leave a seed unset):
-
-1. tickets directory
-2. code directory (where repos are cloned)
-3. branch prefix
-4. GitHub base URL
-5. default repository owner
-6. repositories a new ticket includes, comma-separated
+Provide both directories to skip prompts. The optional seed flags are
+`--branch-prefix`, `--github-base-url`, `--default-repository-owner`,
+and `--repositories`.
 
 ```bash
-printf '%s\n' "$HOME/tickets" "$HOME/code" "feature" "" "my-org" "api,web" | tix config init
+tix config init --tickets-directory "$HOME/tickets" --code-directory "$HOME/code" \
+  --branch-prefix feature --default-repository-owner my-org --repositories api,web \
+  --dry-run -o json
 ```
 
-Then `tix config show` to verify. `--force` overwrites an existing config;
-confirm with the user first.
+Review the preview, then run the same command without `--dry-run` to write
+it. Use `tix config show` to verify. An existing config requires `--force`
+to overwrite. Run `tix config init` interactively to choose values through
+prompts.
 
 ## Errors
 
