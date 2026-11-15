@@ -30,23 +30,26 @@ losing the user's work. `tix --help` and `tix <command> --help` cover the rest.
 
 - **Confirmation prompts read stdin, and EOF declines with exit 0.**
   `tix destroy` with empty stdin prints `aborted`, deletes nothing, and
-  exits 0. Never read exit 0 from a prompting command as success: check the
-  result (`test ! -e <ticket>`). To confirm: `echo y | tix destroy <ticket>`.
+  exits 0. Check the result (`test ! -e <ticket>`) or inspect the JSON outcome
+  if supported. Use `tix destroy <ticket> --yes` where supported to confirm
+  while keeping the dirty-worktree checks.
 - **`--force` discards uncommitted work** (`destroy --force` also deletes the
   ticket when pruning fails). Use it only when the user has said to throw
   that work away. "Uncommitted" includes untracked files.
 - **Preview with `--dry-run`** (`destroy`, `remove`, `config
-  set`/`unset`/`remove`/`init`/`fmt`, `cli update`). It changes nothing, asks
-  nothing, and exits non-zero where the real run would fail; `-o json` prints
-  the plan as data.
+  set`/`unset`/`remove`/`init`/`fmt`, `cli update`). It prints a plan in
+  `-o json` and reports known refusals. Interactive `config init --dry-run`
+  still prompts for values.
 - **Pass `--ticket <absolute path>`.** Agent shells reset the working
   directory between calls, and discovery follows it. A bare name is always a
   ticket id, never a path; write `./KEY` for one in the current directory.
 - **Don't `rm -rf` worktrees or hand-edit `.tix/ticket.toml`.** Use
   `tix remove <name>`, `tix destroy`, and `tix add <alias>`.
-- **Don't run `tix config init` unattended**: empty stdin silently accepts
-  every default.
+- **Initialize with explicit inputs.** Where supported, supply
+  `config init --tickets-directory <path> --code-directory <path>` to skip
+  prompts. Plain `config init` takes its offered defaults on empty stdin.
 - **Unknown subcommands run plugins** (`tix foo` execs `tix-foo` from
-  `PATH`). Don't guess command names.
+  `PATH`). Use `--no-plugins` where supported to disable plugin dispatch and
+  get built-in help without plugin discovery.
 - stdout carries results, stderr carries status and errors; `tix info -o json`
   and `tix list -o json` report state.

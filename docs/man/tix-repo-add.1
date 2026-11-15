@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-repo-add 1  "add " 
+.TH tix-repo-add 1  "add "
 .SH NAME
 tix\-repo\-add \- Register a repository in config (without cloning)
 .SH SYNOPSIS
-\fBtix repo add\fR [\fB\-a\fR|\fB\-\-alias\fR] [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-O\fR|\fB\-\-owner\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIREPO\fR> 
+\fBtix repo add\fR [\fB\-a\fR|\fB\-\-alias\fR] [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-O\fR|\fB\-\-owner\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIREPO\fR>
 .SH DESCRIPTION
 Register a repository in config (without cloning)
 .SH OPTIONS
@@ -41,6 +41,9 @@ Set the log level to trace (shorthand for \-\-log\-level trace)
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

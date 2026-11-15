@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-add 1  "add " 
+.TH tix-add 1  "add "
 .SH NAME
 tix\-add \- Add repository worktrees to a ticket
 .SH SYNOPSIS
-\fBtix add\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-b\fR|\fB\-\-branch\fR] [\fB\-\-log\-level\fR] [\fB\-\-as\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-\-base\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIREPO_ALIASES\fR> 
+\fBtix add\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-b\fR|\fB\-\-branch\fR] [\fB\-\-log\-level\fR] [\fB\-\-as\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-\-base\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIREPO_ALIASES\fR>
 .SH DESCRIPTION
 Add repository worktrees to a ticket
 .SH OPTIONS
@@ -50,6 +50,9 @@ What a new branch is cut from: a branch name (local or origin\*(Aqs, whichever i
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

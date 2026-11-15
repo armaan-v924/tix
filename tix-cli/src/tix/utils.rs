@@ -72,8 +72,7 @@ pub fn prompt_optional(label: &str) -> Result<Option<String>, tix_sdk::SdkError>
 /// Asks a yes/no question, defaulting to no.
 ///
 /// One place for the CLI's confirmation convention: `[y/N]`, an empty
-/// answer declines, and only `y`/`yes` accepts. A command that offers a way
-/// past the question spells it `--force`.
+/// answer declines, and only `y`/`yes` accepts.
 ///
 /// Reads through `ask` rather than [`prompt`], whose own `[default]`
 /// suffix would print a second bracket after the `[y/N]`.

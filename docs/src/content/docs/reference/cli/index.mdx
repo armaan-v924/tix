@@ -63,6 +63,7 @@ These are accepted by every command, before or after the subcommand.
 | `--log-level <LOG_LEVEL>` | Set the log level (trace, debug, info, warn, error) |
 | `-v, --verbose` | Set the log level to trace (shorthand for --log-level trace) |
 | `-q, --quiet` | Set the log level to warn (shorthand for --log-level warn) |
+| `--no-plugins` | Disable external plugin dispatch and plugin discovery in root help |
 
 ## Command index
 
@@ -79,7 +80,7 @@ These are accepted by every command, before or after the subcommand.
 | [`tix config add`](./config/#tix-config-add) | Append a value to a list in the config document |
 | [`tix config fmt`](./config/#tix-config-fmt) | Rewrite the global config (or a ticket document) in tix's house style |
 | [`tix config get`](./config/#tix-config-get) | Read a value from the config document |
-| [`tix config init`](./config/#tix-config-init) | Create the global config interactively |
+| [`tix config init`](./config/#tix-config-init) | Create the global config with prompts or explicit options |
 | [`tix config remove`](./config/#tix-config-remove) | Remove a value from a list in the config document |
 | [`tix config set`](./config/#tix-config-set) | Set a value in the config document |
 | [`tix config show`](./config/#tix-config-show) | Print the global config document |

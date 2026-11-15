@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-ticket-list 1  "list " 
+.TH tix-ticket-list 1  "list "
 .SH NAME
 tix\-ticket\-list \- List all tickets in the tickets directory
 .SH SYNOPSIS
-\fBtix ticket list\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBtix ticket list\fR [\fB\-\-config\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
 List all tickets in the tickets directory
 .SH OPTIONS
@@ -38,6 +38,9 @@ Set the log level to trace (shorthand for \-\-log\-level trace)
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

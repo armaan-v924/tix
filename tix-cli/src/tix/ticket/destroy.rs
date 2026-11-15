@@ -29,6 +29,10 @@ pub struct Args {
     #[arg(short, long)]
     pub force: bool,
 
+    /// Confirm deletion without prompting, keeping normal worktree checks
+    #[arg(long, conflicts_with = "force")]
+    pub yes: bool,
+
     /// Print what would be pruned and deleted, and what would stop the
     /// destroy, without asking or touching anything; exits non-zero where
     /// the real run would fail. Combine with --force to preview a forced
@@ -99,6 +103,7 @@ fn execute(
     }
 
     if !args.force
+        && !args.yes
         && !crate::tix::utils::confirm(&format!(
             "Destroy ticket '{}' at {}?",
             ticket.key,

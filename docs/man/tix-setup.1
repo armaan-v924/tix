@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-setup 1  "setup " 
+.TH tix-setup 1  "setup "
 .SH NAME
 tix\-setup \- Create a new ticket workspace with worktrees
 .SH SYNOPSIS
-\fBtix setup\fR [\fB\-\-config\fR] [\fB\-k\fR|\fB\-\-key\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-d\fR|\fB\-\-description\fR] [\fB\-\-log\-level\fR] [\fB\-\-base\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-a\fR|\fB\-\-all\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> [\fIREPO_ALIASES\fR] 
+\fBtix setup\fR [\fB\-\-config\fR] [\fB\-k\fR|\fB\-\-key\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-d\fR|\fB\-\-description\fR] [\fB\-\-log\-level\fR] [\fB\-\-base\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-a\fR|\fB\-\-all\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> [\fIREPO_ALIASES\fR]
 .SH DESCRIPTION
 Create a new ticket workspace with worktrees
 .SH OPTIONS
@@ -50,6 +50,9 @@ Include every registered repository
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

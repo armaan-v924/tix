@@ -1,12 +1,12 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-config-init 1  "init " 
+.TH tix-config-init 1  "init "
 .SH NAME
-tix\-config\-init \- Create the global config interactively
+tix\-config\-init \- Create the global config with prompts or explicit options
 .SH SYNOPSIS
-\fBtix config init\fR [\fB\-\-config\fR] [\fB\-\-force\fR] [\fB\-\-dry\-run\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBtix config init\fR [\fB\-\-config\fR] [\fB\-\-force\fR] [\fB\-\-dry\-run\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-\-tickets\-directory\fR] [\fB\-\-code\-directory\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-\-branch\-prefix\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-github\-base\-url\fR] [\fB\-\-no\-plugins\fR] [\fB\-\-default\-repository\-owner\fR] [\fB\-\-repositories\fR] [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
-Create the global config interactively
+Create the global config with prompts or explicit options
 .SH OPTIONS
 .TP
 \fB\-\-config\fR \fI<CONFIG>\fR
@@ -16,7 +16,7 @@ Path to the global config file (overrides TIX_CONFIG_PATH and the platform defau
 Overwrite an existing config file
 .TP
 \fB\-\-dry\-run\fR
-Prompt as usual, then print the config that would be written to stdout instead of writing it (with \-\-output json or toml, a plan carrying it)
+Print the config that would be written, using the same inputs as initialization (with \-\-output json or toml, a plan carrying it)
 .TP
 \fB\-o\fR, \fB\-\-output\fR \fI<OUTPUT>\fR
 Output format for commands that support it (also forwarded to plugins as \-\-tix\-output)
@@ -36,11 +36,32 @@ default
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)
 .TP
+\fB\-\-tickets\-directory\fR \fI<PATH>\fR
+Directory for tickets. Supply both directories to skip all prompts
+.TP
+\fB\-\-code\-directory\fR \fI<PATH>\fR
+Directory where repositories are cloned
+.TP
 \fB\-v\fR, \fB\-\-verbose\fR
 Set the log level to trace (shorthand for \-\-log\-level trace)
 .TP
+\fB\-\-branch\-prefix\fR \fI<BRANCH_PREFIX>\fR
+Branch prefix for newly created worktrees
+.TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-\-github\-base\-url\fR \fI<GITHUB_BASE_URL>\fR
+Base URL for GitHub repositories
+.TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
+.TP
+\fB\-\-default\-repository\-owner\fR \fI<DEFAULT_REPOSITORY_OWNER>\fR
+Owner to use for bare repository names
+.TP
+\fB\-\-repositories\fR \fI<ALIAS>\fR
+Repository aliases included in new tickets, comma\-separated or repeated
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

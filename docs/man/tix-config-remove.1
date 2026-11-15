@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-config-remove 1  "remove " 
+.TH tix-config-remove 1  "remove "
 .SH NAME
 tix\-config\-remove \- Remove a value from a list in the config document
 .SH SYNOPSIS
-\fBtix config remove\fR [\fB\-\-config\fR] [\fB\-\-dry\-run\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR> 
+\fBtix config remove\fR [\fB\-\-config\fR] [\fB\-\-dry\-run\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIKEY\fR> <\fIVALUE\fR>
 .SH DESCRIPTION
 Remove a value from a list in the config document
 .SH OPTIONS
@@ -38,6 +38,9 @@ Set the log level to trace (shorthand for \-\-log\-level trace)
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

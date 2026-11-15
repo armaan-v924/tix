@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH tix-ticket-destroy 1  "destroy " 
+.TH tix-ticket-destroy 1  "destroy "
 .SH NAME
 tix\-ticket\-destroy \- Destroy a ticket: prune its worktrees, delete its directory
 .SH SYNOPSIS
-\fBtix ticket destroy\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-f\fR|\fB\-\-force\fR] [\fB\-\-log\-level\fR] [\fB\-\-dry\-run\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fITICKET\fR] 
+\fBtix ticket destroy\fR [\fB\-\-config\fR] [\fB\-t\fR|\fB\-\-ticket\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-p\fR|\fB\-\-project\fR] [\fB\-f\fR|\fB\-\-force\fR] [\fB\-\-log\-level\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-\-yes\fR] [\fB\-\-dry\-run\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-no\-plugins\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fITICKET\fR]
 .SH DESCRIPTION
 Destroy a ticket: prune its worktrees, delete its directory
 .SH OPTIONS
@@ -39,14 +39,20 @@ Skip confirmation, force\-prune (discarding uncommitted changes), and delete the
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level (trace, debug, info, warn, error)
 .TP
-\fB\-\-dry\-run\fR
-Print what would be pruned and deleted, and what would stop the destroy, without asking or touching anything; exits non\-zero where the real run would fail. Combine with \-\-force to preview a forced destroy
-.TP
 \fB\-v\fR, \fB\-\-verbose\fR
 Set the log level to trace (shorthand for \-\-log\-level trace)
 .TP
+\fB\-\-yes\fR
+Confirm deletion without prompting, keeping normal worktree checks
+.TP
+\fB\-\-dry\-run\fR
+Print what would be pruned and deleted, and what would stop the destroy, without asking or touching anything; exits non\-zero where the real run would fail. Combine with \-\-force to preview a forced destroy
+.TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Set the log level to warn (shorthand for \-\-log\-level warn)
+.TP
+\fB\-\-no\-plugins\fR
+Disable external plugin dispatch and plugin discovery in root help
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
